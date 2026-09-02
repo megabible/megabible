@@ -1,0 +1,4 @@
+Tinos — Copyright (c) 2010-2012 Google Corporation, designed by Steve Matteson.
+Licensed under the Apache License, Version 2.0. Full text:
+https://www.apache.org/licenses/LICENSE-2.0
+(Fetched from https://github.com/google/fonts/tree/main/ofl/tinos)
