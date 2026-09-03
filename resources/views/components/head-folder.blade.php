@@ -43,7 +43,11 @@
     opening braces in a Blade file read as an echo tag (see sticky-head).
 --}}
 
-@props(['id' => 'head-folder', 'open' => false])
+@props(['id' => 'head-folder', 'open' => false, 'persist' => null])
+
+{{-- `persist="reader"` remembers open/shut in localStorage under
+     mb.fold.reader, across pages. The stored state beats `open`. Pages
+     that should always arrive one way (the vigil) simply omit it. --}}
 
 {{-- `open` renders the folder already out (the vigil arrives that way so the
      pressed candle is one tap from the reader). Native details attribute, so
@@ -62,17 +66,17 @@
 </details>
 
 <style>
-    /* ─── Toggle: the same 40px circle as .ts-trigger ───────────────── */
-    /* .head-folder is the anchor for the pill; z-index keeps the circle
-       ABOVE the pill so it reads as the pill's right-hand end when open. */
-    .head-folder { position: relative; flex: 0 0 auto; }
+    /* SIZE KNOB — one number scales the circle, every app, the pill's
+       padding and the glyphs together. Set here for every page; a page can
+       override it on .head-folder in its own styles. */
+    .head-folder { --fld-size: 44px; position: relative; flex: 0 0 auto; }
     .head-folder > summary { list-style: none; }
     .head-folder > summary::-webkit-details-marker { display: none; }
 
     .fld-toggle {
         position: relative; z-index: 81;
         display: inline-flex; align-items: center; justify-content: center;
-        width: 40px; height: 40px; border-radius: 50%; cursor: pointer;
+        width: var(--fld-size); height: var(--fld-size); border-radius: 50%; cursor: pointer;
         color: var(--muted); background: var(--bg);
         border: 1px solid var(--rule);
         transition: color .12s, background .12s, border-color .12s;
@@ -86,7 +90,7 @@
     /* Glyph swap. Each rule names .fld-toggle so it outranks the generic
        `.fld-toggle svg` display:block below — a bare `.fld-ico-open` lost
        that fight and both folders painted at once. */
-    .fld-toggle svg { display: block; width: 21px; height: 21px; pointer-events: none; }
+    .fld-toggle svg { display: block; width: calc(var(--fld-size) * .52); height: calc(var(--fld-size) * .52); pointer-events: none; }
     .fld-toggle .fld-ico-open { display: none; }
     .head-folder[open] .fld-toggle .fld-ico-closed { display: none; }
     .head-folder[open] .fld-toggle .fld-ico-open   { display: block; }
@@ -118,11 +122,15 @@
         transform: translateY(-50%);
         max-width: calc(100vw - var(--fld-edge) - .5rem);
         display: flex; align-items: center; gap: .3rem;
-        padding: var(--fld-pad) calc(40px + 2 * var(--fld-pad)) var(--fld-pad) var(--fld-pad);
+        padding: var(--fld-pad) calc(var(--fld-size) + 2 * var(--fld-pad)) var(--fld-pad) var(--fld-pad);
         background: var(--bg); border: 1px solid var(--rule); border-radius: 999px;
         box-shadow: 0 8px 28px rgba(42,31,23,.18);
-        animation: fld-slide .18s cubic-bezier(.2,.8,.2,1);
     }
+    /* Slide-in only for a folder the USER opened. A folder that arrives
+       open (the vigil, or the reader restoring last state) paints in place
+       — otherwise the first frames show the pill fading in from nothing.
+       The script adds .fld-live on the first toggle. */
+    .head-folder.fld-live .fld-drawer { animation: fld-slide .18s cubic-bezier(.2,.8,.2,1); }
     @keyframes fld-slide {
         from { opacity: 0; transform: translate(8px, -50%); }
         to   { opacity: 1; transform: translate(0, -50%); }
@@ -137,9 +145,9 @@
        keeps every app a circle at any size; the glyph is a % of the circle
        so it shrinks in step. */
     .fld-app {
-        flex: 0 1 42px; min-width: 26px;
+        flex: 0 1 calc(var(--fld-size) + 2px);
         display: inline-flex; align-items: center; justify-content: center;
-        width: 42px; height: auto; aspect-ratio: 1; padding: 0;
+        width: calc(var(--fld-size) + 2px); height: auto; aspect-ratio: 1; padding: 0;
         border: none; border-radius: 50%;
         background: none; color: var(--muted); cursor: pointer;
         text-decoration: none;
@@ -204,7 +212,7 @@
        inside the pill it dresses as a ghost app like everything else. Its
        panel keeps its own absolute positioning (below the trigger). */
     .fld-drawer .text-settings,
-    .fld-drawer .pb-share { margin: 0; flex: 0 1 42px; min-width: 26px; position: static; }
+    .fld-drawer .pb-share { margin: 0; flex: 0 1 calc(var(--fld-size) + 2px); min-width: 26px; position: static; }
     .fld-drawer .ts-trigger {
         width: 100%; height: auto; aspect-ratio: 1;
         background: none; border-color: transparent;
@@ -223,6 +231,38 @@
         var root = document.getElementById('{{ $id }}');
         if (!root) return;
         var drawer = root.querySelector('.fld-drawer');
+
+        // Remembered state. This script sits directly after the markup, so
+        // the restore lands before the browser has anything else to paint.
+        var persistKey = @json($persist ? 'mb.fold.' . $persist : null);
+
+        // True while a restore is in flight. Setting root.open queues a
+        // `toggle` event on a later tick; the listener below must NOT treat
+        // that one as a user action (it would arm the slide-in and animate
+        // the restored folder). Cleared after that tick has passed.
+        var restoring = false;
+
+        if (persistKey) {
+            try {
+                var saved = localStorage.getItem(persistKey);
+                if (saved === '1' && !root.open) { restoring = true; root.open = true; }
+                else if (saved === '0' && root.open) { restoring = true; root.open = false; }
+            } catch (e) { /* storage blocked: fall back to the markup */ }
+        }
+
+        // Every toggle after the restore: arm the slide-in (see .fld-live)
+        // and, when persisting, record the new state.
+        root.addEventListener('toggle', function () {
+            if (restoring) return;                 // the restore's own event — ignore it
+            root.classList.add('fld-live');
+            if (persistKey) {
+                try { localStorage.setItem(persistKey, root.open ? '1' : '0'); } catch (e) {}
+            }
+        });
+
+        // The queued toggle from the restore (if any) fires before this
+        // timeout does, so by the time this runs the coast is clear.
+        setTimeout(function () { restoring = false; }, 0);
 
         // Is any app inside currently switched on? (Drives the badge.)
         function hasActive() {

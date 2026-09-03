@@ -61,7 +61,7 @@
         --mb-head-reserve:     9.5rem;   /* width kept clear for the corner cluster */
         --mb-head-pad:          .9rem;   /* padding below the head content at rest */
         --mb-head-pad-stuck:    .55rem;  /* ...and when pinned, top and bottom */
-        --mb-head-actions-top:  .55rem;  /* corner cluster's offset from the head's top */
+        --mb-head-actions-top:  1.5rem;  /* corner cluster's offset from the head's top */
 
         /* How far the head's background bleeds PAST the text column on each
            side. 1.5rem is the .container side padding, so on a normal page

@@ -362,12 +362,12 @@
 
     <div class="chapter-head">
         {{-- Corner cluster: the apps folder (components/head-folder). Pill
-             order, left to right: scrim / vigil / pericope / Aa, then the
+             order, left to right: scrim / pericope / vigil / Aa, then the
              folder circle. focus-synthesis.js finds the first three by id and
              never builds them — the Blade owns the markup, the engine owns
              the state. --}}
         <div class="head-actions">
-            <x-head-folder>
+            <x-head-folder persist="reader">
                 {{-- Scrimmage: a navigation, so an <a>. A scrim is always ONE
                      verse (App\Support\Challenge), so the engine arms it —
                      href + aria-disabled=false — only while exactly one verse
@@ -375,13 +375,6 @@
                 <a class="fld-app" id="app-scrim" aria-disabled="true" tabindex="-1"
                    aria-label="Type this verse in Scrimmage" title="Scrimmage this verse">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
-                </a>
-                {{-- Vigil: the candle. The inline script below rewrites the
-                     href at click time to carry the lowest selected verse. --}}
-                <a class="fld-app" id="app-vigil"
-                   href="{{ route('typing.vigil', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug, 'chapter' => $chapter]) }}"
-                   aria-label="Type this chapter (Vigil)" title="Vigil">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
                 </a>
                 {{-- Pericope: scissors. A panel beneath the pill, like Aa —
                      pericope-sheet.js fills .ps-panel on open. Always
@@ -393,6 +386,13 @@
                     </summary>
                     <div class="ps-panel" role="group" aria-label="Pericopes"></div>
                 </details>
+                {{-- Vigil: the candle. The inline script below rewrites the
+                     href at click time to carry the lowest selected verse. --}}
+                <a class="fld-app" id="app-vigil"
+                   href="{{ route('typing.vigil', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug, 'chapter' => $chapter]) }}"
+                   aria-label="Type this chapter (Vigil)" title="Vigil">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
+                </a>                
                 @include('bible.partials.text-settings')
             </x-head-folder>
         </div>

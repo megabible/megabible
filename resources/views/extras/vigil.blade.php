@@ -974,8 +974,12 @@
 
         // Leaving for the reader? Carry the active verse: rewrite the toggle's
         // href at click time so /bible/... opens with ?v=<armed verse> focused.
+        // And flag the reader's folder to arrive OPEN — the candle lives in it,
+        // and someone stepping out of the vigil wants the way back in sight.
         document.querySelectorAll('#app-vigil').forEach(function (t) {
             t.addEventListener('click', function () {
+                try { localStorage.setItem('mb.fold.reader', '1'); } catch (e) {}
+
                 if (lastArmedVn === null) return;
                 try {
                     const u = new URL(t.href, location.origin);
