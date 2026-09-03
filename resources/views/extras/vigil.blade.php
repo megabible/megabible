@@ -31,9 +31,14 @@
     @include('bible.partials.sticky-head')
 
     /* ---- Vigil-specific head bits ----------------------------------------
-       Two corner buttons here (candle, Aa) rather than the reader's three, so
-       the title row needs less reserve than the partial's default. --------- */
-    .chapter-head { --mb-head-reserve: 6.5rem; }
+       The corner cluster is the apps folder (components/head-folder) holding
+       just the candle and Aa — and it arrives OPEN, with the candle pressed,
+       so the way back to the reader is one tap. Because the pill is out by
+       default here, the title reserve is sized for the OPEN pill (two apps +
+       the circle ≈ 9rem, plus the cluster's 1.5rem offset) rather than the
+       shut circle: a long book name wraps beside the pill, never under it.
+       KNOB: drop this toward 4.5rem if you'd rather the pill overlap. ---- */
+    .chapter-head { --mb-head-reserve: 10.5rem; }
 
     /* MUSTACHE — the mode label sits UNDER the h1, not over it. This is what
        keeps the title flush with the top of the head, exactly like the
@@ -277,17 +282,20 @@
     <div class="chapter-head-sentinel"></div>
 
     <div class="chapter-head">
-        {{-- Corner cluster: candle + Aa, anchored to the sticky head's
-             top-right so a wrapping title never moves them. --}}
-        <div class="vg-actions">
-            {{-- The candle toggle — pressed (is-active) here, since the vigil is
-                 the active mode. Clicking it returns to the reader. --}}
-            @include('bible.partials.mode-toggle', [
-                'href'   => $readerUrl,
-                'label'  => 'Switch to the reader',
-                'active' => true,
-            ])
-            @include('bible.partials.text-settings')
+        {{-- Corner cluster: the apps folder, open on arrival. The candle is
+             pressed (aria-pressed) because the vigil IS the active mode —
+             tapping it returns to the reader, and the script at the foot of
+             the page rewrites its href to carry the armed verse. The folder's
+             badge reads aria-pressed too, so if the user shuts the pill the
+             circle still shows a dot: something in here is switched on. --}}
+        <div class="head-actions">
+            <x-head-folder :open="true">
+                <a class="fld-app" id="app-vigil" href="{{ $readerUrl }}"
+                   aria-pressed="true" aria-label="Switch to the reader" title="Back to the reader">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
+                </a>
+                @include('bible.partials.text-settings')
+            </x-head-folder>
         </div>
 
         <div class="chapter-head-top">
@@ -966,7 +974,7 @@
 
         // Leaving for the reader? Carry the active verse: rewrite the toggle's
         // href at click time so /bible/... opens with ?v=<armed verse> focused.
-        document.querySelectorAll('.vigil-toggle').forEach(function (t) {
+        document.querySelectorAll('#app-vigil').forEach(function (t) {
             t.addEventListener('click', function () {
                 if (lastArmedVn === null) return;
                 try {

@@ -147,11 +147,8 @@
        then wants --mb-head-actions-top: 0, because the title row's top edge
        already IS the title's top edge.
 
-       POSITION KNOBS: --mb-head-actions-top / right.
-       Two selectors because the vigil calls its cluster .vg-actions; they are
-       otherwise identical and could be unified to .head-actions one day. */
-    .chapter-head .head-actions,
-    .chapter-head .vg-actions {
+       POSITION KNOBS: --mb-head-actions-top / right. */
+    .chapter-head .head-actions {
         position: absolute;
         top: var(--mb-head-actions-top); right: 1.5rem;
         z-index: 60;

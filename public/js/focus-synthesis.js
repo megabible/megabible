@@ -57,9 +57,10 @@
         document.title = `${label} - ${MB.translation} - ${snippet} | MEGABIBLE.net`;
     };
 
-    let   fab, synthEl, countEl, scrimBtn, savedScrollY = 0, scrollLocked = false;
-    // App-drawer chrome + state (the "lock" folder in the FAB).
-    let   drawerEl, drawerToggle, drawerOpen = false;
+    let   fab, synthEl, countEl, savedScrollY = 0, scrollLocked = false;
+    // Head-folder apps the engine DRIVES but never builds: server-rendered in
+    // chapter.blade's <x-head-folder>, found by id in buildChrome().
+    let   scrimBtn;
 
     const el = (tag, cls) => {
         const node = document.createElement(tag);
@@ -71,15 +72,8 @@
     const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
     const ICON_COPY  = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
     const ICON_SHARE = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>';
-    const ICON_QUILL = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>';
     const ICON_CHECK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     const ICON_FLIP  = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.2v-2a4 4 0 0 1 4-4h14"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.8v2a4 4 0 0 1-4 4H3"/></svg>';
-    // The FAB app-drawer toggle: a folder that's shut when closed, open when
-    // the drawer is out. Single-path folder marks, sized like the row's icons.
-    const ICON_FOLDER      = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>';
-    const ICON_FOLDER_OPEN = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></svg>';
-    // Pericope app icon — scissors (a pericope is a passage "cut" from scripture).
-    const ICON_SCISSORS    = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>';
 
     // Display name for a language code — used on the flip button and the
     // credit line before (and after) tokens load. Mirrors config/
@@ -314,37 +308,26 @@
                 ICON_ARROW +
             `</button>` +
             `<button type="button" class="fab-icon fab-copy" aria-label="Copy selected verses" title="Copy verses">${ICON_COPY}</button>` +
-            // The folder toggle + its drawer, wrapped together in a small
-            // position:relative box so the drawer anchors to the TOGGLE (not
-            // the whole FAB) and stays centred on it however wide the count
-            // pill grows. The wrapper sits in the row between copy and share,
-            // exactly where the standalone scrim button used to. The drawer
-            // itself is invalid inside a <button> (interactive descendants),
-            // so it's a SIBLING of the toggle, not a child.
-            `<div class="fab-drawer-wrap">` +
-                `<button type="button" class="fab-icon fab-drawer-toggle" aria-expanded="false" aria-controls="fab-drawer" aria-label="Open apps" title="Apps">${ICON_FOLDER}</button>` +
-                // Icon-only drawer — each app is one glyph; aria-label/title
-                // carry the name. Scrimmage is an <a> (a navigation —
-                // middle-click / open-in-new-tab come free); updateFab() shows
-                // it only while EXACTLY ONE verse is selected, a scrim always
-                // being a single verse. Pericope joins here in 1b-ii.
-                `<div class="fab-drawer" id="fab-drawer" role="group" aria-label="Apps">` +
-                    `<a class="fab-app fab-app-scrim" hidden aria-label="Type this verse in Scrimmage" title="Scrimmage this verse">${ICON_QUILL}</a>` +
-                    `<button type="button" class="fab-app fab-app-pericope" aria-label="Add to a Pericope" title="Add to Pericope">${ICON_SCISSORS}</button>` +
-                `</div>` +
-            `</div>` +
             `<button type="button" class="fab-icon fab-share" aria-label="Copy link to this selection" title="Share link">${ICON_SHARE}</button>` +
             `<button type="button" class="fab-icon fab-close" aria-label="Exit focus mode" title="Exit">${ICON_CLOSE}</button>`;
         document.body.appendChild(fab);
-        drawerToggle = fab.querySelector('.fab-drawer-toggle');
-        drawerEl     = fab.querySelector('.fab-drawer');
-        scrimBtn     = fab.querySelector('.fab-app-scrim');   // scrim now lives in the drawer
         fab.querySelector('.fab-pill').addEventListener('click', openSynthesis);
         fab.querySelector('.fab-copy').addEventListener('click', onCopy);
-        drawerToggle.addEventListener('click', toggleDrawer);
-        fab.querySelector('.fab-app-pericope').addEventListener('click', onPericope);
         fab.querySelector('.fab-share').addEventListener('click', onShare);
         fab.querySelector('.fab-close').addEventListener('click', exitFocus);
+
+        // The apps in the sticky head's folder. Server-rendered (chapter.blade)
+        // so they exist with or without a selection; syncApps() keeps their
+        // armed/disabled state in step with the selection. Either may be
+        // absent on a page that omits it — every use is null-guarded.
+        scrimBtn = document.getElementById('app-scrim');
+        if (scrimBtn) {
+            // A disarmed anchor has no href, but a click must still go
+            // nowhere and must not fall through to the page's dismiss logic.
+            scrimBtn.addEventListener('click', (e) => {
+                if (scrimBtn.getAttribute('aria-disabled') === 'true') e.preventDefault();
+            });
+        }
 
         // The synthesis board is rendered in Blade (see section('content'))
         // so it can include the shared translation switcher. We just grab it
@@ -366,76 +349,65 @@
         }
     };
 
-    /* ---- app drawer (the "lock" folder in the FAB) --------------------- */
+    /* ---- head-folder apps + selection cards ----------------------------- */
 
-    // Show the empty-state line only when the open drawer has no available
-    // app. (In 1b-i that's whenever the selection isn't exactly one verse, so
-    const openDrawer = () => {
-        if (drawerOpen || !drawerEl) return;
-        drawerOpen = true;
-        drawerEl.classList.add('is-open');
-        drawerToggle.setAttribute('aria-expanded', 'true');
-        drawerToggle.setAttribute('aria-label', 'Close apps');
-        drawerToggle.innerHTML = ICON_FOLDER_OPEN;
-        const firstApp = drawerEl.querySelector('.fab-app:not([hidden])');
-        if (firstApp) firstApp.focus();
-    };
+    // The selection as Pericope verse cards. Each contiguous run becomes one
+    // card (Rom 8:28-30 is a single v1:28,v2:30 card — same collapsing as
+    // Synthesis). A card stores the RAW osis + RAW chapter + tx (display
+    // strings like "Psalm 151:3" are derived later from bookMeta), plus a
+    // text snapshot so the board paints instantly offline.
+    const selectionCards = () => runs().map(run => {
+        const v1 = run[0], v2 = run[run.length - 1];
+        return {
+            type: 'verse',
+            osis: MB.osis,
+            ch:   (MB.rawChapter != null ? MB.rawChapter : MB.chapter),
+            v1:   v1,
+            v2:   v2,
+            tx:   MB.txSlug,
+            text: run.map(verseText).join(' '),
+            vv:   run.map(n => [n, verseText(n)])   // per-verse text (numbers + paging)
+        };
+    });
 
-    const closeDrawer = () => {
-        if (!drawerOpen || !drawerEl) return;
-        drawerOpen = false;
-        drawerEl.classList.remove('is-open');
-        drawerToggle.setAttribute('aria-expanded', 'false');
-        drawerToggle.setAttribute('aria-label', 'Open apps');
-        drawerToggle.innerHTML = ICON_FOLDER;
-    };
-
-    const toggleDrawer = () => { drawerOpen ? closeDrawer() : openDrawer(); };
-
-    // Pericope: turn the current selection into verse cards and hand them to
-    // the "Add to Pericope" sheet. Each contiguous run becomes one card (Rom
-    // 8:28-30 is a single v1:28,v2:30 card — same collapsing as Synthesis). A
-    // card stores the RAW osis + RAW chapter + tx (display strings like
-    // "Psalm 151:3" are derived later from bookMeta), plus a text snapshot so
-    // the board paints instantly offline.
-    const onPericope = () => {
-        if (!selected.size) return;
-        const groups = runs();                         // [[28,29,30],[16]]
-        const cards = groups.map(run => {
-            const v1 = run[0], v2 = run[run.length - 1];
-            return {
-                type: 'verse',
-                osis: MB.osis,
-                ch:   (MB.rawChapter != null ? MB.rawChapter : MB.chapter),
-                v1:   v1,
-                v2:   v2,
-                tx:   MB.txSlug,
-                text: run.map(verseText).join(' '),
-                vv:   run.map(n => [n, verseText(n)])   // per-verse text (numbers + paging)
-            };
-        });
-        const label = groups.length === 1
+    // Human summary of the selection: "Genesis 8:14", "Jude 3-5", "4 verses".
+    const selectionLabel = () => {
+        const groups = runs();
+        if (!groups.length) return '';
+        return groups.length === 1
             ? rangeRef(groups[0][0], groups[0][groups[0].length - 1])
             : `${selected.size} verses`;
-        closeDrawer();
-        if (window.MBPericopeSheet) {
-            window.MBPericopeSheet.open({ cards: cards, label: label });
-        }
     };
 
-    // Escape closes the drawer FIRST, before anything else claims the key.
-    // Capture phase + acting only while the drawer is open means this runs
-    // ahead of shortcuts.js (which listens in the bubble phase and bails on
-    // defaultPrevented) without touching that file, and never swallows Escape
-    // when the drawer is shut.
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && drawerOpen) {
-            e.preventDefault();
-            e.stopPropagation();
-            closeDrawer();
-            if (drawerToggle) drawerToggle.focus();
+    // Keep the folder's apps in step with the selection, and tell anyone
+    // listening (the pericope panel, later pages) what's in hand. Runs on
+    // EVERY selection change, including to empty — so the apps disarm as
+    // soon as the last verse is dropped.
+    //   scrim    armed only at exactly one verse (a scrim is one verse by
+    //            definition, see App\Support\Challenge); MB.scrimUrl is the
+    //            scrimmage route with a __V__ slot.
+    //   pericope reads the published hand itself (pericope-sheet.js).
+    const syncApps = () => {
+        const count = selected.size;
+
+        if (scrimBtn) {
+            if (count === 1 && MB.scrimUrl) {
+                scrimBtn.href = MB.scrimUrl.replace('__V__', [...selected][0]);
+                scrimBtn.setAttribute('aria-disabled', 'false');
+                scrimBtn.removeAttribute('tabindex');
+            } else {
+                scrimBtn.removeAttribute('href');
+                scrimBtn.setAttribute('aria-disabled', 'true');
+                scrimBtn.setAttribute('tabindex', '-1');
+            }
         }
-    }, true);    
+        // Publish the hand two ways: the global for a panel that opens LATER
+        // (it reads the latest on open), the event for one that's open NOW.
+        // Deferred scripts load in an order this file must not depend on.
+        const detail = { count, cards: selectionCards(), label: selectionLabel() };
+        window.MBFocusHand = detail;
+        document.dispatchEvent(new CustomEvent('mb:focus-change', { detail }));
+    };
 
     /* ---- selection ------------------------------------------------------ */
 
@@ -453,26 +425,14 @@
     };
 
     const updateFab = () => {
+        syncApps();             // the head-folder apps track every change, empty included
         if (!selected.size) {
             fab.classList.remove('is-visible');
-            closeDrawer();          // never leave the app drawer open when the FAB hides
             return;
         }
         const count = selected.size;
         fab.querySelector('.fab-pill-count').textContent =
             `${count} ${count === 1 ? 'verse' : 'verses'}`;
-
-        // Scrims are one verse by definition (see App\Support\Challenge),
-        // so the quill only exists while the selection is exactly one.
-        // MB.scrimUrl is the scrimmage verse route with a __V__ slot.
-        if (count === 1 && MB.scrimUrl) {
-            scrimBtn.href = MB.scrimUrl.replace('__V__', [...selected][0]);
-            scrimBtn.hidden = false;
-        } else {
-            scrimBtn.hidden = true;
-            scrimBtn.removeAttribute('href');
-        }
-
         fab.classList.add('is-visible');
     };
 
@@ -879,7 +839,6 @@
 
     function openSynthesis() {
         if (!selected.size) return;
-        closeDrawer();          // one overlay at a time — the drawer never rides under the board
         buildCards();
         lockScroll();                              // pin the reader (see lockScroll)
         synthEl.classList.add('is-open');
@@ -899,13 +858,7 @@
     // margins / empty page (dismiss). Clicks inside the FAB or Synthesis are
     // handled by their own buttons, so we ignore them here.
     document.addEventListener('click', (e) => {
-        // Lock drawer: any click OUTSIDE the FAB dismisses an open drawer — and
-        // only the drawer (focus mode stays). The click is consumed so it
-        // doesn't also toggle a verse or exit focus. Clicks inside .fab (the
-        // toggle, the app rows) are handled by their own listeners.
-        if (drawerOpen && !e.target.closest('.fab')) { closeDrawer(); return; }
-
-        // Inside the open study board: a click that isnt on a word and
+        // Inside the open study board
         // isnt in the translation switcher clears all pinned words across
         // every card — the same tap empty space to reset gesture focus
         // mode uses, one level down. Word taps (.w) handle their own toggle;
@@ -925,12 +878,22 @@
         //   .tx            translation switcher — verses ride to the new translation
         //   .qn            QuickNav popup
         //   .text-settings the "Aa" panel (trigger + every button inside it)
+        //   .head-folder   the apps folder — circle, pill, every app and any
+        //                  panel hanging beneath it. Opening the folder to
+        //                  reach the scissors must never drop the selection.
         //   .site-search   the search box (clicking in to type keeps focus mode)
+        // A target that a handler earlier in the chain already removed from
+        // the page (a panel re-rendering itself on click) is never "outside"
+        // — closest() can't see its old ancestors, so without this guard the
+        // click would read as a dismiss and drop the selection.
+        if (!document.contains(e.target)) return;
+
         if (e.target.closest('.fab') ||
             e.target.closest('.synthesis') ||
             e.target.closest('.tx') ||
             e.target.closest('.qn') ||
             e.target.closest('.text-settings') ||
+            e.target.closest('.head-folder') ||
             e.target.closest('.site-search')) return;
 
         // Footnote marker inside a verse: focus THIS collection — the

@@ -21,9 +21,10 @@
     @include('bible.partials.sticky-head')
 
     /* ---- Reader-specific head bits ---------------------------------------
-       The reader uses the partial's defaults throughout: two corner buttons
-       (candle, Aa) fit the default 9.5rem reserve, and the title is
-       the default 2.4rem. Only the pieces below are unique to this page. --- */
+       The corner cluster is the apps folder (components/head-folder): a single
+       40px circle when shut, so the title only needs 4.5rem kept clear. The
+       OPEN pill grows left over the title — by design, same as the board. --- */
+    .chapter-head { --mb-head-reserve: 4.5rem; }
 
     /* Hub back link. Lives BELOW the head, on the scrolling surface, so it
        slides up under the sticky header along with the reading text.
@@ -103,65 +104,6 @@
     }
 
 @include('bible.partials.fab-styles')
-
-    /* The wrapper holds the folder toggle AND its drawer, so the drawer anchors
-       to the toggle (not the whole FAB, whose midpoint the count pill shifts).
-       --fab-toggle-h must match the .fab-icon height — it's how much room the
-       capsule reserves at its base to wrap down behind the folder. */
-    .fab-drawer-wrap {
-        position: relative;
-        display: inline-flex;
-        flex: 0 0 auto;
-        --fab-toggle-h: 38px;               /* keep in sync with .fab-icon height */
-    }
-    /* ONE continuous panel capsule behind the folder AND the apps. Anchored to
-       the wrapper's BOTTOM and reserving the folder's slot with padding-bottom,
-       it wraps down around the toggle and up behind the apps as a single shape.
-       The folder rides on top (flush); the apps are raised buttons on it. */
-    .fab-drawer {
-        position: absolute;
-        left: 50%;                          /* centred on the wrapper == the toggle */
-        bottom: 0;                          /* wrap DOWN around the folder */
-        transform: translateX(-50%) translateY(6px);
-        display: flex; flex-direction: column; align-items: center; gap: .25rem;
-        padding: .4rem;
-        padding-bottom: calc(var(--fab-toggle-h) + .35rem);   /* folder's slot + a gap */
-        background: var(--panel);           /* the folder background that houses the apps */
-        border-radius: 999px;               /* vertical capsule, echoing the pill */
-        box-shadow: 0 8px 28px rgba(42,31,23,.18);
-        opacity: 0; visibility: hidden; pointer-events: none;
-        transition: opacity .18s ease,
-                    transform .18s cubic-bezier(.2,.8,.2,1),
-                    visibility .18s;
-    }
-    .fab-drawer.is-open {
-        opacity: 1; visibility: visible; pointer-events: auto;
-        transform: translateX(-50%) translateY(0);
-    }
-    /* The folder toggle rides ABOVE the capsule so the panel shows behind it,
-       and it's flush — no button background of its own; the capsule IS its bg. */
-    .fab-drawer-toggle { position: relative; z-index: 1; }
-    .fab-drawer-toggle[aria-expanded="true"] { color: var(--accent); }
-    /* Each app is a raised circular button in the regular FAB colour, so it
-       stands out against the panel capsule that houses it. Slightly smaller than
-       the folder so it reads as inset. */
-    .fab-app {
-        flex: 0 0 auto;
-        display: inline-flex; align-items: center; justify-content: center;
-        width: 34px; height: 34px;
-        border: none; border-radius: 50%;
-        background: var(--bg); color: var(--muted); cursor: pointer;
-        text-decoration: none;
-        box-shadow: 0 1px 3px rgba(42,31,23,.14);   /* subtle lift */
-        transition: color .12s, filter .12s;
-    }
-    .fab-app:hover { color: var(--accent); filter: brightness(.97); }
-    .fab-app[hidden] { display: none; }
-
-    @media (prefers-reduced-motion: reduce) {
-        .fab-drawer { transition: opacity .01s, visibility .01s; transform: translateX(-50%); }
-        .fab-drawer.is-open { transform: translateX(-50%); }
-    }
 
     /* ---- Synthesis view (the study board) ---- */
     .synthesis {
@@ -419,18 +361,40 @@
     <div class="chapter-head-sentinel"></div>
 
     <div class="chapter-head">
-        {{-- Corner cluster: candle → Aa, anchored to the sticky head's
-             top-right so a wrapping title never moves them. --}}
+        {{-- Corner cluster: the apps folder (components/head-folder). Pill
+             order, left to right: scrim / vigil / pericope / Aa, then the
+             folder circle. focus-synthesis.js finds the first three by id and
+             never builds them — the Blade owns the markup, the engine owns
+             the state. --}}
         <div class="head-actions">
-            @include('bible.partials.mode-toggle', [
-                'href'  => route('typing.vigil', [
-                    'translation' => strtolower($translation->abbreviation),
-                    'book'        => $book->slug,
-                    'chapter'     => $chapter,
-                ]),
-                'label' => 'Type this chapter (Vigil)',
-            ])
-            @include('bible.partials.text-settings')
+            <x-head-folder>
+                {{-- Scrimmage: a navigation, so an <a>. A scrim is always ONE
+                     verse (App\Support\Challenge), so the engine arms it —
+                     href + aria-disabled=false — only while exactly one verse
+                     is selected, and disarms it otherwise. Starts disarmed. --}}
+                <a class="fld-app" id="app-scrim" aria-disabled="true" tabindex="-1"
+                   aria-label="Type this verse in Scrimmage" title="Scrimmage this verse">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
+                </a>
+                {{-- Vigil: the candle. The inline script below rewrites the
+                     href at click time to carry the lowest selected verse. --}}
+                <a class="fld-app" id="app-vigil"
+                   href="{{ route('typing.vigil', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug, 'chapter' => $chapter]) }}"
+                   aria-label="Type this chapter (Vigil)" title="Vigil">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
+                </a>
+                {{-- Pericope: scissors. A panel beneath the pill, like Aa —
+                     pericope-sheet.js fills .ps-panel on open. Always
+                     openable: with nothing selected it's a browse list of
+                     your pericopes; with verses in hand each row adds them. --}}
+                <details class="pericope-app" id="app-pericope">
+                    <summary class="fld-app" aria-label="Pericopes" title="Pericopes">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                    </summary>
+                    <div class="ps-panel" role="group" aria-label="Pericopes"></div>
+                </details>
+                @include('bible.partials.text-settings')
+            </x-head-folder>
         </div>
 
         <div class="chapter-head-top">
@@ -548,7 +512,7 @@
 <script>
     (function () {
         document.addEventListener('click', function (e) {
-            const t = e.target.closest('.vigil-toggle');
+            const t = e.target.closest('#app-vigil');
             if (!t) return;
             let min = Infinity;
             document.querySelectorAll('.verse.is-selected').forEach(function (v) {

@@ -11,8 +11,8 @@
     comments are a documented parser trap in this codebase.)
 
     Pages add their own page-specific FAB rules after the include (the
-    reader keeps its .fab-app rules in chapter.blade; the board adds
-    .pbe-fab rules in board.blade).
+    board adds .pbe-fab rules in board.blade). The reader's apps no longer
+    live in the FAB — they're in the sticky head's folder (components/head-folder).
 --}}
     /* ---- Floating Action Bar (FAB) ---- */
     .fab {
@@ -74,10 +74,4 @@
        so e.target becomes the path and the drawer's outside-click guard
        misfires — the whole button must be one click surface. */
     .fab svg { display: block; pointer-events: none; }
-    /* The old scrim jump stle is an <a> dressed as a .fab-icon. It had two extra rules:
-       the hidden attribute must win over .fab-icon's inline-flex (it's
-       hidden whenever the selection isn't exactly one verse), and the
-       anchor must not pick up the base link underline. */
-    .fab-icon[hidden] { display: none; }
-    a.fab-icon { text-decoration: none; }
 

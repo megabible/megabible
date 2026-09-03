@@ -598,54 +598,85 @@
         .mb-dialog { transform: none; }
     }
 
-    /* ---- "Add to Pericope" sheet (public/js/pericope-sheet.js) ----
-       Rides the shared .mb-dialog card; adds a scrollable board list and a
-       "new pericope" field that mbNotify/mbConfirm can't render. */
-    .pericope-sheet { max-width: 24rem; }
-    .pericope-sheet-head { margin-bottom: .9rem; }
-    .pericope-sheet-title { margin: 0; font-family: var(--serif); font-size: 1.15rem; color: var(--ink); }
-    .pericope-sheet-sub { margin: .2rem 0 0; font-family: var(--sans); font-size: .85rem; color: var(--muted); }
-
-    .pericope-sheet-list {
-        display: flex; flex-direction: column; gap: .3rem;
-        max-height: 15rem; overflow-y: auto;
-        margin: 0 -.2rem .9rem; padding: 0 .2rem;
+    /* ---- Pericope panel (public/js/pericope-sheet.js) ----
+       A <details> app in the head folder; the panel is .ts-panel's twin —
+       same width, chrome, offset and z-index — and hangs beneath the pill
+       (the folder makes inner details position:static, and caps the
+       panel's height so a long list scrolls inside itself). */
+    .ps-panel {
+        position: absolute; right: 0; top: calc(100% + 10px); z-index: 80;
+        width: 236px; padding: .9rem;
+        background: var(--bg); border: 1px solid var(--rule); border-radius: 12px;
+        box-shadow: 0 12px 32px rgba(0,0,0,.18);
+        text-align: left; cursor: default;
     }
-    .pericope-sheet-board {
+    .ps-head { margin-bottom: .2rem; }
+    .ps-title {
+        display: inline-flex; align-items: center; gap: .2rem;
+        font-family: var(--sans); font-weight: 700; font-size: .95rem; color: var(--ink);
+        text-decoration: none;
+    }
+    a.ps-title:hover { color: var(--accent); }
+    .ps-title-arrow { width: 18px; height: 18px; display: block; opacity: .55; }
+    .ps-sub {
+        margin: 0 0 .7rem; font-family: var(--sans); font-size: .85rem; color: var(--muted);
+    }
+    .ps-added { color: var(--ink); }
+    .ps-error { color: var(--accent); }
+    .ps-open { color: var(--accent); font-weight: 600; }
+
+    .ps-list { display: flex; flex-direction: column; gap: .3rem; margin: 0 0 .7rem; }
+    /* Phones: five rows, then the list scrolls inside itself so the name
+       field below stays reachable above the keyboard. 2.1rem ≈ one row
+       (.55rem padding ×2 + the .88rem line); 4 gaps of .3rem between. */
+    @media (max-width: 520px) {
+        .ps-list { max-height: calc(5 * 2.1rem + 4 * .3rem); overflow-y: auto; overscroll-behavior: contain; }
+    }
+    .ps-board {
         display: flex; align-items: center; justify-content: space-between; gap: .75rem;
-        width: 100%; text-align: left;
-        padding: .6rem .8rem; border: 1px solid var(--rule); border-radius: 9px;
-        background: var(--bg); color: var(--ink); cursor: pointer;
-        font-family: var(--sans); font-size: .9rem; font-weight: 600;
+        width: 100%; box-sizing: border-box; text-align: left;
+        padding: .55rem .8rem; border: 1px solid var(--rule); border-radius: 9px;
+        background: var(--panel); color: var(--ink); cursor: pointer;
+        font-family: var(--sans); font-size: .88rem; font-weight: 600;
+        text-decoration: none;
         transition: border-color .12s, color .12s;
     }
-    .pericope-sheet-board:hover { border-color: var(--accent); color: var(--accent); }
-    .pericope-sheet-board-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pericope-sheet-board-count { flex: 0 0 auto; color: var(--muted); font-size: .8rem; }
-    .pericope-sheet-board:hover .pericope-sheet-board-count { color: var(--accent); }
+    .ps-board:hover { border-color: var(--accent); color: var(--accent); }
+    .ps-board:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(107,31,31,.12); }
+    /* min-width:0 lets the name shrink below its text so the ellipsis can
+       fire; without it a flex item refuses to go narrower than its content. */
+    .ps-board-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ps-board-count {
+        flex: 0 0 auto; display: inline-flex; align-items: center; gap: .25rem;
+        color: var(--muted); font-size: .8rem;
+    }
+    .ps-board:hover .ps-board-count { color: var(--accent); }
+    /* The row that just took the hand: accent border, check before the count. */
+    .ps-board.is-done { border-color: var(--accent); color: var(--accent); }
+    .ps-board.is-done .ps-board-count { color: var(--accent); }
+    .ps-check { width: 14px; height: 14px; display: block; }
 
-    .pericope-sheet-empty {
-        margin: 0 0 .9rem; color: var(--muted);
+    .ps-empty {
+        margin: 0 0 .7rem; color: var(--muted);
         font-family: var(--sans); font-size: .85rem; font-style: italic;
     }
 
-    .pericope-sheet-new { display: flex; gap: .5rem; margin-bottom: 1.1rem; }
-    .pericope-sheet-input {
+    .ps-new { display: flex; gap: .5rem; border-top: 1px solid var(--rule); padding-top: .7rem; }
+    .ps-input {
         flex: 1 1 auto; min-width: 0;
         padding: .5rem .7rem; border: 1px solid var(--rule); border-radius: 9px;
         background: var(--bg); color: var(--ink);
         font-family: var(--sans); font-size: .9rem;
     }
-    .pericope-sheet-input:focus { outline: none; border-color: var(--accent); }
-    .pericope-sheet-create {
+    .ps-input:focus { outline: none; border-color: var(--accent); }
+    .ps-create {
         flex: 0 0 auto;
         padding: .5rem 1rem; border: 1px solid var(--accent); border-radius: 999px;
         background: var(--accent); color: #fff; cursor: pointer;
         font-family: var(--sans); font-size: .84rem; font-weight: 600;
         transition: filter .12s;
     }
-    .pericope-sheet-create:hover { filter: brightness(1.08); }
-    .pericope-sheet-foot { display: flex; justify-content: flex-end; }
+    .ps-create:hover { filter: brightness(1.08); }
 
         /* ---- Responsive chrome ---- */
         @media (max-width:690px){
