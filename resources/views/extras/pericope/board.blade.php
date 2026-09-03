@@ -482,7 +482,6 @@
        (the folder makes inner details position:static). */
     .pb-share > summary { list-style: none; }
     .pb-share > summary::-webkit-details-marker { display: none; }
-    .pb-share[open] > .fld-app { color: var(--bg); background: var(--accent); }
     .pbs-panel {
         position: absolute; right: 0; top: calc(100% + 10px); z-index: 80;
         width: 300px; padding: 1rem;

@@ -9,7 +9,7 @@
     Expects:
       $layout           array   the element list from ChapterLayout::build()
       $idPrefix         string  optional. Prepended to each verse-anchor id so the
-                                parallel view can render two columns without
+                                old parallel view rendered two columns without
                                 colliding duplicate ids (e.g. 'kjv-' => id="kjv-v3").
                                 The single chapter view omits it, keeping the bare
                                 id="v3" its Focus/Synthesis ?v= deep-links rely on.

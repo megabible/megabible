@@ -32,8 +32,7 @@
       $footnotes  array of ['marker'=>string, 'verse'=>int, 'anchor'=>?string,
                             'text'=>string], the chapter's notes in order.
                   Renders nothing at all when empty.
-      $idPrefix   string, optional. Same contract as reading-flow: the parallel
-                  view will pass it to keep ids unique per column.
+      $idPrefix   string, optional. Same contract as reading-flow.
 --}}
 @if (! empty($footnotes))
     <section class="footnotes" aria-label="Footnotes">

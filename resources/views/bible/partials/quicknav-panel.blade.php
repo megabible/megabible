@@ -3,7 +3,7 @@
 
   Rendered in two places:
     • the header logo trigger (layouts.app) — opens on the book grid;
-    • the book-name trigger in the chapter + parallel readers — opens straight
+    • the book-name trigger in the chapter + vigil readers — opens straight
       to the CURRENT book's chapter grid.
 
   $quicknav is supplied by QuicknavComposer, which is bound to THIS view name in

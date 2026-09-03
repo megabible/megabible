@@ -21,8 +21,8 @@
     @include('bible.partials.sticky-head')
 
     /* ---- Reader-specific head bits ---------------------------------------
-       The reader uses the partial's defaults throughout: three corner buttons
-       (parallel, candle, Aa) fit the default 9.5rem reserve, and the title is
+       The reader uses the partial's defaults throughout: two corner buttons
+       (candle, Aa) fit the default 9.5rem reserve, and the title is
        the default 2.4rem. Only the pieces below are unique to this page. --- */
 
     /* Hub back link. Lives BELOW the head, on the scrolling surface, so it
@@ -419,16 +419,9 @@
     <div class="chapter-head-sentinel"></div>
 
     <div class="chapter-head">
-        {{-- Corner cluster: parallel → candle → Aa, anchored to the sticky
-             head's top-right so a wrapping title never moves them. --}}
+        {{-- Corner cluster: candle → Aa, anchored to the sticky head's
+             top-right so a wrapping title never moves them. --}}
         <div class="head-actions">
-            @if ($otherTranslations->isNotEmpty())
-                @include('bible.partials.parallel-toggle', [
-                    'href'   => url('/parallel/' . strtolower($translation->abbreviation) . ',' . strtolower($otherTranslations->first()->abbreviation) . '/' . $book->slug . '/' . $chapter),
-                    'active' => false,
-                    'label'  => 'Compare translations side by side',
-                ])
-            @endif
             @include('bible.partials.mode-toggle', [
                 'href'  => route('typing.vigil', [
                     'translation' => strtolower($translation->abbreviation),

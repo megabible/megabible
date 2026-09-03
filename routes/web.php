@@ -60,13 +60,6 @@ Route::prefix('bible')->name('bible.')
             ->name('verse');
     });
 
-// Parallel reading — two translations of one chapter, side by side.
-// e.g. /parallel/kjv,web/john/3   ({translations} is a comma-separated slug list)
-Route::get('/parallel/{translations}/{book}/{chapter}', [BibleController::class, 'showParallel'])
-    ->where('translations', '[A-Za-z0-9,]+')
-    ->where('chapter', '[0-9]+')
-    ->name('parallel');
-
 // Terminal theme easter egg
 Route::view('/extras/terminal', 'extras.terminal')->name('terminal.index');
 

@@ -174,8 +174,7 @@
         /* ---- Reading-text opt-in ----------------------------------------
            The single consumer of the three --reading-* tokens above. Any
            block of body text that should obey the reader's Text Settings
-           carries .reader-text. .reading (the chapter and parallel verse
-           columns) is listed alongside it so the readers keep working with
+           carries .reader-text. .reading (the chapter verse columns) listed alongside it so the readers keep working with
            no markup change.
 
            Chrome — headers, infoboxes, timelines, outlines, footers — simply
@@ -388,23 +387,7 @@
         .chapter-nav.next{right:max(1rem, calc(50% - var(--nav-reach)));}
         .chapter-nav svg{display:block;width:26px;height:26px;}
 
-        /* Parallel ⇄ single toggle — circular button beside the chapter title,
-           shared by the chapter reader and the parallel view. Outline by default
-           (chapter view: "go parallel"); .is-active fills it (parallel view). */
-        .parallel-toggle{
-            flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
-            width:40px;height:40px;border-radius:50%;
-            color:var(--muted);background:var(--bg);
-            border:1px solid var(--rule);text-decoration:none;
-            transition:color .12s,background .12s,border-color .12s;
-        }
-        .parallel-toggle:hover{color:#fff;background:var(--accent);border-color:var(--accent);}
-        .parallel-toggle:focus-visible{outline:none;color:var(--accent);box-shadow:0 0 0 3px rgba(107,31,31,.12);}
-        .parallel-toggle.is-active{color:#fff;background:var(--accent);border-color:var(--accent);}
-        .parallel-toggle.is-active:hover{filter:brightness(1.12);}
-        .parallel-toggle svg{display:block;width:22px;height:22px;}
-
-        /* Vigil toggle — the candle. Same circular chrome as .parallel-toggle:
+        /* Vigil toggle — the candle. Bordered 40px circle, same as .ts-trigger:
            outline by default (reader: "enter the Vigil"), filled when pressed
            via .is-active (any Vigil page).*/
         .vigil-toggle{

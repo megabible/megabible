@@ -134,7 +134,7 @@
        (the verse-highlight fix, applied here). box-decoration-break keeps
        the padding/radius on every wrapped line, not just the first.
        One box treatment for every highlighted state — focus selection in the
-       chapter view, lock + hover-preview in parallel. */
+       chapter view. */
     /* GEOMETRY IS UNCONDITIONAL, and must stay that way. box-decoration-break
        :clone applies horizontal padding to EVERY line fragment of a wrapped
        inline box, while the margins only cancel it at the two outer ends — so

@@ -2,7 +2,7 @@
     Text Settings — the "Aa" button + dropdown panel.
 
     A <details> popover (same pattern as the QuickNav / translation switcher).
-    The trigger mirrors the .parallel-toggle chrome; the panel holds:
+    The trigger is a bordered 40px circle; the panel holds:
 
         Text Settings                    (↺ reset)
         [ A− ] [ A+ ] [ spacing ]
@@ -19,8 +19,7 @@
     script below only forwards clicks to window.MB.reader and handles
     open/close. No state lives here.
 
-    Include once per page, directly AFTER the parallel-toggle include, inside
-    .chapter-head-top (chapter view) or .parallel-head-top (parallel view).
+    Include once per page inside the head's corner cluster (.head-actions).
 --}}
 
 <details class="text-settings" id="{{ $tsId ?? 'text-settings' }}">
@@ -186,12 +185,8 @@
     .text-settings[open] .ts-trigger{color:var(--bg);background:var(--accent);border-color:var(--accent);}
     .ts-aa{font-family:var(--serif);font-size:1.05rem;font-weight:600;line-height:1;}
 
-    /* Right-align: the trigger claims the flexible gap unless the parallel
-       toggle (which already carries margin-left:auto) sits before it. */
-    .chapter-head-top  .text-settings,
-    .parallel-head-top .text-settings { margin-left:auto; }
-    .chapter-head-top  .parallel-toggle ~ .text-settings,
-    .parallel-head-top .parallel-toggle ~ .text-settings { margin-left:0; }
+    /* Right-align when the trigger sits loose in a title row. */
+    .chapter-head-top .text-settings { margin-left:auto; }
 
     /* ─── Panel ────────────────────────────────────────────────────── */
     .ts-panel{

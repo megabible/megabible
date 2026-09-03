@@ -43,7 +43,12 @@
     opening braces in a Blade file read as an echo tag (see sticky-head).
 --}}
 
-<details class="head-folder" id="{{ $id ?? 'head-folder' }}">
+@props(['id' => 'head-folder', 'open' => false])
+
+{{-- `open` renders the folder already out (the vigil arrives that way so the
+     pressed candle is one tap from the reader). Native details attribute, so
+     the close model is unchanged: the circle still toggles it. --}}
+<details class="head-folder" id="{{ $id }}" @if ($open) open @endif>
     <summary class="fld-toggle" aria-label="Apps" title="Apps">
         {{-- Closed / open folder marks — the same single-path glyphs as the
              FAB; CSS swaps them on [open]. --}}
@@ -143,15 +148,26 @@
     @media (hover: hover) {
         .fld-app:hover { color: var(--accent); background: var(--panel); }
         .fld-app.is-active:hover,
-        .fld-app[aria-pressed="true"]:hover { filter: brightness(1.12); }
+        .fld-app[aria-pressed="true"]:hover,
+        .fld-drawer details[open] > .fld-app:hover { filter: brightness(1.12); }
     }
     .fld-app:focus-visible { outline: none; color: var(--accent); box-shadow: 0 0 0 3px rgba(107,31,31,.12); }
     .fld-app.is-active,
-    .fld-app[aria-pressed="true"] { color: var(--bg); background: var(--accent); }
-    /* Not yet wired / nothing to do (undo with an empty stack, etc.). */
-    .fld-app:disabled { opacity: .4; cursor: default; filter: none; }
+    .fld-app[aria-pressed="true"],
+    .fld-drawer details[open] > .fld-app { color: var(--bg); background: var(--accent); }
+    /* A <details> app (share, pericope…) reads active while its panel is out —
+       the same accent fill a pressed toggle gets. The rule is here, not on each
+       page, so every panel app looks the same. */
+
+    /* Not yet wired / nothing to do (undo with an empty stack, etc.).
+       Buttons take :disabled; anchors can't, so they carry aria-disabled
+       instead (the scrim link, whenever the selection isn't one verse). The
+       script owning the anchor also strips its href and sets tabindex=-1. */
+    .fld-app:disabled,
+    .fld-app[aria-disabled="true"] { opacity: .4; cursor: default; filter: none; }
     @media (hover: hover) {
-        .fld-app:disabled:hover { color: var(--muted); background: none; }
+        .fld-app:disabled:hover,
+        .fld-app[aria-disabled="true"]:hover { color: var(--muted); background: none; }
     }
     .fld-app[hidden] { display: none; }
     /* Whole circle is one click surface — never a stroke path (FAB lesson). */
@@ -169,7 +185,19 @@
     .fld-drawer details { position: static; }
     .fld-drawer details > summary { list-style: none; }
     .fld-drawer details > summary::-webkit-details-marker { display: none; }
-    .fld-drawer details > div { max-width: calc(100vw - var(--fld-edge) - .5rem); box-sizing: border-box; }
+    .fld-drawer details > div {
+        max-width: calc(100vw - var(--fld-edge) - .5rem);
+        box-sizing: border-box;
+        /* Tall panels (a long pericope list) scroll inside themselves rather
+           than running under the fold. 8rem ≈ the pinned head plus the panel's
+           own offset; dvh so a phone's shrinking toolbar doesn't clip it.
+           overscroll-behavior stops a flick at the list's end from scrolling
+           the reader underneath. */
+        max-height: calc(100vh - 8rem);
+        max-height: calc(100dvh - 8rem);
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
 
     /* ─── Aa inside the pill ─────────────────────────────────────────── */
     /* The text-settings trigger arrives with its own 40px bordered circle;
@@ -192,7 +220,7 @@
 
 <script>
     (function () {
-        var root = document.getElementById('{{ $id ?? 'head-folder' }}');
+        var root = document.getElementById('{{ $id }}');
         if (!root) return;
         var drawer = root.querySelector('.fld-drawer');
 

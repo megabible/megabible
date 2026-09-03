@@ -66,7 +66,7 @@
         /* How far the head's background bleeds PAST the text column on each
            side. 1.5rem is the .container side padding, so on a normal page
            the head reaches exactly to the container edge. A full-bleed page
-           (parallel) sets this to its own break padding instead; a page whose
+           (the pericope board) sets this to its own gutter instead; a page whose
            head should not bleed at all sets it to 0. */
         --mb-head-bleed: 1.5rem;
 
