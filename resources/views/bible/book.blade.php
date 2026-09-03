@@ -17,15 +17,15 @@
 <style>
     @include('bible.partials.sticky-head')
 
-    /* ---- Book hub head ---------------------------------------------------
-       Two corner buttons (candle, Aa), and a heavier title than the reader's
-       — the hub is a landing page, so the book name carries more weight. */
+    /* hub-fold r1: corner cluster is now the apps folder — one 44px circle
+       when shut, so the title only needs 4.5rem kept clear (chapter.blade's
+       number). The switcher is gone, so the head-top margin override went
+       with it; sticky-head's default .25rem owns that gap now. */
     .chapter-head {
         --mb-head-title:       2.8rem;
         --mb-head-title-stuck: 1.8rem;
-        --mb-head-reserve:     6.5rem;
+        --mb-head-reserve:     4.5rem;
     }
-    .chapter-head-top { margin-bottom: .6rem; }   /* gap to the switcher */
 
     /* Hub back link. Lives BELOW the head, on the scrolling surface, so it
        slides up under the sticky header with the chapter grid. */
@@ -121,100 +121,155 @@
        tighter. Swap back to a flat 1rem if you'd rather it stay fixed. */
     .prose p { margin: 0 0 calc(var(--reading-leading) * .6rem); }
     .prose em { font-style: italic; }
-    .prose a[href^="#source-"] {
+    /* LEGACY numbered markers — old "[1](#source-…)" markdown links. Books
+       not yet migrated to (a)-letters still render with these. DELETE this
+       block (three rules) once every hub JSON has been reshaped. */
+    .prose a[href^="#source-"]:not(.src-marker) {
         font-size: 0.7em; vertical-align: super; line-height: 0;
         font-weight: 600; text-decoration: none; padding: 0 1px;
     }
-    .prose a[href^="#source-"]::before { content: "["; }
-    .prose a[href^="#source-"]::after  { content: "]"; }
+    .prose a[href^="#source-"]:not(.src-marker)::before { content: "["; }
+    .prose a[href^="#source-"]:not(.src-marker)::after  { content: "]"; }
 
     /* =========================================================
-       TIMELINE — horizontal Gantt chart.
-       Geometry (left/width/positions) is pre-computed in the controller; this
-       just paints it. Bar colours come from the --tl-* palette in app.blade.php
-       via inline `background: var(--tl-<name>)`.
+       hub-src r2 — SOURCE MARKERS + POPOVER + EXCERPT + PLACEHOLDER
+       Marker and .fn-pop blocks are copied from reading-styles (the
+       reader's footnote system) so the two feel identical; if you retune
+       one, retune the other.
        ========================================================= */
-    .tl {
-        --tl-label-w: 156px;   /* width of the left-hand book-label column */
-        --tl-row-h: 34px;      /* height of each book row */
-        --tl-bar-h: 16px;      /* thickness of each bar */
-        --tl-event-label-w: 120px;  /* width each event label wraps within — tweak to taste */
-        --tl-event-gap: 10px;       /* min horizontal gap before two labels get bumped to separate lanes */
+
+    /* Superscript letters — the reader's .fn-marker, verbatim. */
+    .fn-markers { line-height: 0; }
+    .fn-marker {
         font-family: var(--sans);
-        margin: 0.5rem 0 1rem;
+        font-size: .78rem;             /* ← marker size — tweak me */
+        font-weight: 600; font-style: normal;
+        color: var(--muted);
+        text-decoration: none;
+        padding-left: .12rem;
+        transition: color .12s;
     }
+    .fn-marker:hover { color: var(--accent); }
 
-    /* Chart zone: everything except the legend. Fluid width, never scrolls.
-       overflow:hidden is a safety net — it guarantees the PAGE never grows a
-       horizontal scrollbar if a tick/event/date label gets positioned hard
-       against the right edge (that label clips instead of pushing the page
-       wide). Keep your outermost ticks/events a little inside the range in the
-       JSON and nothing ever clips. */
-    .tl-chart { position: relative; overflow: hidden; }
-
-    /* Legend */
-    .tl-legend { display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem; margin-bottom: 1.1rem; font-size: 0.8rem; color: var(--muted); }
-    .tl-legend span { display: inline-flex; align-items: center; gap: 0.4rem; }
-    .tl-legend i { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(42,31,23,.18); }
-
-    /* Axis (rendered both above AND below the chart) */
-    .tl-axis { display: grid; grid-template-columns: var(--tl-label-w) 1fr; align-items: end; }
-    .tl-axis.bottom { align-items: start; margin-top: 0.4rem; }
-    .tl-axis-scale { position: relative; height: 1.1rem; }
-    .tl-tick { position: absolute; transform: translateX(-50%); font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
-
-    /* Body: grid lines + event lines + book rows */
-    .tl-body { position: relative; padding-top: 1.25rem; }
-    .tl-grid { position: absolute; left: var(--tl-label-w); right: 0; top: 0; bottom: 0; pointer-events: none; }
-    .tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--rule); opacity: 0.55; }
-    .tl-event { position: absolute; top: 0; bottom: 0; width: 0; border-left: 1.5px dashed var(--accent); opacity: 0.7; }
-
-    .tl-row { display: grid; grid-template-columns: var(--tl-label-w) 1fr; align-items: center; height: var(--tl-row-h); }
-    .tl-book { padding-right: 0.9rem; line-height: 1.15; min-width: 0; }
-    .tl-name { font-family: var(--serif); font-size: 0.98rem; color: var(--ink); text-decoration: none; }
-    a.tl-name:hover { color: var(--accent); text-decoration: underline; }
-    .tl-row.current .tl-name { color: var(--accent); font-weight: 700; }
-
-    .tl-track { position: relative; height: 100%; }
-    .tl-bar {
-        position: absolute; top: 50%; transform: translateY(-50%);
-        height: var(--tl-bar-h); min-width: 3px; border-radius: 3px;
-        overflow: hidden;
-        box-shadow: inset 0 0 0 1px rgba(42,31,23,.18);
+    /* Hover popover — the reader's .fn-pop, verbatim. */
+    .fn-pop {
+        position: absolute;
+        z-index: 90;
+        padding: .55rem .7rem;
+        background: var(--bg);
+        border: 1px solid var(--rule);
+        border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.16);
+        font-family: var(--sans);
+        font-size: .85rem;
+        line-height: 1.45;
+        color: var(--muted);
+        cursor: pointer;
+        transition: transform .14s ease, background .14s ease,
+                    border-color .14s ease, box-shadow .14s ease;
+        transform-origin: var(--chev-x, 50%) bottom;
     }
-    .tl-seg-label {
-        display: block; height: 100%;
-        font-family: var(--sans); font-weight: 600;
-        font-size: 9px; line-height: var(--tl-bar-h);
-        text-align: center; color: #fff;
-        white-space: nowrap; overflow: hidden;
-        pointer-events: none;   /* hover still hits the bar's title tooltip */
+    .fn-pop.is-below { transform-origin: var(--chev-x, 50%) top; }
+    .fn-pop:hover {
+        transform: scale(1.04);
+        background: var(--panel);
+        border-color: var(--muted);
+        box-shadow: 0 10px 28px rgba(0,0,0,.22);
     }
-    .tl-row.current .tl-bar { box-shadow: inset 0 0 0 1px rgba(42,31,23,.28), 0 0 0 2px rgba(107,31,31,.28); }
-
-    /* Date printed just to the RIGHT of each bar (was under the name before). */
-    .tl-bar-date {
-        position: absolute; top: 50%; transform: translateY(-50%);
-        padding-left: 0.45rem; font-size: 0.74rem; color: var(--muted); white-space: nowrap;
+    .fn-pop:hover::after { background: var(--panel); }
+    .fn-pop::after {
+        content: "";
+        position: absolute;
+        left: var(--chev-x, 50%);
+        bottom: -5.5px;
+        width: 10px; height: 10px;
+        transform: translateX(-50%) rotate(45deg);
+        background: var(--bg);
+        border-right: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
     }
+    .fn-pop.is-below::after {
+        bottom: auto;
+        top: -5.5px;
+        border: none;
+        border-left: 1px solid var(--rule);
+        border-top: 1px solid var(--rule);
+    }
+    /* Inside the panel the cloned bibliography line keeps its own note
+       styling; the citation link just reads as text (the whole panel is
+       one click surface). */
+    .fn-pop .source-citation a { color: var(--ink); text-decoration: none; }
+    .fn-pop .source-note { display: block; font-style: italic; font-size: .8rem; margin-top: .15rem; }
 
-    /* Event labels — a row BELOW the bottom ticks. */
-    .tl-events { display: grid; grid-template-columns: var(--tl-label-w) 1fr; margin-top: 0.3rem; }
-    .tl-events-scale { position: relative; min-height: 1.1rem; }
-    .tl-event-label {
-        position: absolute; top: 0;
-        width: var(--tl-event-label-w);
-        transform: translateX(-50%);
-        font-size: 0.72rem; line-height: 1.25; color: var(--accent);
+    /* Excerpt — a quotation clearly pulled from another text: accent-ruled
+       blockquote, italic, attribution line pointing into the bibliography. */
+    .excerpt { margin: 0 0 1.5rem; }
+    .excerpt blockquote {
+        margin: 0;
+        padding: .2rem 0 .2rem 1.1rem;
+        border-left: 3px solid var(--accent);
+        font-style: italic;
+    }
+    .excerpt blockquote em { font-style: normal; }   /* nested emphasis flips back */
+    /* hub-src r2.1: last excerpt paragraph sheds its trailing margin so the
+       quote ends flush against its own bottom edge. */
+    .excerpt blockquote p:last-child { margin-bottom: 0; }
+
+    /* Attribution — left-justified stack under the quote: author / title /
+       year, pulled from the sources table. The whole stack is one link into
+       the bibliography. Indented to the quote's own text edge (the 3px rule
+       + 1.1rem padding above), so the two read as one object. */
+    .excerpt-src {
+        font-family: var(--sans);
+        font-size: .85rem;
+        margin: .6rem 0 0 calc(3px + 1.1rem);
+        text-align: left;
+    }
+    .excerpt-src a { text-decoration: none; }
+    .excerpt-src a:hover .ex-src-title { text-decoration: underline; }
+    .excerpt-src span { display: block; line-height: 1.4; }
+    .ex-src-author { color: var(--ink); font-weight: 600; }
+    .ex-src-title  { color: var(--accent); font-style: italic; }
+    .ex-src-year   { color: var(--muted); font-size: .8rem; }
+
+    /* hub-src r2.1: Placeholder — shown when a book has neither overview nor
+       excerpt. flex does double duty here: it vertically centres the two
+       blurbs AND establishes a block formatting context, which is what stops
+       the box from sliding underneath the floated infobox on desktop — a
+       BFC's border box never intrudes into a float, it sits beside it and
+       takes the remaining width. The inline script below the markup matches
+       its height to the infobox at the float breakpoint. */
+    .overview-placeholder {
+        display: flex; flex-direction: column;
+        justify-content: center; align-items: center;
+        gap: .9rem;
+        border: 3px dashed var(--rule);
+        border-radius: 8px;
+        padding: 2.4rem 1.5rem;
+        margin: 0 0 1.5rem;
         text-align: center;
     }
-    .tl-event-date { display: block; color: var(--muted); }
-
-    .tl-text {
-        font-family: var(--sans);
-        font-size: 0.9rem; color: var(--ink);
-        margin: 0 0 1.1rem;
+    /* Line 1 — the script voice. Serif italic keeps it on-brand without
+       loading a display face; if you ever vendor a proper script webfont,
+       this font-family is the one knob to point at it. */
+    .ph-script {
+        font-family: var(--serif);
+        font-style: italic;
+        font-size: 1.2rem; line-height: 1.4;
+        color: var(--ink);
     }
+    /* Line 2 — the block voice: the no-AI / public-domain statement. */
+    .ph-block {
+        font-family: var(--sans);
+        font-size: .8rem; line-height: 1.55;
+        color: var(--muted);
+        max-width: 34rem;
+    }
+    .overview-placeholder p { margin: 0; }   /* flex gap owns the spacing */
+
+    /* tl-part r3: timeline CSS extracted to its own partial, paired with
+       bible/partials/timeline (the markup). */
+    @include('bible.partials.timeline-styles')
 
     /* Outline */
     .outline {
@@ -268,6 +323,10 @@
     .sources a:hover { text-decoration: underline; }
     .source-note { display: block; color: var(--muted); font-style: italic; font-size: 0.8rem; margin-top: 0.15rem; }
 
+    /* hub-src r2: the marker letter, echoed at its destination — the
+       reader's .fn-letter treatment. */
+    .src-letter { color: var(--accent); font-weight: 700; margin-right: .45rem; }    
+
     /* Page colophon — the book's licensing line. */
     .colophon {
         margin-top: 4rem; padding-top: 1.5rem; border-top: 1px solid var(--rule);
@@ -294,28 +353,30 @@
     <div class="chapter-head-sentinel"></div>
 
     <div class="chapter-head">
-        {{-- Corner cluster: candle + Aa. Absolutely anchored to the head, so
-             a wrapping title never moves it and it rides along when pinned.
-             Aa suppresses the visibility checkboxes — no verse text here. --}}
+        {{-- hub-fold r1: corner cluster is the apps folder (components/
+             head-folder), same as the chapter reader. Pill order, left to
+             right: candle / Aa, then the folder circle. persist="reader"
+             shares the reader's open/shut key (mb.fold.reader), so hub →
+             chapter feels like one continuous surface. Aa suppresses the
+             visibility checkboxes — this page has no verse text.
+
+             The translation switcher is gone from this page: no text is
+             visible until the reader, so the choice belongs there. (The
+             vigil book hub keeps its switcher — progress is per-edition.) --}}
         <div class="head-actions">
-            @include('bible.partials.mode-toggle', [
-                'href'  => route('typing.vigil.book', [
-                    'translation' => strtolower($translation->abbreviation),
-                    'book'        => $book->slug,
-                ]),
-                'label' => 'Type this book (Vigil)',
-            ])
-            @include('bible.partials.text-settings', ['tsChecks' => false])
+            <x-head-folder persist="reader">
+                <a class="fld-app" id="app-vigil"
+                   href="{{ route('typing.vigil.book', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug]) }}"
+                   aria-label="Type this book (Vigil)" title="Vigil">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
+                </a>
+                @include('bible.partials.text-settings', ['tsChecks' => false])
+            </x-head-folder>
         </div>
 
         <div class="chapter-head-top">
             <h1>{{ $book->name }}</h1>
         </div>
-
-        @include('bible.partials.translation-switcher', [
-            'switchRoute'  => 'bible.book',
-            'switchParams' => ['book' => $book->slug],
-        ])
     </div>
 
     <p class="hub-back-row"><a class="hub-back" href="{{ route('home') }}">&larr; All books</a></p>
@@ -408,202 +469,102 @@
                         @endif
                     </dd>
                 @endif
-                @if ($intro->traditional_author) <dt>Traditional author</dt><dd>{{ $intro->traditional_author }}</dd> @endif
-                @if ($intro->scholarly_view)     <dt>Scholarly view</dt><dd>{{ $intro->scholarly_view }}</dd> @endif
-                @if ($intro->dating)             <dt>Date written</dt><dd>{{ $intro->dating }}</dd> @endif
-                @if ($intro->language)           <dt>Language</dt><dd>{{ $intro->language }}</dd> @endif
-                @if ($intro->genre)              <dt>Genre</dt><dd>{{ $intro->genre }}</dd> @endif
-                @if ($intro->place_written)      <dt>Place</dt><dd>{{ $intro->place_written }}</dd> @endif
+                {{-- hub-src r2: every field runs through SourceMarkers::inline,
+                     which escapes the text and then turns registered "(a)"
+                     tokens into the superscript markers. Unregistered
+                     parentheses pass through untouched. --}}
+                @php $sm = fn ($v) => \App\Support\SourceMarkers::inline($v, $sourceLetters); @endphp
+                @if ($intro->traditional_author) <dt>Traditional author</dt><dd>{!! $sm($intro->traditional_author) !!}</dd> @endif
+                @if ($intro->scholarly_view)     <dt>Scholarly view</dt><dd>{!! $sm($intro->scholarly_view) !!}</dd> @endif
+                @if ($intro->dating)             <dt>Date written</dt><dd>{!! $sm($intro->dating) !!}</dd> @endif
+                @if ($intro->language)           <dt>Language</dt><dd>{!! $sm($intro->language) !!}</dd> @endif
+                @if ($intro->genre)              <dt>Genre</dt><dd>{!! $sm($intro->genre) !!}</dd> @endif
+                @if ($intro->place_written)      <dt>Place</dt><dd>{!! $sm($intro->place_written) !!}</dd> @endif
             </dl>
         </aside>
 
+        {{-- hub-src r2: Overview when we have one; otherwise an Excerpt
+             (quoted matter + attribution into the bibliography); otherwise
+             the dotted work-in-progress placeholder. Exactly one of the
+             three renders. --}}
         @if ($intro->summary)
             <h2 class="no-clear">Overview</h2>
-            <div class="prose reader-text">{!! \Illuminate\Support\Str::markdown($intro->summary) !!}</div>
+            <div class="prose reader-text">{!! \App\Support\SourceMarkers::markdown($intro->summary, $sourceLetters) !!}</div>
+        @elseif ($intro->excerpt)
+            <h2 class="no-clear">Excerpt</h2>
+            <figure class="excerpt">
+                <blockquote class="prose reader-text">{!! \App\Support\SourceMarkers::markdown($intro->excerpt, $sourceLetters) !!}</blockquote>
+                {{-- hub-src r2.1: author / title / year as a left-justified
+                     stack, each from its own sources-table column. A source
+                     entered only as a citation string still renders (the
+                     fallback line), so nothing ever silently vanishes. --}}
+                @if ($excerptSource)
+                    <figcaption class="excerpt-src">
+                        <a href="#source-{{ $excerptSource->slug }}">
+                            @if ($excerptSource->author)<span class="ex-src-author">{{ $excerptSource->author }}</span>@endif
+                            @if ($excerptSource->title)<span class="ex-src-title">{{ $excerptSource->title }}</span>@endif
+                            @if ($excerptSource->year)<span class="ex-src-year">{{ $excerptSource->year }}</span>@endif
+                            @if (! $excerptSource->author && ! $excerptSource->title)
+                                <span class="ex-src-title">{{ $excerptSource->citation }}</span>
+                            @endif
+                        </a>
+                    </figcaption>
+                @endif
+            </figure>
+        @else
+            <h2 class="no-clear">Overview</h2>
+            <div class="overview-placeholder">
+                <p class="ph-script">We are working on finding the best excerpt for this book. Please return soon.</p>
+                <p class="ph-block">MEGABIBLE.net does not use AI generated copy. We strive to present free and easily accessible scholarly Bible knowledge and information from the Public Domain.</p>
+            </div>
+
+            {{-- hub-src r2.1: at the float breakpoint, stretch the dotted box
+                 so its bottom edge lines up with the infobox beside it —
+                 the two read as one balanced row instead of a short box next
+                 to a tall one. Below the breakpoint (infobox not floated)
+                 the min-height is cleared and content height rules. The
+                 ResizeObserver re-fits when the infobox reflows (fonts
+                 arriving, orientation change). --}}
+            <script>
+            (function () {
+                const ph  = document.querySelector('.overview-placeholder');
+                const box = document.querySelector('.infobox');
+                if (!ph || !box) return;
+
+                const mq = window.matchMedia('(min-width: 720px)');
+
+                function fit() {
+                    if (!mq.matches) { ph.style.minHeight = ''; return; }
+                    // Align bottoms: the infobox's bottom edge minus the
+                    // placeholder's own top edge (both viewport-relative,
+                    // so the difference is scroll-proof).
+                    const want = box.getBoundingClientRect().bottom
+                               - ph.getBoundingClientRect().top;
+                    ph.style.minHeight = want > 0 ? want + 'px' : '';
+                }
+
+                let raf = null;
+                function queue() {
+                    if (raf) cancelAnimationFrame(raf);
+                    raf = requestAnimationFrame(fit);
+                }
+                new ResizeObserver(queue).observe(box);
+                window.addEventListener('resize', queue);
+                fit();
+            })();
+            </script>
         @endif
 
         @if ($intro->authorship_note)
             <h2>Authorship</h2>
-            <div class="prose reader-text">{!! \Illuminate\Support\Str::markdown($intro->authorship_note) !!}</div>
+            <div class="prose reader-text">{!! \App\Support\SourceMarkers::markdown($intro->authorship_note, $sourceLetters) !!}</div>
         @endif
     @endif
 
-    {{-- =========================== TIMELINE =========================== --}}
-    @if ($timeline)
-        <h2>Timeline</h2>
-        <div class="tl">
-
-            @if (! empty($timeline['text']))
-                <p class="tl-text">{{ $timeline['text'] }}</p>
-            @endif
-
-            {{-- LEGEND BAND — sits above the chart, full reading-column width.
-                 Never scrolls; wraps to a new line whenever it runs out of room. --}}
-            @if (! empty($timeline['legend']))
-                <div class="tl-legend">
-                    @foreach ($timeline['legend'] as $g)
-                        <span><i style="background: var(--tl-{{ $g['color'] }});"></i>{{ $g['label'] }}</span>
-                    @endforeach
-                </div>
-            @endif
-
-            {{-- CHART ZONE — fixed book-name column + fluid gantt track.
-                 No horizontal scroll at any width; only the track shrinks. --}}
-            <div class="tl-chart">
-
-                {{-- Date markers along the TOP --}}
-                <div class="tl-axis">
-                    <div></div>
-                    <div class="tl-axis-scale">
-                        @foreach ($timeline['ticks'] as $t)
-                            <span class="tl-tick" style="left: {{ $t['pos'] }}%;">{{ $t['label'] }}</span>
-                        @endforeach
-                    </div>
-                </div>
-
-                {{-- Body: grid lines, event lines, and one row per book --}}
-                <div class="tl-body">
-                    <div class="tl-grid">
-                        @foreach ($timeline['ticks'] as $t)
-                            <div class="tl-gridline" style="left: {{ $t['pos'] }}%;"></div>
-                        @endforeach
-                        @foreach ($timeline['events'] as $e)
-                            <div class="tl-event" style="left: {{ $e['pos'] }}%;"></div>
-                        @endforeach
-                    </div>
-
-                    @foreach ($timeline['books'] as $b)
-                        <div class="tl-row {{ $b['current'] ? 'current' : '' }}">
-                                <div class="tl-book">
-                                    @if ($b['url'] && ! $b['current'])
-                                        <a class="tl-name" href="{{ $b['url'] }}">{{ $b['label'] }}</a>
-                                    @else
-                                        <span class="tl-name">{{ $b['label'] }}</span>
-                                    @endif
-                                </div>
-                            <div class="tl-track">
-                                @foreach ($b['segments'] as $seg)
-                                    <div class="tl-bar" title="{{ $seg['tooltip'] }}"
-                                         style="left: {{ $seg['left'] }}%; width: {{ $seg['width'] }}%; background: var(--tl-{{ $seg['color'] }});">
-                                        @if (! empty($seg['label']))
-                                            <span class="tl-seg-label">{{ $seg['label'] }}</span>
-                                        @endif
-                                    </div>
-                                @endforeach
-                                @if (! empty($b['date_display']))
-                                    <div class="tl-bar-date" style="left: {{ $b['date_pos'] }}%;">{{ $b['date_display'] }}</div>
-                                @endif
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-
-                {{-- Event names — BELOW the bottom markers --}}
-                @if (! empty($timeline['events']))
-                    <div class="tl-events">
-                        <div></div>
-                        <div class="tl-events-scale">
-                            @foreach ($timeline['events'] as $e)
-                                <span class="tl-event-label" style="left: {{ $e['pos'] }}%;">
-                                    {{ $e['label'] }}
-                                    @if (! empty($e['date_display']))
-                                        <span class="tl-event-date">{{ $e['date_display'] }}</span>
-                                    @endif
-                                </span>
-                            @endforeach
-                        </div>
-                    </div>
-                @endif
-
-            </div>
-        </div>
-
-        {{-- Stack event labels that would otherwise overlap into separate
-             vertical lanes. The labels are positioned by % left, so a fixed
-             width alone can't prevent collisions when events sit close together
-             (e.g. Genesis); this measures the rendered boxes and bumps any
-             overlap downward. Re-runs on resize, since % → px shifts the gaps. --}}
-        <script>
-        (function () {
-            const scale = document.querySelector('.tl-events-scale');
-            if (!scale) return;
-
-            const labels = Array.from(scale.querySelectorAll('.tl-event-label'));
-            if (labels.length === 0) return;
-
-            // Horizontal breathing room before two labels count as colliding.
-            // Read from CSS so it lives next to the other --tl-* knobs.
-            const gap = parseFloat(getComputedStyle(scale).getPropertyValue('--tl-event-gap')) || 8;
-
-            function layout() {
-                // Lane height = tallest wrapped label + a little vertical gap.
-                // Derived, not hard-coded, so changing --tl-event-label-w just works.
-                const laneH = Math.max(...labels.map(l => l.offsetHeight)) + 4;
-
-                // Measure each label's rendered left/right edge relative to the
-                // track. getBoundingClientRect() already accounts for translateX(-50%).
-                const scaleLeft = scale.getBoundingClientRect().left;
-                const items = labels
-                    .map(el => {
-                        const r = el.getBoundingClientRect();
-                        return { el, left: r.left - scaleLeft, right: r.right - scaleLeft };
-                    })
-                    .sort((a, b) => a.left - b.left);
-
-                // Greedy lane packing: each label (left → right) drops into the
-                // first lane whose previous occupant ends before this one starts.
-                const laneEnds = [];   // rightmost x currently used in each lane
-                let lanesUsed = 0;
-
-                items.forEach(item => {
-                    let lane = 0;
-                    while (lane < laneEnds.length && laneEnds[lane] + gap > item.left) {
-                        lane++;
-                    }
-                    laneEnds[lane] = item.right;
-                    item.el.style.top = (lane * laneH) + 'px';
-                    lanesUsed = Math.max(lanesUsed, lane + 1);
-                });
-
-                // Grow the row so stacked lanes aren't clipped by the content below.
-                scale.style.height = (lanesUsed * laneH) + 'px';
-            }
-
-            // Re-pack whenever the track width changes (resize, rotate).
-            let raf = null;
-            new ResizeObserver(function () {
-                if (raf) cancelAnimationFrame(raf);
-                raf = requestAnimationFrame(layout);
-            }).observe(scale);
-        })();
-        </script>
-
-        
-        <script>
-        (function () {
-            const chart = document.querySelector('.tl-chart');
-            if (!chart) return;
-
-            const labels = Array.from(chart.querySelectorAll('.tl-seg-label'));
-            if (labels.length === 0) return;
-
-            function fit() {
-                labels.forEach(el => {
-                    el.style.visibility = 'visible';            // reset before measuring
-                    if (el.scrollWidth > el.clientWidth + 0.5) {
-                        el.style.visibility = 'hidden';        // too narrow → rely on tooltip
-                    }
-                });
-            }
-
-            let raf = null;
-            new ResizeObserver(function () {
-                if (raf) cancelAnimationFrame(raf);
-                raf = requestAnimationFrame(fit);
-            }).observe(chart);
-        })();
-        </script>
-    @endif
+    {{-- tl-part r3: timeline extracted — markup + lane-packing/label-fit
+         scripts live in the partial; the null-guard does too, so this
+         include is unconditional. --}}
+    @include('bible.partials.timeline')    
 
     {{-- Outline --}}
     @if (! empty($book->intro?->outline))
@@ -644,17 +605,25 @@
         <h2>Sources</h2>
         <ol class="sources">
             @foreach ($book->sources as $s)
+                {{-- hub-src r2: .src-line is the popover's clone source (the
+                     reader's .fn-line pattern); the letter badge is stripped
+                     from the clone, so it renders only here. --}}
                 <li class="source-item" id="source-{{ $s->slug }}">
-                    <span class="source-citation">
-                        @if ($s->url)
-                            <a href="{{ $s->url }}" rel="noopener" target="_blank">{{ $s->citation }}</a>
-                        @else
-                            {{ $s->citation }}
+                    <span class="src-line">
+                        @if ($s->pivot->letter)
+                            <span class="src-letter">{{ $s->pivot->letter }}</span>
+                        @endif
+                        <span class="source-citation">
+                            @if ($s->url)
+                                <a href="{{ $s->url }}" rel="noopener" target="_blank">{{ $s->citation }}</a>
+                            @else
+                                {{ $s->citation }}
+                            @endif
+                        </span>
+                        @if ($s->pivot->note)
+                            <span class="source-note">{{ $s->pivot->note }}</span>
                         @endif
                     </span>
-                    @if ($s->pivot->note)
-                        <span class="source-note">{{ $s->pivot->note }}</span>
-                    @endif
                 </li>
             @endforeach
         </ol>
@@ -663,4 +632,5 @@
 @endsection
 @section('scripts')
 <script src="{{ asset('js/sticky-head.js') }}?v={{ filemtime(public_path('js/sticky-head.js')) }}" defer></script>
+@include('bible.partials.source-popover')
 @endsection

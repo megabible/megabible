@@ -22,14 +22,13 @@
 <style>
     @include('bible.partials.sticky-head')
 
-    /* ---- Vigil book hub head ---------------------------------------------
-       Same title weight and corner reserve as the regular book hub, so
-       toggling between the two leaves the title AND the buttons exactly
-       where they were. */
+    /* hub-fold r1: reserve shrinks to the folder circle's footprint, same
+       as the regular hub, so toggling between the two pages leaves the
+       title and the corner exactly where they were. */
     .chapter-head {
         --mb-head-title:       2.8rem;
         --mb-head-title-stuck: 1.8rem;
-        --mb-head-reserve:     6.5rem;
+        --mb-head-reserve:     4.5rem;
     }
 
     /* MUSTACHE — mode label UNDER the h1, mirroring vigil.blade. Shrinks
@@ -62,6 +61,27 @@
     }
 
     @include('bible.partials.vigil-summary')
+
+    /* ---- vg-cat r5: the book's canon-category colour --------------------
+       One token, set from the controller's palette name, scoped to the two
+       blocks that show progress. Everything category-tinted below reads
+       var(--vg-cat, var(--accent)) — the fallback keeps the page sane if
+       the token ever fails to land. The --tl-* palette is theme-defined in
+       app.blade.php, so this follows Parchment/Midnight/Pure/Terminal
+       automatically.
+       CONTRAST KNOB: if a light colour (gold, plum) ever reads weak as the
+       completed ring, swap the ring/border lines below to
+       color-mix(in srgb, var(--vg-cat) 75%, var(--ink)) and leave the
+       fills pure. */
+    .vg-chapters, .vg-summary {
+        --vg-cat: var(--tl-{{ $catColor }});
+    }
+
+    /* The book-level meter follows the category too. This rule must stay
+       AFTER the vigil-summary include above — same specificity, later
+       wins — because the partial is shared with the vigil home page and
+       stays accent-coloured there. */
+    .vg-summary .vg-summary-fill { background: var(--vg-cat, var(--accent)); }
 
     /* ---- Chapter rows (full-width) ---------------------------------------
        Each chapter is a wide tappable row built from up to three text lines
@@ -138,7 +158,8 @@
     /* Foot is now just the bar; the percentage lives on the line above it. */
     .vg-chap-foot { display: block; margin-top: .4rem; }
     .vg-chap-bar  { display: block; height: 4px; background: var(--rule); border-radius: 999px; overflow: hidden; }
-    .vg-chap-fill { display: block; height: 100%; width: 0%; background: var(--accent); border-radius: 999px; transition: width .3s ease; }
+    /* vg-cat r5: the meter wears the canon-category colour. */
+    .vg-chap-fill { display: block; height: 100%; width: 0%; background: var(--vg-cat, var(--accent)); border-radius: 999px; transition: width .3s ease; }
     .vg-chap-pct {
         font-size: .82rem;                  /* ← PERCENT SIZE — tweak me */
         font-weight: 700; color: var(--muted);
@@ -160,18 +181,28 @@
 
     /* On hover the row wakes back up to normal weight. */
     .vg-chap-row.is-untouched:hover { border-color: var(--accent); }
+
+    /* vg-cat r5: a completed row keeps its category edge under the pointer —
+       otherwise the generic hover rule turns the 1px border accent while
+       the 1.5px ring stays category, a mismatched double edge. The swell
+       and shadow still say "hover". */
+    .vg-chap-row.is-complete:hover { border-color: var(--vg-cat, var(--accent)); }
     .vg-chap-row.is-untouched:hover .vg-chap-name { color: var(--ink); }
     .vg-chap-row.is-untouched:hover .vg-chap-verses,
     .vg-chap-row.is-untouched:hover .vg-chap-pct { color: var(--muted); }
     .vg-chap-row.is-untouched:hover .vg-chap-bar { background: var(--rule); }
 
-    /* Completed rows: accent ring + soft wash + the periodic diagonal shine. */
+    /* Completed rows: category ring + soft wash + the periodic diagonal
+       shine. vg-cat r5: these four values are the "outlined completed
+       chapter" — they wear the canon category, matching the book's cell
+       colour in the quicknav and everywhere else. Hover borders and links
+       stay --accent: category = state, accent = interaction. */
     .vg-chap-row.is-complete {
-        border-color: var(--accent);
-        box-shadow: 0 0 0 1.5px var(--accent);
-        background: color-mix(in srgb, var(--accent) 8%, var(--bg));
+        border-color: var(--vg-cat, var(--accent));
+        box-shadow: 0 0 0 1.5px var(--vg-cat, var(--accent));
+        background: color-mix(in srgb, var(--vg-cat, var(--accent)) 8%, var(--bg));
     }
-    .vg-chap-row.is-complete .vg-chap-pct { color: var(--accent); }
+    .vg-chap-row.is-complete .vg-chap-pct { color: var(--vg-cat, var(--accent)); }
     .vg-chap-row.is-complete::after {
         content: "";
         position: absolute; top: 0; bottom: 0; left: -40%; width: 30%;
@@ -208,15 +239,21 @@
     <div class="chapter-head-sentinel"></div>
 
     <div class="chapter-head">
-        {{-- Corner cluster: candle + Aa. Absolutely anchored to the head so a
-             wrapping title never moves it and it rides along when pinned. --}}
+        {{-- hub-fold r1: the apps folder, open on arrival — mirroring
+             vigil.blade. The candle is pressed (aria-pressed) because the
+             vigil IS the active mode; tapping it returns to the regular book
+             hub. No persist: vigil pages always arrive with the pill out, so
+             the pressed candle is one tap from the reader side. The folder's
+             badge reads aria-pressed, so shutting the pill still shows the
+             accent dot: something in here is switched on. --}}
         <div class="head-actions">
-            @include('bible.partials.mode-toggle', [
-                'href'   => $readerHubUrl,
-                'label'  => 'Open the regular book page',
-                'active' => true,
-            ])
-            @include('bible.partials.text-settings', ['tsChecks' => false])
+            <x-head-folder :open="true">
+                <a class="fld-app" id="app-vigil" href="{{ $readerHubUrl }}"
+                   aria-pressed="true" aria-label="Switch to the regular book page" title="Back to the book page">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
+                </a>
+                @include('bible.partials.text-settings', ['tsChecks' => false])
+            </x-head-folder>
         </div>
 
         {{-- Book-name H1 first, mode label under it — same shape as the vigil

@@ -16,7 +16,7 @@
 
 ## License
 - Code: AGPL-3.0
-  Most of the heavy code for MEGABIBLE.net's apps (Javascript, Controllers) was written by Claude Opus 4.8, Opus 5, and Fable 5. This license allows derivative softare to be traced back to the source.
+  Most of the Javascript and Blade for MEGABIBLE.net was written by Claude Opus 4.8, Opus 5, and Fable 5. This license allows derivative softare to be traced back to the source.
 - Content & data: Public Domain / CC0
   MEGABIBLE.net only hosts Public Domain Bible content. When applicable, original content created by MEGABIBLE.net is also placed in the Public Domain. This content will be collected and hosted in a separate Public Domain repo in the future.
 - **"MEGABIBLE.net" name and branding are not covered by these licenses**

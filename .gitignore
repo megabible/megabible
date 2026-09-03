@@ -14,14 +14,15 @@
 /.zed
 /auth.json
 /bootstrap/cache/*.php
-/storage/logs
 /node_modules
 /public/build
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
 /storage/*.key
+/storage/logs
 /storage/pail
+/tools
 /vendor
 _ide_helper.php
 Homestead.json

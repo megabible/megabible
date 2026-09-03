@@ -169,6 +169,7 @@ class TypingController extends Controller
 
         return view('extras.vigil-book', [
             'translation'  => $t,
+            'catColor'     => $this->sectionColorFor($b->slug),   // vg-cat r5
             'txSlug'       => $txSlug,
             'book'         => $b,
             'refBook'      => $refBook,
@@ -1035,6 +1036,38 @@ class TypingController extends Controller
             'b' => '__B__', 'c' => '__C__', 'v' => '__V__', 'lang' => '__L__',
         ], false);
     }
+
+    /**
+     * vg-cat r5: a book's canon-category colour — the bare --tl-* palette
+     * name from canon.section_colors, resolved by walking testaments →
+     * sections → subgroups until the slug turns up (the pickerTestaments
+     * walk, inverted into a lookup). 'clay' for a book outside canon.php,
+     * matching the picker's own fallback. Static-cached per request.
+     */
+    private function sectionColorFor(string $slug): string
+    {
+        static $map = null;
+        if ($map === null) {
+            $map = [];
+            foreach (config('canon.testaments', []) as $testament) {
+                foreach (($testament['sections'] ?? []) as $key) {
+                    $section = config('canon.sections')[$key] ?? null;
+                    if (! $section) {
+                        continue;
+                    }
+                    $color  = config('canon.section_colors')[$key] ?? 'clay';
+                    $groups = $section['subgroups'] ?? [['books' => $section['books'] ?? []]];
+                    foreach ($groups as $group) {
+                        foreach (($group['books'] ?? []) as $s) {
+                            $map[$s] ??= $color;
+                        }
+                    }
+                }
+            }
+        }
+
+        return $map[$slug] ?? 'clay';
+    }    
 
     /**
      * Canon-ordered book chips for the verse picker: one flat, canon-ordered

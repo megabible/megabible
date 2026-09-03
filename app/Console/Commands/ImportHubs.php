@@ -129,6 +129,8 @@ class ImportHubs extends Command
                 'genre'                         => $intro['genre'] ?? null,
                 'place_written'                 => $intro['place_written'] ?? null,
                 'summary'                       => $intro['summary'] ?? null,
+                'excerpt'                       => $intro['excerpt'] ?? null,          // hub-src r2
+                'excerpt_source'                => $intro['excerpt_source'] ?? null,   // hub-src r2
                 'authorship_note'               => $intro['authorship_note'] ?? null,
                 'timeline_start'                => $tl['start'] ?? null,
                 'timeline_end'                  => $tl['end'] ?? null,
@@ -159,20 +161,50 @@ class ImportHubs extends Command
             }
             $book->timelineEvents()->sync($eventIds);
 
-            // Source citations (with per-book note + ordering)
+            // hub-src r2: sources may now carry a per-book marker "letter"
+            // (a single a–z). Inline "(a)" tokens in the intro fields resolve
+            // against it. Bad or duplicate letters are dropped WITH a warning
+            // — the page-side guard then leaves the literal "(a)" visible,
+            // so the mistake is seen, not silently swallowed.
             $srcLinks = [];
             $order = 0;
+            $seenLetters = [];
             foreach (($data['sources'] ?? []) as $link) {
-                // accept either a bare "slug" string or an object {slug, note}
+                // accept either a bare "slug" string or an object {slug, letter, note}
                 $slug = is_array($link) ? ($link['slug'] ?? null) : $link;
                 $src = $slug ? $sourcesBySlug->get($slug) : null;
                 if (! $src) { $this->warn("  {$book->name}: unknown source '{$slug}'."); continue; }
+
+                $letter = is_array($link) ? ($link['letter'] ?? null) : null;
+                if ($letter !== null && ! preg_match('/^[a-z]$/', $letter)) {
+                    $this->warn("  {$book->name}: source '{$slug}' letter '{$letter}' is not a single a–z — dropped.");
+                    $letter = null;
+                }
+                if ($letter !== null && isset($seenLetters[$letter])) {
+                    $this->warn("  {$book->name}: duplicate source letter '{$letter}' ('{$slug}' vs '{$seenLetters[$letter]}') — dropped from '{$slug}'.");
+                    $letter = null;
+                }
+                if ($letter !== null) { $seenLetters[$letter] = $slug; }
+
                 $srcLinks[$src->id] = [
                     'note'       => is_array($link) ? ($link['note'] ?? null) : null,
+                    'letter'     => $letter,
                     'sort_order' => $order++,
                 ];
             }
             $book->sources()->sync($srcLinks);
+
+            // hub-src r2: an excerpt's source must be one of THIS book's
+            // sources, or the attribution line can't render.
+            $exSrc = $intro['excerpt_source'] ?? null;
+            if ($exSrc !== null) {
+                $inList = collect($data['sources'] ?? [])->contains(
+                    fn ($l) => (is_array($l) ? ($l['slug'] ?? null) : $l) === $exSrc
+                );
+                if (! $inList) {
+                    $this->warn("  {$book->name}: excerpt_source '{$exSrc}' is not in this book's sources[] — the attribution line will not render.");
+                }
+            }
 
             $this->line("Imported hub: {$book->name}");
             $done++;

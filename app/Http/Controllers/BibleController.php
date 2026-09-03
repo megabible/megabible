@@ -128,12 +128,28 @@ class BibleController extends Controller
             ->where('id', '!=', $t->id)
             ->orderBy('sort_order')->get();
 
+        // hub-src r2: letter => slug map for the inline "(a)" source markers,
+        // read off the pivot (the importer already policed format and
+        // duplicates). excerptSource is the resolved Source model for the
+        // excerpt's attribution line — null when unset or not in this
+        // book's list (the importer warned at import time).
+        $sourceLetters = [];
+        foreach ($b->sources as $s) {
+            if ($s->pivot->letter) {
+                $sourceLetters[$s->pivot->letter] = $s->slug;
+            }
+        }
+
         return view('bible.book', [
             'translation'       => $t,
             'book'              => $b,
             'chapters'          => $chapters,
             'otherTranslations' => $otherTranslations,
             'timeline'          => $this->buildTimeline($b, $t),
+            'sourceLetters'     => $sourceLetters,
+            'excerptSource'     => $b->intro?->excerpt_source
+                ? $b->sources->firstWhere('slug', $b->intro->excerpt_source)
+                : null,
         ]);
     }
 
@@ -671,6 +687,7 @@ class BibleController extends Controller
                 }
                 $bars[] = [
                     'label'        => $b->name,
+                    'short'        => $b->short_name ?: $b->name,   // tl-fix r4: mobile label
                     'slug'         => $b->slug,
                     'book_id'      => $b->id,
                     'current'      => $isCurrent,
@@ -695,6 +712,7 @@ class BibleController extends Controller
 
                 $bars[] = [
                     'label'        => $b->name,
+                    'short'        => $b->short_name ?: $b->name,   // tl-fix r4: mobile label
                     'slug'         => $b->slug,
                     'book_id'      => $b->id,
                     'current'      => $isCurrent,
@@ -792,8 +810,21 @@ class BibleController extends Controller
         $span = $max - $min;
         $pct  = fn ($year) => max(0.0, min(100.0, round((($year - $min) / $span) * 100, 2)));
 
-        // --- 5. Sort by start year, then compute segment geometry -------------
-        usort($bars, fn ($a, $b) => [$a['start'], $a['end']] <=> [$b['start'], $b['end']]);
+        // --- 5. Sort in CANON ORDER (canon.php), then compute geometry --------
+        // tl-fix r4: rows follow the homepage's canonical sequence, not
+        // composition date — Gen→Exod→Lev reads as the shelf order a reader
+        // knows. The JSON groups[].books arrays now control MEMBERSHIP only.
+        // Books absent from canon.php (shouldn't happen, but never break the
+        // page over content) sort last, by start year among themselves.
+        $order = $this->canonOrderIndex();
+        usort($bars, function ($a, $b) use ($order) {
+            $ai = $order[$a['slug']] ?? PHP_INT_MAX;
+            $bi = $order[$b['slug']] ?? PHP_INT_MAX;
+
+            return $ai === $bi
+                ? ([$a['start'], $a['end']] <=> [$b['start'], $b['end']])
+                : $ai <=> $bi;
+        });
         foreach ($bars as &$bar) {
             foreach ($bar['segments'] as &$seg) {
                 $left        = $pct($seg['start']);
@@ -836,6 +867,39 @@ class BibleController extends Controller
     }
 
     /**
+     * tl-fix r4: slug => running index across the whole canon, in homepage
+     * display order — testaments → sections → subgroups → books, exactly the
+     * walk pickerTestaments() does in TypingController. Static-cached per
+     * request; the config never changes mid-request.
+     */
+    private function canonOrderIndex(): array
+    {
+        static $map = null;
+        if ($map !== null) {
+            return $map;
+        }
+
+        $map = [];
+        $i   = 0;
+        foreach (config('canon.testaments', []) as $testament) {
+            foreach (($testament['sections'] ?? []) as $key) {
+                $section = config('canon.sections')[$key] ?? null;
+                if (! $section) {
+                    continue;
+                }
+                $groups = $section['subgroups'] ?? [['books' => $section['books'] ?? []]];
+                foreach ($groups as $group) {
+                    foreach (($group['books'] ?? []) as $slug) {
+                        $map[$slug] ??= $i++;
+                    }
+                }
+            }
+        }
+
+        return $map;
+    }    
+
+    /**
      * Generate ~5–7 evenly spaced "nice" axis ticks between $min and $max.
      * The first and last ticks carry the era label (AD/BC); the ones between
      * are bare numbers to keep the axis uncluttered.
@@ -862,7 +926,11 @@ class BibleController extends Controller
         $ticks = [];
         $last  = count($years) - 1;
         foreach ($years as $i => $y) {
-            $label = ($i === 0 || $i === $last)
+            // tl-fix r4: only the LAST tick carries the era (BC/AD). The
+            // first used to as well, but on narrow screens both end labels
+            // clipped against the chart edges; a bare number always fits on
+            // the left, and the right end is clamped by the partial's script.
+            $label = ($i === $last)
                 ? $this->yearLabel($y)
                 : (string) abs($y);
             $ticks[] = [

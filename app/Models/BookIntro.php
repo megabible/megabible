@@ -8,7 +8,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class BookIntro extends Model
 {
     protected $fillable = [
-        'book_id', 'summary', 'authorship_note', 'traditional_author',
+        'book_id', 'summary', 'excerpt', 'excerpt_source',   // hub-src r2
+        'authorship_note', 'traditional_author',
         'scholarly_view', 'dating', 'dating_sort', 'dating_start', 'dating_end',
         'language', 'genre', 'place_written',
         'timeline_start', 'timeline_end', 'timeline_color',

@@ -48,7 +48,7 @@ class Book extends Model
     public function sources(): BelongsToMany
     {
         return $this->belongsToMany(Source::class)
-            ->withPivot('note', 'sort_order')
+            ->withPivot('note', 'sort_order', 'letter')
             ->withTimestamps()
             ->orderBy('pivot_sort_order');
     }
