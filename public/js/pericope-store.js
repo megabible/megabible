@@ -103,7 +103,7 @@
         gridRowSpanMax: 40   // max rh (rows a card may span)
     };
 
-    var CARD_TYPES  = ['verse', 'heading', 'note'];
+    var CARD_TYPES  = ['verse', 'heading', 'note', 'interlinear'];
     var LAYOUTS     = ['grid', 'canvas', 'slides'];
     // The theme palette (--tl-* custom properties in app.blade). Stored as
     // NAMES; the client renders var(--tl-<name>) so groups repaint with the
@@ -111,7 +111,7 @@
     var GROUP_COLORS = ['gold', 'terracotta', 'moss', 'teal', 'olive', 'navy',
                         'crimson', 'royal', 'plum', 'indigo', 'clay'];
 
-    var DEFAULT_WIDTH = { verse: 280, note: 220, heading: 0 };   // 0 = auto
+    var DEFAULT_WIDTH = { verse: 280, note: 220, heading: 0, interlinear: 280 };   // 0 = auto
 
     /* ---- storage access (safe, injectable) ------------------------------ */
 
@@ -265,12 +265,21 @@
         return writeRaw(INDEX_KEY, JSON.stringify(index));
     }
 
+    // The hub's card COUNT excludes interlinear children (card-edit
+    // Phase 2) — they're annotations riding on verses, not verses.
+    function countedCards(cards) {
+        if (!isArray(cards)) { return 0; }
+        var n = 0, i;
+        for (i = 0; i < cards.length; i++) { if (cards[i].type !== 'interlinear') { n++; } }
+        return n;
+    }
+
     function indexEntryOf(board) {
         return {
             id:      board.id,
             slug:    board.slug,
             name:    board.name,
-            cards:   isArray(board.cards) ? board.cards.length : 0,
+            cards:   countedCards(board.cards),
             created: board.created,
             updated: board.updated,
             imported: isNum(board.imported) ? board.imported : null
@@ -469,6 +478,23 @@
             // IS its remembered span.
             if (!card.exp) { card.cw = 1; card.rh = 1; }
             else if (card.ew != null) { card.cw = card.ew; card.rh = card.eh; }
+        } else if (type === 'interlinear') {
+            // The original-language CHILD card (card-edit Phase 2). Its whole
+            // identity is `parent` — the id of a VERSE card on this board;
+            // the ref, the language, the tokens all DERIVE from it at render
+            // time, and tokens are never persisted, so this card is nothing
+            // but the tether plus geometry. Parent RESOLUTION happens in
+            // validateBoard and the mutators (which can see the card list) —
+            // an orphan is dropped there, not here. Expand/collapse and the
+            // collapsed-is-1×1 invariant work exactly like a verse card's;
+            // ew/eh (manual size) is deliberately NOT carried — child resize
+            // comes later.
+            if (!isStr(input.parent) || !input.parent) {
+                return { card: null, reason: 'interlinear card missing parent' };
+            }
+            card.parent = cleanText(input.parent, 32);
+            card.exp = input.exp === true;
+            if (!card.exp) { card.cw = 1; card.rh = 1; }
         } else if (type === 'heading') {
             card.text = cleanText(input.text, CAPS.headingMax);
         } else { // note
@@ -516,6 +542,23 @@
             if (res.card) { board.cards.push(res.card); }
             else { dropped.push('card[' + i + ']: ' + res.reason); }
         }
+
+        // TETHER pass (card-edit Phase 2): an interlinear child must point
+        // at a surviving VERSE card, and a parent carries at most ONE child
+        // (first in array order wins). Orphans and extras are dropped here,
+        // so imports and stale documents self-heal on every validate.
+        var tKind = {}, tKept = [], tChild = {}, tc;
+        for (i = 0; i < board.cards.length; i++) { tKind[board.cards[i].id] = board.cards[i].type; }
+        for (i = 0; i < board.cards.length; i++) {
+            tc = board.cards[i];
+            if (tc.type === 'interlinear') {
+                if (tKind[tc.parent] !== 'verse') { dropped.push('card ' + tc.id + ': interlinear orphan (no verse parent)'); continue; }
+                if (tChild[tc.parent]) { dropped.push('card ' + tc.id + ': parent already has an interlinear child'); continue; }
+                tChild[tc.parent] = true;
+            }
+            tKept.push(tc);
+        }
+        board.cards = tKept;
 
         var idSet = {};
         for (i = 0; i < board.cards.length; i++) { idSet[board.cards[i].id] = true; }
@@ -678,12 +721,25 @@
     function expelForeigners(cards, groups) {
         if (!isArray(groups) || !groups.length) { return; }
         var pass, changed, gi, g, mem, i, c, cMin, cMax, rMin, rMax, m, cardL, cardR, cardT, cardB;
+        // DERIVED membership (card-edit Phase 2): an interlinear CHILD is
+        // always a member of its parent's group and never listed in any
+        // group.cards. Fold the children in per group below, so a child
+        // sitting in (or stretching) its parent's box is at home there and
+        // is a foreigner everywhere else — the child-can't-leave-the-
+        // parent's-group rule IS this fold plus the expulsion that follows.
+        var par = {}, pi;
+        for (pi = 0; pi < cards.length; pi++) {
+            if (cards[pi].type === 'interlinear') { par[cards[pi].id] = cards[pi].parent; }
+        }
         for (pass = 0; pass < 5; pass++) {
             changed = false;
             for (gi = 0; gi < groups.length; gi++) {
                 g = groups[gi];
                 mem = {}; cMin = Infinity; cMax = -Infinity; rMin = Infinity; rMax = -Infinity;
                 for (m = 0; m < g.cards.length; m++) { mem[g.cards[m]] = true; }
+                for (pi = 0; pi < cards.length; pi++) {
+                    if (par[cards[pi].id] && mem[par[cards[pi].id]]) { mem[cards[pi].id] = true; }
+                }
                 for (i = 0; i < cards.length; i++) {
                     c = cards[i];
                     if (!mem[c.id] || !hasPos(c)) { continue; }
@@ -896,7 +952,7 @@
         for (i = 0; i < board.cards.length; i++) {
             if (board.cards[i].id === cardId) { card = board.cards[i]; break; }
         }
-        if (!card || card.type !== 'verse') { return board; }   // only verses expand
+        if (!card || (card.type !== 'verse' && card.type !== 'interlinear')) { return board; }   // verses + interlinear children expand
         card.exp = on === true;
         if (card.exp) {
             // A manually-sized card (Phase C) re-opens at its remembered span
@@ -1054,25 +1110,143 @@
         return board;
     }
 
+    // The interlinear CHILD of a verse card in this board doc, or null.
+    // Pure lookup on a doc the caller already holds (like previewMove), so
+    // the card-edit menu can label its button without a storage read.
+    function interlinearChild(board, parentId) {
+        if (!isObj(board) || !isArray(board.cards)) { return null; }
+        for (var i = 0; i < board.cards.length; i++) {
+            if (board.cards[i].type === 'interlinear' && board.cards[i].parent === parentId) { return board.cards[i]; }
+        }
+        return null;
+    }
+
+    // The group holding a card, honouring DERIVED child membership: a child
+    // answers with its PARENT's group. -> group | null. The one groupOf the
+    // board and edit modules should use from Phase 3 on, so nobody re-derives
+    // the tether rule locally.
+    function groupOfCard(board, cardId) {
+        if (!isObj(board) || !isArray(board.cards)) { return null; }
+        var i, c, want = cardId;
+        for (i = 0; i < board.cards.length; i++) {
+            c = board.cards[i];
+            if (c.id === cardId && c.type === 'interlinear') { want = c.parent; break; }
+        }
+        var gi, g, gs = isArray(board.groups) ? board.groups : [];
+        for (gi = 0; gi < gs.length; gi++) {
+            g = gs[gi];
+            if (isArray(g.cards) && g.cards.indexOf(want) !== -1) { return g; }
+        }
+        return null;
+    }
+
+    // ADD an interlinear CHILD to a verse card (the card-edit menu's
+    // "Interlinear" button). ONE per parent — a second ask returns null and
+    // the UI reads interlinearChild() to grey the button instead. The child
+    // spawns EXPANDED on the parent's row just right of it (the same landing
+    // a copy gets), as the collision anchor; derived membership means a
+    // grouped parent's child is born inside the group and never bounced by
+    // the territory rule. Tokens are NEVER stored — the board fetches them
+    // per session — so the card is only the tether plus geometry. A real
+    // edit. -> { board, card } | null.
+    function addInterlinearCard(id, parentId) {
+        var board = get(id);
+        if (!board) { return null; }
+        if (board.cards.length >= CAPS.cardHard) { return null; }
+        var i, at = -1, parent = null, seen = {}, bc;
+        for (i = 0; i < board.cards.length; i++) {
+            bc = board.cards[i];
+            seen[bc.id] = true;
+            if (bc.id === parentId) { at = i; parent = bc; }
+            if (bc.type === 'interlinear' && bc.parent === parentId) { return null; }   // one per parent
+        }
+        if (!parent || parent.type !== 'verse') { return null; }
+        var v = validateCard({
+            type: 'interlinear', parent: parentId, exp: true,
+            col: (isNum(parent.col) ? parent.col : 1) + cardCw(parent),
+            row: isNum(parent.row) ? parent.row : 1
+        }, seen);
+        if (!v.card) { return null; }
+        board.cards.splice(at + 1, 0, v.card);
+        resolveCollisions(board.cards, v.card.id);
+        expelForeigners(board.cards, board.groups);
+        board.updated = now();
+        if (!writeBoard(board)) { return null; }
+        syncIndexEntry(board);
+        return { board: board, card: v.card };
+    }
+
+    // DUPLICATE a card (card-edit "copy", Phase 1 of the card-edit work).
+    // A fresh id; every other field carried over — text, vv, exp, tx and a
+    // manual ew/eh — and the copy lands on the SAME row just RIGHT of the
+    // original (col + cw), as the collision anchor, so whatever sat there
+    // is pushed down. It's spliced in right after the original (array
+    // order = reading/share order) and JOINS the original's group: a copy
+    // made inside a group box would otherwise be bounced straight out of
+    // it by the territory rule. Verse, note and heading cards all copy;
+    // a future interlinear CHILD never does (Phase 2). A real edit.
+    // -> { board, card } | null.
+    function duplicateCard(id, cardId) {
+        var board = get(id);
+        if (!board) { return null; }
+        if (board.cards.length >= CAPS.cardHard) { return null; }
+        var i, at = -1, src = null, seen = {};
+        for (i = 0; i < board.cards.length; i++) {
+            seen[board.cards[i].id] = true;
+            if (board.cards[i].id === cardId) { at = i; src = board.cards[i]; }
+        }
+        if (!src || src.type === 'interlinear') { return null; }
+
+        var raw = JSON.parse(JSON.stringify(src));
+        delete raw.id;                                   // validateCard mints a new one
+        raw.col = (isNum(src.col) ? src.col : 1) + cardCw(src);
+        raw.row = isNum(src.row) ? src.row : 1;
+        var v = validateCard(raw, seen);
+        if (!v.card) { return null; }
+        board.cards.splice(at + 1, 0, v.card);
+
+        var gi, g;
+        for (gi = 0; gi < board.groups.length; gi++) {
+            g = board.groups[gi];
+            if (g.cards.indexOf(cardId) !== -1) { g.cards.push(v.card.id); break; }
+        }
+
+        resolveCollisions(board.cards, v.card.id);
+        expelForeigners(board.cards, board.groups);
+        board.updated = now();
+        if (!writeBoard(board)) { return null; }
+        syncIndexEntry(board);
+        return { board: board, card: v.card };
+    }
+
     // Remove a card (and any links touching it). -> board | null.
     function removeCard(id, cardId) {
         var board = get(id);
         if (!board) { return null; }
-        var i, kept = [], removed = false;
+        // The tether is LIFECYCLE too (card-edit Phase 2): removing a verse
+        // card takes its interlinear child with it. Removing a child alone
+        // leaves the parent untouched. Undo restores both — one snapshot.
+        var gone = [cardId], goneSet = {}, i, kept = [], removed = false;
+        for (i = 0; i < board.cards.length; i++) {
+            if (board.cards[i].type === 'interlinear' && board.cards[i].parent === cardId) {
+                gone.push(board.cards[i].id);
+            }
+        }
+        for (i = 0; i < gone.length; i++) { goneSet[gone[i]] = true; }
         for (i = 0; i < board.cards.length; i++) {
             if (board.cards[i].id === cardId) { removed = true; }
-            else { kept.push(board.cards[i]); }
+            if (!goneSet[board.cards[i].id]) { kept.push(board.cards[i]); }
         }
         if (!removed) { return board; }
         board.cards = kept;
         var links = [];
         for (i = 0; i < board.links.length; i++) {
-            if (board.links[i].from !== cardId && board.links[i].to !== cardId) {
+            if (!goneSet[board.links[i].from] && !goneSet[board.links[i].to]) {
                 links.push(board.links[i]);
             }
         }
         board.links = links;
-        pruneGroups(board, [cardId]);
+        pruneGroups(board, gone);
         board.updated = now();
         if (!writeBoard(board)) { return null; }
         syncIndexEntry(board);
@@ -1216,9 +1390,22 @@
 
     function encodeShare(board) {
         if (!isObj(board)) { return null; }
-        var cards = [], groups = [], prevTx = null, i, c, nums, vi, fields, f;
+        // ENCODED positions first (card-edit Phase 2): a child's parent and
+        // a group's members are referenced BY ENCODED INDEX, and an orphan
+        // child (its parent isn't a verse card on this board) is SKIPPED —
+        // so positions are assigned up front, never assumed equal to the
+        // card's index in board.cards.
+        var encIdx = {}, skip = {}, typeAt = {}, pos = 0, i, c;
+        for (i = 0; i < (board.cards || []).length; i++) { typeAt[board.cards[i].id] = board.cards[i].type; }
         for (i = 0; i < (board.cards || []).length; i++) {
             c = board.cards[i];
+            if (c.type === 'interlinear' && typeAt[c.parent] !== 'verse') { skip[c.id] = true; continue; }
+            encIdx[c.id] = pos++;
+        }
+        var cards = [], groups = [], prevTx = null, nums, vi, fields, f;
+        for (i = 0; i < (board.cards || []).length; i++) {
+            c = board.cards[i];
+            if (skip[c.id]) { continue; }
             if (c.type === 'verse') {
                 if (isArray(c.vv) && c.vv.length) {
                     nums = [];
@@ -1232,6 +1419,9 @@
                           c.col, c.row];
                 prevTx = c.tx;
                 f = shareFlags(c.exp === true, cardCw(c), c.ew, c.eh);
+            } else if (c.type === 'interlinear') {
+                fields = ['~i', encIdx[c.parent], c.col, c.row];
+                f = shareFlags(c.exp === true, cardCw(c));
             } else {
                 fields = [(c.type === 'heading' ? '~h' : '~n'), shEsc(c.text || ''), c.col, c.row];
                 f = shareFlags(false, cardCw(c));
@@ -1241,19 +1431,14 @@
         }
         for (i = 0; i < (board.groups || []).length; i++) {
             c = board.groups[i];
-            var idx = [], m;
+            var idx = [], m, at;
             for (m = 0; m < c.cards.length; m++) {
-                var at = indexOfCard(board.cards, c.cards[m]);
-                if (at !== -1) { idx.push(at); }
+                at = encIdx[c.cards[m]];
+                if (at != null) { idx.push(at); }
             }
             if (idx.length) { groups.push([shEsc(c.label || ''), shEsc(c.color), idx.join(',')].join('.')); }
         }
         return 'p1!' + shEsc(board.name || '') + '!' + cards.join(';') + '!' + groups.join(';');
-    }
-
-    function indexOfCard(cards, id) {
-        for (var i = 0; i < cards.length; i++) { if (cards[i].id === id) { return i; } }
-        return -1;
     }
 
     function decodeShare(str) {
@@ -1271,7 +1456,17 @@
         var items = sections[2] ? sections[2].split(';') : [], i, fld, card, flags, m;
         for (i = 0; i < items.length; i++) {
             fld = items[i].split('.');
-            if (fld[0] === '~h' || fld[0] === '~n') {
+            if (fld[0] === '~i') {
+                // Interlinear CHILD (card-edit Phase 2): its parent rides as
+                // an ENCODED index into this same card list; tether checked
+                // after the loop, once every card exists.
+                if (fld.length < 4 || fld.length > 5) { return fail('card ' + i + ': bad field count'); }
+                card = { type: 'interlinear', parentIdx: parseInt(fld[1], 10),
+                         col: parseInt(fld[2], 10), row: parseInt(fld[3], 10),
+                         cw: 1, exp: false };
+                if (isNaN(card.parentIdx) || card.parentIdx < 0) { return fail('card ' + i + ': bad parent index'); }
+                flags = fld.length === 5 ? fld[4] : '';
+            } else if (fld[0] === '~h' || fld[0] === '~n') {
                 if (fld.length < 4 || fld.length > 5) { return fail('card ' + i + ': bad field count'); }
                 var text = shUn(fld[1]);
                 if (text == null) { return fail('card ' + i + ': bad text escaping'); }
@@ -1298,7 +1493,7 @@
             if (flags) {
                 m = /^(e)?(?:w(\d+))?(?:h(\d+))?$/.exec(flags);
                 if (!m || (!m[1] && !m[2] && !m[3])) { return fail('card ' + i + ': bad flags "' + flags + '"'); }
-                if (m[1] && card.type === 'verse') { card.exp = true; }
+                if (m[1] && (card.type === 'verse' || card.type === 'interlinear')) { card.exp = true; }
                 if (m[2]) { card.cw = parseInt(m[2], 10); }
                 if (m[3] && card.type === 'verse') {   // manual size (Phase C)
                     card.ew = card.cw || 1;
@@ -1306,6 +1501,16 @@
                 }
             }
             cards.push(card);
+        }
+
+        // Tether check (card-edit Phase 2): every child must point at a
+        // VERSE card in this deck. A doubled child (two ~i at one parent) is
+        // left for the importer's validator, which drops the extra.
+        for (i = 0; i < cards.length; i++) {
+            if (cards[i].type !== 'interlinear') { continue; }
+            if (cards[i].parentIdx >= cards.length || cards[cards[i].parentIdx].type !== 'verse') {
+                return fail('card ' + i + ': parent is not a verse card');
+            }
         }
 
         items = sections[3] ? sections[3].split(';') : [];
@@ -1367,6 +1572,9 @@
                          v1: vmin, v2: vmax, tx: dc.tx, exp: dc.exp === true,
                          col: dc.col, row: dc.row, cw: dc.cw,
                          ew: dc.ew, eh: dc.eh };   // manual size (Phase C), if shared
+            } else if (dc.type === 'interlinear') {
+                card = { id: cid, type: 'interlinear', parent: ids[dc.parentIdx],
+                         col: dc.col, row: dc.row, cw: dc.cw, exp: dc.exp === true };
             } else {
                 card = { id: cid, type: dc.type, text: dc.text,
                          col: dc.col, row: dc.row, cw: dc.cw };
@@ -1448,10 +1656,14 @@
         var board = get(id);
         if (!board || !isArray(cardIds) || !cardIds.length) { return null; }
         if (board.groups.length >= CAPS.groupHard) { return null; }
-        var exists = {}, i, members = [], seenIn = {};
-        for (i = 0; i < board.cards.length; i++) { exists[board.cards[i].id] = true; }
+        var kind = {}, i, members = [], seenIn = {};
+        for (i = 0; i < board.cards.length; i++) { kind[board.cards[i].id] = board.cards[i].type; }
         for (i = 0; i < cardIds.length; i++) {
-            if (isStr(cardIds[i]) && exists[cardIds[i]] && !seenIn[cardIds[i]]) {
+            // Interlinear children are NEVER stored members — their
+            // membership DERIVES from the parent (card-edit Phase 2), so a
+            // child id here is silently dropped (a list of only children
+            // makes no group).
+            if (isStr(cardIds[i]) && kind[cardIds[i]] && kind[cardIds[i]] !== 'interlinear' && !seenIn[cardIds[i]]) {
                 seenIn[cardIds[i]] = true; members.push(cardIds[i]);
             }
         }
@@ -1478,12 +1690,13 @@
     function addToGroup(id, groupId, cardIds) {
         var board = get(id);
         if (!board || !isArray(cardIds) || !cardIds.length) { return null; }
-        var g = null, i, exists = {}, joining = [], seen = {};
+        var g = null, i, kind = {}, joining = [], seen = {};
         for (i = 0; i < board.groups.length; i++) { if (board.groups[i].id === groupId) { g = board.groups[i]; break; } }
         if (!g) { return null; }
-        for (i = 0; i < board.cards.length; i++) { exists[board.cards[i].id] = true; }
+        for (i = 0; i < board.cards.length; i++) { kind[board.cards[i].id] = board.cards[i].type; }
         for (i = 0; i < cardIds.length; i++) {
-            if (isStr(cardIds[i]) && exists[cardIds[i]] && !seen[cardIds[i]]) { seen[cardIds[i]] = true; joining.push(cardIds[i]); }
+            // Children never join by id — derived membership only (Phase 2).
+            if (isStr(cardIds[i]) && kind[cardIds[i]] && kind[cardIds[i]] !== 'interlinear' && !seen[cardIds[i]]) { seen[cardIds[i]] = true; joining.push(cardIds[i]); }
         }
         if (!joining.length) { return null; }
         // Strip the joiners from every OTHER group (never from the target —
@@ -1727,8 +1940,17 @@
             g = groups[gi];
             if (!isObj(g) || !isArray(g.cards)) { continue; }
             var c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity;
-            for (m = 0; m < g.cards.length; m++) {
-                f = byId[g.cards[m]];
+            // Members plus DERIVED children (card-edit Phase 2): a child's
+            // cells stretch its parent's box on the thumbnail exactly as
+            // they do on the board.
+            var mset = {}, fold = [], fi;
+            for (m = 0; m < g.cards.length; m++) { mset[g.cards[m]] = true; fold.push(g.cards[m]); }
+            for (fi = 0; fi < board.cards.length; fi++) {
+                c = board.cards[fi];
+                if (c.type === 'interlinear' && mset[c.parent]) { fold.push(c.id); }
+            }
+            for (m = 0; m < fold.length; m++) {
+                f = byId[fold[m]];
                 if (!f) { continue; }
                 c0 = Math.min(c0, f.col);
                 c1 = Math.max(c1, f.col + f.cw - 1);
@@ -1915,6 +2137,10 @@
         setCardSpan: setCardSpan,
         resizeCard:  resizeCard,      // Phase C: manual size (a real edit)
         resetCardSize: resetCardSize, // Phase C: back to auto-snap
+        duplicateCard: duplicateCard, // card-edit copy (Phase 1)
+        addInterlinearCard: addInterlinearCard, // card-edit Phase 2: the child card
+        interlinearChild:   interlinearChild,   //   its lookup (pure, on a board doc)
+        groupOfCard:        groupOfCard,        //   groupOf honouring the tether
         removeCard: removeCard,
         reorder:    reorder,
         save:       save,

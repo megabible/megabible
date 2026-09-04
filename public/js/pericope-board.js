@@ -70,6 +70,9 @@
     // Corners-in "collapse" glyph. Swap for a window-square if you prefer that read.
     var MINIMIZE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>';
     var TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+    // Scissors — the card-edit button (pericope-cardedit.js). Same glyph as
+    // the head-folder's board edit-mode button.
+    var SCISSORS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>';
     var CARET = '\u25BE';   // ▾  (rotates to ▴ via the global .tx[open] rule)
 
     // ---- reference derivation (all from the RAW card + bookMeta) ----------
@@ -269,7 +272,7 @@
                        '<div class="peri-card-snip">' + esc(snippet(snipSrc, SNIP_CAP)) + '</div>' +
                        verseBodyHtml(card) +
                        '<button type="button" class="peri-card-min" aria-label="Collapse ' + esc(full) + ' — hold to resize" title="Collapse — hold to resize">' + MINIMIZE + '</button>' +
-                       '<button type="button" class="peri-card-del" data-id="' + esc(card.id) + '" aria-label="Remove ' + esc(full) + '">' + TRASH + '</button>' +
+                       '<button type="button" class="peri-card-edit" data-id="' + esc(card.id) + '" aria-label="Edit ' + esc(full) + '" title="Edit card" aria-pressed="false">' + SCISSORS + '</button>' +
                    '</article>';
         }
         // note / heading (Phase 3) — text-only, draggable, not expandable.
@@ -659,6 +662,11 @@
         // pan is left for the drag to hand back on drop.
         function setZoom(z, fx, fy) {
             if (!zoomWrap || !grid || z === zoomLevel) { return; }
+            // Zooming (either direction, including the drag's auto-zoom)
+            // closes an open card-edit: the scissors and menu are
+            // display:none while zoomed, and a state with no visible UI is
+            // a state the user can't leave.
+            if (window.MBPericopeCardEdit) { window.MBPericopeCardEdit.close(); }
             var R = zoomWrap.getBoundingClientRect();
             if (fx == null) { fx = document.documentElement.clientWidth / 2; }
             if (fy == null) { fy = (window.innerHeight || document.documentElement.clientHeight) / 2; }
@@ -1117,6 +1125,10 @@
             // Zoomed (Phase 4): cards are inert — drag only.
             if (zoomLevel !== 1) { e.preventDefault(); return; }
 
+            // Card-edit (pericope-cardedit.js) owns its button and menu in
+            // CAPTURE; this is the belt in case a click ever gets through.
+            if (closest(e.target, '.peri-card-edit') || closest(e.target, '.peri-card-menu')) { return; }
+
             var del = closest(e.target, '.peri-card-del');
             if (del) {
                 e.preventDefault();
@@ -1369,7 +1381,7 @@
         render();           // paints, settles spans, and anchors home under the header
         // Deployment marker: one line so a stale cached script is instantly
         // visible. Bump when the geometry code changes.
-        if (window.console && console.info) { console.info('[pericope] board geometry r15'); }
+        if (window.console && console.info) { console.info('[pericope] board geometry r17'); }
 
         // ---- public surface for the companion scripts ---------------------
         // pericope-drag.js (Phase 3) and pericope-edit.js (Phase 5) attach to

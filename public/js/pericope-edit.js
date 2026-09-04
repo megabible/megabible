@@ -94,6 +94,8 @@
     function enter() {
         if (editing) { return; }
         editing = true;
+        // Two edit ideas, one glyph: board mode closes any open card-edit.
+        if (window.MBPericopeCardEdit) { window.MBPericopeCardEdit.close(); }
         applyShimmy();
         // 'is-editing', NOT 'pb-edit' — pb-edit is the rename pencil's CLASS,
         // and putting it on #pb-board dressed the whole board as an

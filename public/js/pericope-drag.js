@@ -182,7 +182,7 @@
         // but the ghost keeps the card's full SIZE, so its shape matches the
         // drop outline (and, zoomed, the grab point stays inside it wherever
         // the card was gripped).
-        var strip = ghost.querySelectorAll('.peri-card-snip, .peri-card-text, .peri-card-tx, .peri-card-min, .peri-card-del');
+        var strip = ghost.querySelectorAll('.peri-card-snip, .peri-card-text, .peri-card-tx, .peri-card-min, .peri-card-del, .peri-card-edit, .peri-card-menu');
         for (i = 0; i < strip.length; i++) {
             if (strip[i].parentNode) { strip[i].parentNode.removeChild(strip[i]); }
         }
@@ -507,6 +507,9 @@
         grid = B.grid;
 
         grid.addEventListener('pointerdown', function (e) {
+            // The scissors and its menu are the one live part of a zoomed
+            // card — never a grab handle.
+            if (closest(e.target, '.peri-card-edit') || closest(e.target, '.peri-card-menu')) { return; }
             // Edit mode × zoom (Phase 5): zoomed-while-editing is the survey
             // view — taps select across the whole board and NOTHING drags.
             if (editing() && zoom() !== 1) { return; }

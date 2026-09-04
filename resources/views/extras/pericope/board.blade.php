@@ -219,6 +219,13 @@
     #pb-board.is-zoomed .peri-card-del,
     #pb-board.is-zoomed .peri-card-tx,
     #pb-board.is-zoomed .peri-ref { pointer-events: none; opacity: .45; }
+
+    /* Zoomed out the scissors (and any open menu) are GONE — the survey
+       view is for reading shape and dragging, not editing. setZoom also
+       closes an open card-edit, so this never hides a live state. */
+    #pb-board.is-zoomed .peri-card-edit,
+    #pb-board.is-zoomed .peri-card-menu { display: none; }
+
     .pb-scroll::before, .pb-scroll::after {
         content: ""; position: absolute; top: 0; bottom: 0; width: 1.75rem;
         pointer-events: none; opacity: 0; transition: opacity .15s; z-index: 2;
@@ -371,6 +378,8 @@
     /* In edit mode a card's inner controls stand down — the tap selects. */
     .pb-editing .peri-card-min,
     .pb-editing .peri-card-del,
+    .pb-editing .peri-card-edit,
+    .pb-editing .peri-card-menu,
     .pb-editing .peri-card-tx,
     .pb-editing .peri-ref { pointer-events: none; }
 
@@ -671,9 +680,8 @@
        edge for free, so no manual indent is needed. */
     .peri-card-top { display: flex; align-items: center; gap: .5rem; }
     .peri-card-titles { flex: 1 1 auto; min-width: 0; }
-    /* Only an expanded card shows a top-right delete; reserve room so the
-       reference never runs under it. Collapsed cards have no corner button. */
-    .peri-card.is-expanded .peri-card-top { padding-right: 2.2rem; }
+    /* Reserve the corner for the scissors (size from the card-edit knobs). */
+    .peri-card.is-expanded .peri-card-top { padding-right: calc(var(--pb-cbtn) + var(--pb-cbtn-inset)); }
 
     .peri-card-head { display: flex; align-items: center; gap: .5rem; }
 
@@ -892,14 +900,16 @@
        a little tail padding, extra on the right for the button's column. */
     .peri-card.is-expanded .peri-verses { padding: 0 2rem .4rem 0; }
 
-    /* Corner buttons — BOTH appear ONLY on an expanded card. A collapsed
-       (succinct) card therefore has no delete target to mis-tap, and no
+    /* Corner buttons — ALL appear ONLY on an expanded card. A collapsed
+       (succinct) card therefore has no corner target to mis-tap, and no
        hover-revealed control at all: removing that reveal is also what fixes
        the mobile "first tap only hovers, second tap clicks" double-tap.
-       Delete sits top-right; collapse sits bottom-right, where an expanded
-       card almost always has spare room below the last line of verse text. */
-    .peri-card-min, .peri-card-del {
-        position: absolute;
+       Top-right is the SCISSORS (card-edit, pericope-cardedit.js) on a verse
+       card and the trash on a note/heading; collapse sits bottom-right, where
+       an expanded card almost always has spare room below the last line.
+       z-index 3 keeps all three above the card-edit menu (z 2). */
+    .peri-card-min, .peri-card-del, .peri-card-edit {
+        position: absolute; z-index: 3;
         display: none; align-items: center; justify-content: center;
         width: 26px; height: 26px; padding: 0;
         border: none; border-radius: 50%;
@@ -918,11 +928,92 @@
         -webkit-user-select: none; user-select: none;
     }
     .peri-card.is-expanded .peri-card-min,
-    .peri-card.is-expanded .peri-card-del { display: inline-flex; }
-    .peri-card-min:hover, .peri-card-del:hover { color: var(--accent); background: var(--panel); }
+    .peri-card.is-expanded .peri-card-del,
+    .peri-card.is-expanded .peri-card-edit { display: inline-flex; }
+    .peri-card-min:hover, .peri-card-del:hover, .peri-card-edit:hover { color: var(--accent); background: var(--panel); }
     /* Rotated 90° so the corners-in arrows point into the bottom-right corner. */
     .peri-card-min svg { width: 14px; height: 14px; display: block; transform: rotate(90deg); }
     .peri-card-del svg { width: 13px; height: 13px; display: block; }
+
+    /* ┌─ CARD-EDIT KNOBS (pericope-cardedit.js) ───────────────────────────┐
+       │ --pb-cbtn        scissors diameter, unzoomed                       │
+       │ --pb-cbtn-ico    glyph size inside it                              │
+       │ --pb-cbtn-inset  distance from the card's top and right edges      │
+       │ --pb-menu-w      size multiplier while ZOOMED OUT. On screen the    │
+       │                  button is --pb-cbtn × this × ZOOM_OUT (0.6): 1.67 │
+       │                  = same screen size as unzoomed; 1.9 ≈ 15% bigger.  │
+       │                  (A multiplier, not 1/zoom: Firefox drops a calc()  │
+       │                  that divides by a var().)                          │
+       │ --pb-cedit-ring  ring thickness on the card in card-edit           │
+       └────────────────────────────────────────────────────────────────────┘ */
+    .peri-card {
+        --pb-cbtn: 32px;
+        --pb-cbtn-ico: 17px;
+        --pb-cbtn-inset: .4rem;
+        /* The menu sheet's width: one column minus the button's corner
+           claim, so it never spans two columns on a wide card. Shrink or
+           grow the sheet here. */
+        --pb-menu-w: calc(var(--pb-col) - var(--pb-cbtn) - var(--pb-cbtn-inset) * 3);
+        --pb-cedit-ring: 3px;
+    }
+    .peri-card-edit {
+        top: var(--pb-cbtn-inset); right: var(--pb-cbtn-inset);
+        width: var(--pb-cbtn); height: var(--pb-cbtn);
+    }
+    .peri-card-edit svg { width: var(--pb-cbtn-ico); height: var(--pb-cbtn-ico); display: block; }
+    .peri-card-edit.is-active { color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--bg)); }
+
+    /* CARD-EDIT STATE — the ring, and the action menu laid over the verse
+       text. The menu is a DIRECT child of the card (a child can re-enable
+       pointer-events under the zoomed-inert text region, but can never undo
+       its opacity); --pb-menu-top is the text region's offset, set by the
+       script. It fills the card from there down and, on a short 2-row card
+       where three buttons don't fit, hangs below it — the card is raised
+       (z 5) so the hanging part paints over its neighbours. */
+    .peri-card.is-card-editing {
+        z-index: 5;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 var(--pb-cedit-ring) color-mix(in srgb, var(--accent) 35%, transparent);
+    }
+    /* CARD-EDIT MENU — a floating SHEET anchored directly LEFT of the
+       scissors, top-aligned with it. Its right edge is pinned relative to
+       the button, so on a wide card it follows the button and stays beside
+       it; its width is capped at --pb-menu-w (about one column), so a
+       multi-column card never grows a two-column-wide panel; and on a
+       1-column card the min() lets it shrink to what fits, painting over
+       the reference header — by design. Taller than a 2-row card it hangs
+       below the card's bottom edge; the is-card-editing z raise (5) keeps
+       the overhang above the neighbours. */
+    .peri-card-menu {
+        position: absolute;
+        top: var(--pb-cbtn-inset);
+        right: calc(var(--pb-cbtn) + var(--pb-cbtn-inset) * 2);
+        width: min(var(--pb-menu-w), calc(100% - var(--pb-cbtn) - var(--pb-cbtn-inset) * 3));
+        z-index: 4;
+        display: flex; flex-direction: column; gap: .4rem;
+        padding: .55rem;
+        background: var(--bg);
+        border: 1px solid var(--rule);
+        border-radius: 12px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.14);
+    }
+    .pce-btn {
+        display: flex; align-items: center; gap: .6rem;
+        width: 100%; padding: .5rem .7rem;
+        border: 1px solid var(--rule); border-radius: 10px;
+        background: var(--panel); color: var(--ink);
+        font-family: var(--sans); font-size: .85rem; font-weight: 600;
+        cursor: pointer; text-align: left;
+        transition: border-color .12s, background .12s, color .12s;
+    }
+    .pce-btn svg { width: 17px; height: 17px; flex: 0 0 auto; display: block; color: var(--muted); }
+    .pce-btn:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); }
+    .pce-btn:hover:not([disabled]) svg { color: var(--accent); }
+    .pce-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+    .pce-btn.is-danger:hover:not([disabled]) { border-color: var(--tl-crimson); color: var(--tl-crimson); }
+    .pce-btn.is-danger:hover:not([disabled]) svg { color: var(--tl-crimson); }
+    .pce-btn[disabled] { opacity: .45; cursor: default; }
+    .pce-hint { margin-left: auto; font-size: .7rem; font-weight: 500; color: var(--muted); }
 
     /* While a drag is live, kill text selection and show the grabbing cursor. */
     .pb-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
@@ -1080,6 +1171,7 @@
 <script src="{{ asset('js/pericope-drag.js') }}?v={{ filemtime(public_path('js/pericope-drag.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-resize.js') }}?v={{ filemtime(public_path('js/pericope-resize.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-edit.js') }}?v={{ filemtime(public_path('js/pericope-edit.js')) }}" defer></script>
+<script src="{{ asset('js/pericope-cardedit.js') }}?v={{ filemtime(public_path('js/pericope-cardedit.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-share.js') }}?v={{ filemtime(public_path('js/pericope-share.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-present.js') }}?v={{ filemtime(public_path('js/pericope-present.js')) }}" defer></script>
 @endsection

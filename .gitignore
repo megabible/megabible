@@ -19,6 +19,7 @@
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
+/resources/views/pages
 /storage/*.key
 /storage/logs
 /storage/pail
