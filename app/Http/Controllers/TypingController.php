@@ -175,6 +175,8 @@ class TypingController extends Controller
             'refBook'      => $refBook,
             'chapters'     => $chapters,
             'cellOffset'   => $b->chapterCellOffset(),
+            'maxChapter'   => $maxChapter,                             // hub-qn r1: the h1 QuickNav grid
+            'vigilPrefix'  => rtrim(route('typing.vigil.home'), '/'),  // hub-qn r1: Screen-1 vigil rewrite
             'osisId'       => $b->osis_id,
             'chapterCounts'=> $chapterCounts,   // { chapter: { txSlug: verseCount } }
             'otherTranslations' => $otherTranslations,
@@ -916,6 +918,7 @@ class TypingController extends Controller
         // the sealed board, the practice link. Null on ordinary scrims.
         return view('extras.scrimmage-verse', [
             'scrim'        => $this->challengePayload($ch),
+            'seenOsis'     => $book->osis_id,       // bk-seen r1: the verse's book
             'defaultNames' => $defaultNames,
 
             'daily' => [
@@ -992,6 +995,7 @@ class TypingController extends Controller
 
         return view('extras.scrimmage-verse', [
             'scrim'             => $this->challengePayload($ch),
+            'seenOsis'          => $ch->refs[0]['book']->osis_id,   // bk-seen r1
             'daily'             => null,            // ordinary scrim: no daily dress
             'defaultNames'      => $defaultNames,
             'readerUrl'         => route('bible.chapter', [

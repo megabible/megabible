@@ -2011,4 +2011,16 @@
         if (!bootDaily()) readyRound(roundData(active));
     })();
 </script>
+
+{{-- bk-seen r1: a scrim on a verse counts as visiting its book (the book
+     hub's weekly readers pill). Same beacon as the reader and vigil; the
+     shared engine dedups per device per book per day. --}}
+<script>
+    window.MBSeenContext = {
+        osis: @json($seenOsis),
+        url:  @json(route('bible.seen')),
+        csrf: @json(csrf_token()),
+    };
+</script>
+<script src="{{ asset('js/book-seen.js') }}?v={{ filemtime(public_path('js/book-seen.js')) }}" defer></script>
 @endsection

@@ -340,35 +340,30 @@
 
         <div class="chapter-head-top">
             @php $txSlug = strtolower($translation->abbreviation); @endphp
-            @if ($maxChapter > 1)
-                {{-- Multi-chapter: the book title opens the QuickNav straight to
-                     this book's chapter grid (pre-rendered in the panel below, so
-                     it works with no JS and ships real hub + chapter links). --}}
-                <details class="qn show-chapters"
-                         data-open-name="{{ $book->name }}"
-                         data-open-title-url="{{ route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
-                         data-open-base="{{ route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
-                         data-open-chapters="{{ $maxChapter }}"
-                         data-open-chapter-offset="{{ $book->chapterCellOffset() }}">
-                    <summary class="qn-book-trigger" aria-label="Jump to another chapter of {{ $book->name }}">
-                        <h1><span class="book-link">{{ $refBook }} {{ $refChapter }}</span></h1>
-                    </summary>
-                    @include('bible.partials.quicknav-panel', [
-                        'openName'     => $book->name,
-                        'openTitleUrl' => route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]),
-                        'openBase'     => route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]),
-                        'openChapters' => $maxChapter,
-                        'openChapterOffset' => $book->chapterCellOffset(),
-                    ])
-                </details>
-            @else
-                {{-- Single-chapter book: nothing to jump between, so keep the
-                     plain link back to the book hub. --}}
-                <h1>
-                    <a class="book-link"
-                       href="{{ route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]) }}">{{ $refBook }}@if ($refChapter !== null) {{ $refChapter }}@endif</a>
-                </h1>
-            @endif
+            {{-- hub-qn r1: the book title opens the QuickNav straight to this
+                 book's chapter grid (pre-rendered in the panel below, so it
+                 works with no JS and ships real hub + chapter links).
+                 Single-chapter books get the SAME trigger — the grid just
+                 holds one cell — so the title behaves identically on every
+                 book; the hub itself stays one tap away as the panel's
+                 title link. --}}
+            <details class="qn show-chapters"
+                     data-open-name="{{ $book->name }}"
+                     data-open-title-url="{{ route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                     data-open-base="{{ route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                     data-open-chapters="{{ $maxChapter }}"
+                     data-open-chapter-offset="{{ $book->chapterCellOffset() }}">
+                <summary class="qn-book-trigger" aria-label="Jump to another chapter of {{ $book->name }}">
+                    <h1><span class="book-link">{{ $refBook }}@if ($refChapter !== null) {{ $refChapter }}@endif</span></h1>
+                </summary>
+                @include('bible.partials.quicknav-panel', [
+                    'openName'     => $book->name,
+                    'openTitleUrl' => route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                    'openBase'     => route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                    'openChapters' => $maxChapter,
+                    'openChapterOffset' => $book->chapterCellOffset(),
+                ])
+            </details>
 
             </div>
 
@@ -494,6 +489,17 @@
     };
 </script>
 <script src="{{ asset('js/focus-synthesis.js') }}?v={{ filemtime(public_path('js/focus-synthesis.js')) }}" defer></script>
+
+{{-- bk-seen r1: count this device into the book's weekly readers pill
+     (shown on the book hub). Context first, engine deferred. --}}
+<script>
+    window.MBSeenContext = {
+        osis: @json($book->osis_id),
+        url:  @json(route('bible.seen')),
+        csrf: @json(csrf_token()),
+    };
+</script>
+<script src="{{ asset('js/book-seen.js') }}?v={{ filemtime(public_path('js/book-seen.js')) }}" defer></script>
 @include('bible.partials.footnote-popover')
 @endsection
 

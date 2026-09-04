@@ -20,6 +20,15 @@ Route::view('/privacy', 'pages.privacy')->name('privacy');
 // Search — resolver (reference / shortcut) or full-text fallback
 Route::get('/search', [SearchController::class, 'handle'])->name('search');
 
+// bk-seen r1: the "readers this week" beacon — anonymous per-book daily
+// visit counter (the scrim_plays pattern; see BibleController::seen).
+// Registered OUTSIDE the /bible group below: it needs neither the
+// translation cookie middleware nor a translation segment, and its POST
+// verb can never collide with the group's GETs. Throttled like any write.
+Route::post('/bible/seen', [BibleController::class, 'seen'])
+    ->middleware('throttle:30,1')
+    ->name('bible.seen');
+
 // Bible routes
 Route::prefix('bible')->name('bible.')
     ->middleware(RememberTranslation::class)

@@ -11,7 +11,10 @@ use App\Models\SharedHeading;
 use App\Models\OriginalToken;
 use App\Support\ChapterLayout;
 use Illuminate\View\View;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 
 class BibleController extends Controller
@@ -122,6 +125,30 @@ class BibleController extends Controller
 
         abort_if($chapters->isEmpty(), 404, 'This book is not available in this translation');
 
+        // hub-qn r1: the h1 QuickNav trigger draws this many chapter cells.
+        // max(), not count() — a gap chapter would otherwise shrink the grid.
+        $maxChapter = (int) $chapters->max();
+
+        // bk-seen r1: devices seen in this book over the rolling seven-day
+        // window (today + the previous six), summed from the anonymous daily
+        // counters. Cached briefly per book — the pill is a vibe, not a
+        // ledger. Raw number only in the cache; nothing route() produced.
+        $readerCount = (int) Cache::remember(
+            'book-visits:' . $b->osis_id,
+            now()->addMinutes(10),
+            fn () => DB::table('book_visits')
+                ->where('osis', $b->osis_id)
+                ->where('visit_date', '>=', now()->subDays(6)->toDateString())
+                ->sum('hits')
+        );
+
+        // bk-seen r1: a book may carry its own reader word (config
+        // canon.reader_words — "Ben Adam" for Genesis, subreddit-style).
+        // Unlisted books fall back to reader/readers, pluralised against
+        // the live count so "1 readers" never renders.
+        $readerWord = config('canon.reader_words.' . $b->slug)
+            ?? Str::plural('reader', $readerCount);
+
         $otherTranslations = Translation::whereIn('id', function ($q) use ($b) {
                 $q->select('translation_id')->from('verses')->where('book_id', $b->id)->distinct();
             })
@@ -144,6 +171,9 @@ class BibleController extends Controller
             'translation'       => $t,
             'book'              => $b,
             'chapters'          => $chapters,
+            'maxChapter'        => $maxChapter,    // hub-qn r1
+            'readerCount'       => $readerCount,   // bk-seen r1
+            'readerWord'        => $readerWord,    // bk-seen r1
             'otherTranslations' => $otherTranslations,
             'timeline'          => $this->buildTimeline($b, $t),
             'sourceLetters'     => $sourceLetters,
@@ -151,6 +181,46 @@ class BibleController extends Controller
                 ? $b->sources->firstWhere('slug', $b->intro->excerpt_source)
                 : null,
         ]);
+    }
+
+    /**
+     * bk-seen r1 — THE "SEEN" BEACON  ·  POST /bible/seen
+     *
+     * A device opened some part of a book today (reader, vigil, or a scrim
+     * on one of its verses). Bump the anonymous daily counter and answer
+     * 204 — no body, nothing to render, the client fires and forgets.
+     *
+     * Dedup is CLIENT-side: public/js/book-seen.js keeps a per-book
+     * "already counted today" date in localStorage (mbSeen.v1) and fires at
+     * most once per book per day per device. Spoofable by clearing storage
+     * — and fine: like scrim_plays, this is a counter with no prize
+     * attached, and the pill's number is openly approximate.
+     *
+     * NOTHING PERSONAL BY CONSTRUCTION: no IP, no hash, no cookie — the
+     * row is (osis, date, hits) and nothing else.
+     */
+    public function seen(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'osis' => 'required|string|max:16',
+        ]);
+
+        // Only real books count. Silent 204 either way — it's a counter,
+        // not an API; bad input earns nothing, including an error to probe.
+        if (! Book::where('osis_id', $data['osis'])->exists()) {
+            return response()->json([], 204);
+        }
+
+        // One atomic upsert — the scrim_plays pattern: race-proof under
+        // concurrent beacons, no read-modify-write window.
+        DB::statement(
+            'INSERT INTO book_visits (osis, visit_date, hits, created_at, updated_at)
+             VALUES (?, ?, 1, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE hits = hits + 1, updated_at = NOW()',
+            [$data['osis'], now()->toDateString()]
+        );
+
+        return response()->json([], 204);
     }
 
     public function showChapter(string $translation, string $book, int $chapter): View

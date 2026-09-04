@@ -265,9 +265,29 @@
         </div>
 
         {{-- Book-name H1 first, mode label under it — same shape as the vigil
-             reader, same top edge as the regular book hub. --}}
+             reader, same top edge as the regular book hub.
+             hub-qn r1: the title is a QuickNav trigger opening this book's
+             VIGIL chapter grid (single-chapter books included — one cell).
+             The eyebrow stays OUTSIDE the details: a label, not a click
+             target. --}}
         <div class="chapter-head-top">
-            <h1>{{ $refBook }}</h1>
+            <details class="qn show-chapters"
+                     data-open-name="{{ $book->name }}"
+                     data-open-title-url="{{ route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                     data-open-base="{{ route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                     data-open-chapters="{{ $maxChapter }}"
+                     data-open-chapter-offset="{{ $book->chapterCellOffset() }}">
+                <summary class="qn-book-trigger" aria-label="Jump to a chapter of {{ $book->name }}">
+                    <h1><span class="book-link">{{ $refBook }}</span></h1>
+                </summary>
+                @include('bible.partials.quicknav-panel', [
+                    'openName'     => $book->name,
+                    'openTitleUrl' => route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                    'openBase'     => route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                    'openChapters' => $maxChapter,
+                    'openChapterOffset' => $book->chapterCellOffset(),
+                ])
+            </details>
             <span class="vg-eyebrow">Typing Vigil</span>
         </div>
 
@@ -340,6 +360,35 @@
 
 @section('scripts')
 <script src="{{ asset('js/sticky-head.js') }}?v={{ filemtime(public_path('js/sticky-head.js')) }}" defer></script>
+
+<script>
+    /* ======================================================================
+       hub-qn r1: QUICKNAV → VIGIL REWRITE — ported from vigil.blade.
+       The composer fills Screen 1's book buttons with READER urls; on this
+       page the title trigger navigates inside the vigil, so tapping another
+       book on Screen 1 should land on ITS vigil hub. Rewrite data-url once
+       at load; the shared script reads it at click time. (The header logo's
+       QuickNav shares the rewrite — the wordmark still exits to the
+       homepage, as everywhere else.)
+       ====================================================================== */
+    (function () {
+        const PREFIX = @json($vigilPrefix);
+        document.querySelectorAll('.qn .qn-book[data-url]').forEach(function (btn) {
+            const m = btn.dataset.url.match(/\/bible\/([^\/]+)\/([^\/]+)\/?$/);
+            if (m) btn.dataset.url = PREFIX + '/' + m[1] + '/' + m[2];
+        });
+    })();
+</script>
+
+{{-- bk-seen r1: the vigil hub counts as reading the book. --}}
+<script>
+    window.MBSeenContext = {
+        osis: @json($osisId),
+        url:  @json(route('bible.seen')),
+        csrf: @json(csrf_token()),
+    };
+</script>
+<script src="{{ asset('js/book-seen.js') }}?v={{ filemtime(public_path('js/book-seen.js')) }}" defer></script>
 <script>
     /* ======================================================================
        Fill per-chapter bars, the book bar, and the book time counter — all

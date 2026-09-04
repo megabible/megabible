@@ -307,33 +307,29 @@
         </div>
 
         <div class="chapter-head-top">
-            @if ($maxChapter > 1)
-                {{-- The book name is a QuickNav trigger — clicking it opens the
-                     chapter grid, pre-rendered with VIGIL chapter links. --}}
-                <div class="vg-title-wrap">
-                    <details class="qn show-chapters"
-                             data-open-name="{{ $book->name }}"
-                             data-open-title-url="{{ route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
-                             data-open-base="{{ route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
-                             data-open-chapters="{{ $maxChapter }}"
-                             data-open-chapter-offset="{{ $book->chapterCellOffset() }}">
-                        <summary class="qn-book-trigger" aria-label="Jump to another chapter of {{ $book->name }}">
-                            <h1><span class="book-link">{{ $refBook }} {{ $refChapter }}</span></h1>
-                        </summary>
-                        @include('bible.partials.quicknav-panel', [
-                            'openName'     => $book->name,
-                            'openTitleUrl' => route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]),
-                            'openBase'     => route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]),
-                            'openChapters' => $maxChapter,
-                            'openChapterOffset' => $book->chapterCellOffset(),
-                        ])
-                    </details>
-                </div>
-            @else
-                <div class="vg-title-wrap">
-                    <h1><span class="book-link">{{ $refBook }}@if ($refChapter !== null) {{ $refChapter }}@endif</span></h1>
-                </div>
-            @endif
+            {{-- hub-qn r1: the book name is a QuickNav trigger — opening the
+                 chapter grid, pre-rendered with VIGIL chapter links. Single-
+                 chapter books get the same trigger (one cell), so the title
+                 behaves identically on every book. --}}
+            <div class="vg-title-wrap">
+                <details class="qn show-chapters"
+                         data-open-name="{{ $book->name }}"
+                         data-open-title-url="{{ route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                         data-open-base="{{ route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                         data-open-chapters="{{ $maxChapter }}"
+                         data-open-chapter-offset="{{ $book->chapterCellOffset() }}">
+                    <summary class="qn-book-trigger" aria-label="Jump to another chapter of {{ $book->name }}">
+                        <h1><span class="book-link">{{ $refBook }}@if ($refChapter !== null) {{ $refChapter }}@endif</span></h1>
+                    </summary>
+                    @include('bible.partials.quicknav-panel', [
+                        'openName'     => $book->name,
+                        'openTitleUrl' => route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                        'openBase'     => route('typing.vigil.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                        'openChapters' => $maxChapter,
+                        'openChapterOffset' => $book->chapterCellOffset(),
+                    ])
+                </details>
+            </div>
 
             {{-- Mustache: one instance now, below the title, outside the
                  details so it is a label and not a click target. --}}
@@ -381,6 +377,18 @@
 @section('scripts')
 <script src="{{ asset('js/verse-hover.js') }}?v={{ filemtime(public_path('js/verse-hover.js')) }}" defer></script>
 <script src="{{ asset('js/sticky-head.js') }}?v={{ filemtime(public_path('js/sticky-head.js')) }}" defer></script>
+
+{{-- bk-seen r1: a vigil chapter counts as reading the book (weekly pill
+     on the book hub). One beacon per device per book per day, whichever
+     surface fires first. --}}
+<script>
+    window.MBSeenContext = {
+        osis: @json($book->osis_id),
+        url:  @json(route('bible.seen')),
+        csrf: @json(csrf_token()),
+    };
+</script>
+<script src="{{ asset('js/book-seen.js') }}?v={{ filemtime(public_path('js/book-seen.js')) }}" defer></script>
 
 <script>
     /* ======================================================================

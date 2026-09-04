@@ -27,6 +27,23 @@
         --mb-head-reserve:     4.5rem;
     }
 
+    /* bk-seen r1: the readers pill — the translation switcher's exact pill
+       chrome (app.blade's .tx-pill), minus the interactivity: no cursor,
+       no hover, no caret. It sits where the switcher used to, under the
+       title, and stays in the pinned head like the vigil hub's switcher.
+       SPACING KNOB: the margin-bottom, mirroring .tx. */
+    .readers-pill {
+        display: inline-flex; align-items: center;
+        padding: .25rem .7rem;
+        border: 1px solid var(--rule); border-radius: 999px;
+        background: var(--bg); color: var(--ink);
+        font-family: var(--sans);
+        font-size: .85rem; font-weight: 600;
+        margin-bottom: .1rem;
+        user-select: none;
+    }
+    .readers-pill b { font-variant-numeric: tabular-nums; margin-right: .3rem; }
+
     /* Hub back link. Lives BELOW the head, on the scrolling surface, so it
        slides up under the sticky header with the chapter grid. */
     .hub-back-row {
@@ -47,7 +64,7 @@
     }
     h2.no-clear { clear: none; }
 
-    /* Chapter grid (now at top) */
+    /* Chapter grid (hub-qn r1: between the timeline and the outline) */
     .chapters {
         display: grid; grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
         gap: 0.5rem; margin-top: 0.5rem; margin-bottom: 2.5rem;
@@ -382,85 +399,41 @@
         </div>
 
         <div class="chapter-head-top">
-            <h1>{{ $book->name }}</h1>
+            {{-- hub-qn r1: the book title is a QuickNav trigger, exactly as
+                 in the readers — opening straight to THIS book's chapter
+                 grid. Rendered for single-chapter books too (the grid just
+                 holds one cell), so the title behaves identically on every
+                 book. Panel pre-filled server-side: works with no JS and
+                 ships real chapter links. --}}
+            @php $txSlug = strtolower($translation->abbreviation); @endphp
+            <details class="qn show-chapters"
+                     data-open-name="{{ $book->name }}"
+                     data-open-title-url="{{ route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                     data-open-base="{{ route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]) }}"
+                     data-open-chapters="{{ $maxChapter }}"
+                     data-open-chapter-offset="{{ $book->chapterCellOffset() }}">
+                <summary class="qn-book-trigger" aria-label="Jump to a chapter of {{ $book->name }}">
+                    <h1><span class="book-link">{{ $book->name }}</span></h1>
+                </summary>
+                @include('bible.partials.quicknav-panel', [
+                    'openName'     => $book->name,
+                    'openTitleUrl' => route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                    'openBase'     => route('bible.book', ['translation' => $txSlug, 'book' => $book->slug]),
+                    'openChapters' => $maxChapter,
+                    'openChapterOffset' => $book->chapterCellOffset(),
+                ])
+            </details>
         </div>
+
+        {{-- bk-seen r1: the readers pill — sits exactly where the
+             translation switcher used to (the vigil hub keeps its switcher;
+             this page trades it for the week's anonymous visit count).
+             Exact number by design, zeroes included — see canon.php
+             reader_words for the per-book word. --}}
+        <span class="readers-pill"><b>{{ number_format($readerCount) }}</b>{{ $readerWord }} this week</span>
     </div>
 
     <p class="hub-back-row"><a class="hub-back" href="{{ route('home') }}">&larr; All books</a></p>
-
-    {{-- Chapters — collapsed to a single row by default; the chevron reveals the rest.
-         The script just below measures how many cells fit per row and hides the overflow,
-         recomputing on every resize so the row grows/shrinks but never wraps. --}}
-    <h2>Chapters</h2>
-    @php $cellOffset = $book->chapterCellOffset(); @endphp
-    <div class="chapters">
-        @foreach ($chapters as $n)
-            <a class="chapter-cell"
-               href="{{ route('bible.chapter', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug, 'chapter' => $n]) }}">{{ $n + $cellOffset }}</a>
-        @endforeach
-
-        <button type="button" class="chapter-toggle" aria-expanded="false"
-                aria-label="Show all chapters" title="Show all chapters">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="6 9 12 15 18 9"></polyline>
-            </svg>
-        </button>
-    </div>
-
-    <script>
-    (function () {
-        const grid = document.querySelector('.chapters');
-        if (!grid) return;
-
-        const toggle = grid.querySelector('.chapter-toggle');
-        const cells  = Array.from(grid.querySelectorAll('.chapter-cell'));
-        if (!toggle || cells.length === 0) return;
-
-        // The browser resolves grid-template-columns to a list of real pixel tracks —
-        // one per column — so counting them gives the exact capacity at this width.
-        function columnCount() {
-            return getComputedStyle(grid).gridTemplateColumns.split(' ').length;
-        }
-
-        function apply() {
-            const cols = columnCount();
-
-            // Whole book already fits on one row: no toggle, show everything.
-            if (cells.length <= cols) {
-                cells.forEach(c => c.classList.remove('is-hidden'));
-                toggle.hidden = true;
-                return;
-            }
-            toggle.hidden = false;
-
-            if (grid.classList.contains('is-expanded')) {
-                cells.forEach(c => c.classList.remove('is-hidden'));
-            } else {
-                const visible = Math.max(0, cols - 1); // toggle takes the last slot
-                cells.forEach((c, i) => c.classList.toggle('is-hidden', i >= visible));
-            }
-        }
-
-        toggle.addEventListener('click', function () {
-            const expanded = grid.classList.toggle('is-expanded');
-            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
-            const label = expanded ? 'Show fewer chapters' : 'Show all chapters';
-            toggle.setAttribute('aria-label', label);
-            toggle.setAttribute('title', label);
-            apply();
-        });
-
-        // Recompute whenever the grid's width changes (desktop resize, rotate, etc.).
-        let raf = null;
-        new ResizeObserver(function () {
-            if (raf) cancelAnimationFrame(raf);
-            raf = requestAnimationFrame(apply);
-        }).observe(grid);
-
-        apply(); // initial collapse, runs as the page parses (minimises any flash)
-    })();
-    </script>
 
     @if ($book->intro)
         @php $intro = $book->intro; @endphp
@@ -573,6 +546,82 @@
          include is unconditional. --}}
     @include('bible.partials.timeline')    
 
+    {{-- Chapters — hub-qn r1: moved below the timeline, above the outline.
+         Collapsed to a single row by default; the chevron reveals the rest.
+         The script just below measures how many cells fit per row and hides
+         the overflow, recomputing on every resize so the row grows/shrinks
+         but never wraps. --}}
+    <h2>Chapters</h2>
+    @php $cellOffset = $book->chapterCellOffset(); @endphp
+    <div class="chapters">
+        @foreach ($chapters as $n)
+            <a class="chapter-cell"
+               href="{{ route('bible.chapter', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug, 'chapter' => $n]) }}">{{ $n + $cellOffset }}</a>
+        @endforeach
+
+        <button type="button" class="chapter-toggle" aria-expanded="false"
+                aria-label="Show all chapters" title="Show all chapters">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+        </button>
+    </div>
+
+    <script>
+    (function () {
+        const grid = document.querySelector('.chapters');
+        if (!grid) return;
+
+        const toggle = grid.querySelector('.chapter-toggle');
+        const cells  = Array.from(grid.querySelectorAll('.chapter-cell'));
+        if (!toggle || cells.length === 0) return;
+
+        // The browser resolves grid-template-columns to a list of real pixel tracks —
+        // one per column — so counting them gives the exact capacity at this width.
+        function columnCount() {
+            return getComputedStyle(grid).gridTemplateColumns.split(' ').length;
+        }
+
+        function apply() {
+            const cols = columnCount();
+
+            // Whole book already fits on one row: no toggle, show everything.
+            if (cells.length <= cols) {
+                cells.forEach(c => c.classList.remove('is-hidden'));
+                toggle.hidden = true;
+                return;
+            }
+            toggle.hidden = false;
+
+            if (grid.classList.contains('is-expanded')) {
+                cells.forEach(c => c.classList.remove('is-hidden'));
+            } else {
+                const visible = Math.max(0, cols - 1); // toggle takes the last slot
+                cells.forEach((c, i) => c.classList.toggle('is-hidden', i >= visible));
+            }
+        }
+
+        toggle.addEventListener('click', function () {
+            const expanded = grid.classList.toggle('is-expanded');
+            toggle.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+            const label = expanded ? 'Show fewer chapters' : 'Show all chapters';
+            toggle.setAttribute('aria-label', label);
+            toggle.setAttribute('title', label);
+            apply();
+        });
+
+        // Recompute whenever the grid's width changes (desktop resize, rotate, etc.).
+        let raf = null;
+        new ResizeObserver(function () {
+            if (raf) cancelAnimationFrame(raf);
+            raf = requestAnimationFrame(apply);
+        }).observe(grid);
+
+        apply(); // initial collapse, runs as the page parses (minimises any flash)
+    })();
+    </script>
+
     {{-- Outline --}}
     @if (! empty($book->intro?->outline))
         <h2>Outline</h2>
@@ -639,5 +688,17 @@
 @endsection
 @section('scripts')
 <script src="{{ asset('js/sticky-head.js') }}?v={{ filemtime(public_path('js/sticky-head.js')) }}" defer></script>
+
+{{-- bk-seen r1: count this device into the book's weekly readers pill.
+     Context first (parse-time), engine deferred — the focus-synthesis
+     ordering guarantee. Single variables only inside @json. --}}
+<script>
+    window.MBSeenContext = {
+        osis: @json($book->osis_id),
+        url:  @json(route('bible.seen')),
+        csrf: @json(csrf_token()),
+    };
+</script>
+<script src="{{ asset('js/book-seen.js') }}?v={{ filemtime(public_path('js/book-seen.js')) }}" defer></script>
 @include('bible.partials.source-popover')
 @endsection

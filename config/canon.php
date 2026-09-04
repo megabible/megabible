@@ -203,6 +203,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Reader-count pill words (bk-seen r1)
+    |--------------------------------------------------------------------------
+    | The book hub's visit pill reads "X {word} this week". Books listed here
+    | (by slug) get their own word — the subreddit-style demonym; anything
+    | unlisted falls back to reader/readers, pluralised in the controller.
+    | The word is used VERBATIM at every count, so pick one that reads right
+    | at 0, at 1, and at 1,000.
+    */
+    'reader_words' => [
+        'genesis' => 'Ben Adam',
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Search chapter remaps
     |--------------------------------------------------------------------------
     | Lets the search box resolve a reference that a user thinks of as a
