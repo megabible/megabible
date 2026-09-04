@@ -219,6 +219,22 @@
             }
             return out;
         }
+        if (c.type === 'interlinear') {
+            // Interlinear CHILD (Phase 3): a dashed shell in the PARENT's
+            // book colour (footprint copies the osis across) with faint
+            // trio lines, so it reads as original-language at thumb size.
+            var ic = paletteColor(BOOK_META[c.osis] && BOOK_META[c.osis].color);
+            var io = rect(x, y, w, h, 1.5,
+                'fill:var(--bg);stroke:var(--tl-' + ic + ');stroke-opacity:.75;stroke-width:.6;stroke-dasharray:1.4 1');
+            if (h > 6) {
+                var ily = y + 2, ilx = x + 1.4, ilw = w - 2.8;
+                while (ily < y + h - 1.4) {
+                    io += rect(ilx, ily, ilw, .7, .35, 'fill:var(--tl-' + ic + ');fill-opacity:.35');
+                    ily += 1.6;
+                }
+            }
+            return io;
+        }        
         if (c.type === 'heading') {
             return rect(x, y, w, h, 1.5, 'fill:var(--ink);fill-opacity:.16');
         }

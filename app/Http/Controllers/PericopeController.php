@@ -100,6 +100,13 @@ class PericopeController extends Controller
             ], false),
             'hubUrl'           => $hubUrl,
             'cardTxUrl'        => route('bible.verse-translations'),
+            // Interlinear tokens endpoint as a pattern the client fills per
+            // card (same sentinel style as readerUrlPattern). The route needs
+            // a translation segment but the tokens are translation-agnostic —
+            // the card's own tx keeps the URL well-formed.
+            'interlinearUrlPattern' => route('bible.interlinear', [
+                'translation' => '__TX__', 'book' => '__BOOK__', 'chapter' => '__CH__',
+            ], false),
         ];
 
         return view('extras.pericope.board', [

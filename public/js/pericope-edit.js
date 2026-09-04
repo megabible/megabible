@@ -64,16 +64,14 @@
         d.textContent = String(s);
         return d.innerHTML;
     }
-    // Which group holds this card, if any (fresh from the board doc).
+    // ONE groupOf for the whole system (Phase 3): the store's groupOfCard
+    // honours the interlinear tether — a CHILD answers with its parent's
+    // group — so selection homogeneity treats a grouped parent's child as
+    // a grouped card. Group/ungroup actions stay safe regardless: the
+    // store silently drops child ids from membership lists.
     function groupOf(cardId) {
         var board = B.board();
-        if (!board) { return null; }
-        var gi, g;
-        for (gi = 0; gi < (board.groups || []).length; gi++) {
-            g = board.groups[gi];
-            if (g.cards.indexOf(cardId) !== -1) { return g; }
-        }
-        return null;
+        return board ? window.MBPericope.groupOfCard(board, cardId) : null;
     }
 
     function selIds() {

@@ -7,7 +7,12 @@
    THE DECK comes from MBPericope.slides(board) — pure, tested in Node:
    strict reading order (column ascending, then row), a group per slide,
    headings as title slides, notes left out, long passages continued over
-   "cont." slides at SLIDE.chars. This file only paints and navigates.
+   "cont." slides at SLIDE.chars. Parts flagged il (their card carries an
+   interlinear child, card-edit Phase 4) draw the original-language trio
+   BESIDE the verse text — stacked under 900px — from the BOARD's session
+   token cache (B.interlinearData / B.fetchInterlinear): the deck itself
+   stays token-free, and open() warms the cache for every il part up
+   front. This file only paints and navigates.
 
    SETTINGS live in localStorage as mb.present (JSON; a bare "dark"/"light"
    string from the first pass still reads): look, font, alignment, tint
@@ -250,6 +255,83 @@
         window.addEventListener('resize', function () { if (isOpen) { fit(); } });
     }
 
+    /* ---- interlinear panes (card-edit Phase 4) ---------------------------- */
+    // Tokens come from the BOARD's session cache through B.interlinearData —
+    // never stored, never in the deck. paint() notes when a pane is still
+    // waiting (ilPendingPainted) so warmInterlinear's resolutions repaint
+    // the CURRENT slide, and only when it actually showed a placeholder.
+    var ilPendingPainted = false;
+
+    function ilTranslitHtml(val) {
+        return esc(val).split('.').join('<span class="syl-sep">\u00B7</span>');
+    }
+
+    function ilPaneHtml(part) {
+        if (!B || !B.interlinearData) { return ''; }
+        var data = B.interlinearData(part.card);
+        if (data.state === 'pending') {
+            ilPendingPainted = true;
+            return '<div class="pbp-il"><p class="pbp-il-pending">Loading original text\u2026</p></div>';
+        }
+        if (data.state !== 'ready') { return ''; }   // no coverage: the verse stands alone
+        // A continuation part shows only ITS verses' rows.
+        var want = null, k;
+        if (part.verses) {
+            want = {};
+            for (k = 0; k < part.verses.length; k++) { want[part.verses[k][0]] = true; }
+        }
+        // Each TOKEN is a vertical stack — original / transliteration /
+        // gloss for that one word — and the stacks flow as a wrapping row,
+        // so a reader can see at a glance which word means what (item 2).
+        // The row's writing direction follows the language (RTL Hebrew
+        // reads its words right-to-left, but each stack stays upright).
+        // No credit on the slide — it lives on the board card (item 1).
+        var h = '<div class="pbp-il">', i, v, t, tok, rtl;
+        var multi = data.verses.length > 1;
+        for (i = 0; i < data.verses.length; i++) {
+            v = data.verses[i];
+            if (want && !want[v.n]) { continue; }
+            rtl = v.lang.rtl;
+            h += '<div class="pbp-il-verse' + (rtl ? ' is-rtl' : '') + '">';
+            if (multi) { h += '<span class="pbp-il-vn">' + esc(v.n) + '</span>'; }
+            h += '<div class="pbp-il-words"' + (rtl ? ' dir="rtl"' : '') + '>';
+            for (t = 0; t < v.tokens.length; t++) {
+                tok = v.tokens[t];
+                h += '<div class="pbp-il-word">' +
+                         '<span class="pbp-il-original"' + (rtl ? ' dir="rtl"' : '') + '>' + esc(tok[0] || '\u00B7') + '</span>' +
+                         '<span class="pbp-il-translit">' +
+                             (String(tok[1] || '').indexOf('.') !== -1 ? ilTranslitHtml(tok[1]) : esc(tok[1] || '\u00B7')) +
+                         '</span>' +
+                         '<span class="pbp-il-gloss">' + esc(tok[2] || '\u00B7') + '</span>' +
+                     '</div>';
+            }
+            h += '</div></div>';
+        }
+        h += '</div>';
+        return h;
+    }
+
+    // Warm the cache for every il part in the deck (open() calls this); a
+    // settled fetch repaints the current slide iff it painted a placeholder.
+    function warmInterlinear() {
+        if (!B || !B.fetchInterlinear) { return; }
+        var seen = {}, i, j, s, p;
+        for (i = 0; i < deck.length; i++) {
+            s = deck[i];
+            if (!s.parts) { continue; }
+            for (j = 0; j < s.parts.length; j++) {
+                p = s.parts[j];
+                if (p.il && p.card && !seen[p.card.id]) {
+                    seen[p.card.id] = true;
+                    B.fetchInterlinear(p.card).then(onIlSettled);
+                }
+            }
+        }
+    }
+    function onIlSettled() {
+        if (isOpen && ilPendingPainted) { paint(); }
+    }
+
     /* ---- paint ----------------------------------------------------------- */
     function slideHtml(s, i) {
         if (s.kind === 'title' || s.kind === 'heading') {
@@ -262,7 +344,11 @@
         for (j = 0; j < s.parts.length; j++) { chars += (s.parts[j].text || '').length; if (s.parts[j].verses) { for (k = 0; k < s.parts[j].verses.length; k++) { chars += s.parts[j].verses[k][1].length; } } }
         // Wide slides spread long content over two columns (the margins are
         // there to be used); the CSS only does it above 900px.
-        var many = s.parts.length >= 3 || chars > MANY_CHARS;
+        // A slide with an interlinear pane never goes two-column — the duo
+        // already spends the width (Phase 4).
+        var hasIl = false;
+        for (j = 0; j < s.parts.length; j++) { if (s.parts[j].il) { hasIl = true; break; } }
+        var many = !hasIl && (s.parts.length >= 3 || chars > MANY_CHARS);
         var h = '<div class="pbp-slide is-' + s.kind + (many ? ' is-many' : '') + '">';
         if (s.kind === 'group' && s.label) {
             h += '<h2 class="pbp-group">' + esc(s.label) + (s.cont ? ' <span class="pbp-cont">continued</span>' : '') + '</h2>';
@@ -272,22 +358,36 @@
         h += '<div class="pbp-body">';
         for (j = 0; j < s.parts.length; j++) {
             part = s.parts[j];
-            h += '<div class="pbp-part">';
-            h += '<p class="pbp-text">';
+            var body = '<p class="pbp-text">';
             if (part.verses) {
                 var numbered = part.verses.length > 1 || part.card.v1 !== part.card.v2;
                 for (k = 0; k < part.verses.length; k++) {
-                    if (numbered) { h += '<sup class="pbp-vn">' + esc(part.verses[k][0]) + '</sup>'; }
-                    h += esc(part.verses[k][1]) + (k < part.verses.length - 1 ? ' ' : '');
+                    if (numbered) { body += '<sup class="pbp-vn">' + esc(part.verses[k][0]) + '</sup>'; }
+                    body += esc(part.verses[k][1]) + (k < part.verses.length - 1 ? ' ' : '');
                 }
             } else {
                 txt = part.text || '';
-                h += txt ? esc(txt) : '<span class="pbp-empty">(text not yet loaded — open the card on the board once)</span>';
+                body += txt ? esc(txt) : '<span class="pbp-empty">(text not yet loaded — open the card on the board once)</span>';
             }
-            h += '</p>';
-            h += '<p class="pbp-ref">' + esc(partRef(part)) +
-                 (txLabel(part) ? '<span class="pbp-tx">' + esc(txLabel(part)) + '</span>' : '') + '</p>';
-            h += '</div>';
+            body += '</p>';
+            var ref = '<p class="pbp-ref">' + esc(partRef(part)) +
+                      (txLabel(part) ? '<span class="pbp-tx">' + esc(txLabel(part)) + '</span>' : '') + '</p>';
+            // A part with an interlinear child becomes a DUO: verse text and
+            // the trio side by side, stacked under 900px (Phase 4). The ref
+            // (book·chapter·verse·translation) rides with the VERSE text
+            // column only — it names that translation, not the gloss (item
+            // 0) — so it goes INSIDE the verse column here, and stays after
+            // the part for a plain slide.
+            if (part.il) {
+                h += '<div class="pbp-part has-il">' +
+                         '<div class="pbp-duo">' +
+                             '<div class="pbp-verse-col">' + body + ref + '</div>' +
+                             ilPaneHtml(part) +
+                         '</div>' +
+                     '</div>';
+            } else {
+                h += '<div class="pbp-part">' + body + ref + '</div>';
+            }
         }
         h += '</div></div>';
         return h;
@@ -295,6 +395,7 @@
 
     function paint() {
         var s = deck[at];
+        ilPendingPainted = false;                 // slideHtml re-arms it if a pane waits
         stage.innerHTML = slideHtml(s, at);
         counter.textContent = (at + 1) + ' / ' + deck.length;
         // Each slide's tint drifts a little around the chosen hue so a deck
@@ -394,6 +495,7 @@
         if (!board || !window.MBPericope || !window.MBPericope.slides) { return; }
         deck = window.MBPericope.slides(board);
         if (!deck.length) { return; }
+        warmInterlinear();
         build();
         loadPrefs(); applyPrefs();
         at = 0; isOpen = true;
@@ -423,6 +525,9 @@
     function init() {
         B = window.MBPericopeBoard;
         if (!B) { return; }
+        // Deployment tripwire (same convention as the board's geometry rN):
+        // if DevTools doesn't print this line, the served file is stale.
+        if (window.console && console.info) { console.info('[pericope] presenter il-panes r2'); }
         BOOK_META = (window.MBPericopeBoardConfig && window.MBPericopeBoardConfig.bookMeta) || BOOK_META;
     }
 

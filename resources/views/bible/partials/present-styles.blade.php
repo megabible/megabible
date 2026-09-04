@@ -276,6 +276,85 @@
     .pbp-nav-next { right: 0; width: 66.666%; cursor: e-resize; }
     .pbp.is-idle .pbp-nav { cursor: none; }
 
+    /* ---- interlinear panes (card-edit Phase 4, reworked) ----------------- */
+    /* A part whose card carries an interlinear child is a DUO: the verse
+       text (with its reference) on one side, the original-language trio on
+       the other — side by side above 900px, stacked below. Within the
+       pane, each WORD is its own vertical stack (original / transliteration
+       / gloss) and the stacks flow as a wrapping row, so it reads as an
+       interlinear: the Hebrew word, what it sounds like, and what it means,
+       one above the other, per word.
+
+       ┌─ SIZE KNOBS ────────────────────────────────────────────────────────┐
+       │ The trio is drawn LARGER than the verse text (item 3). Each row is a │
+       │ multiple of the verse text's own clamp; bump a factor to grow that   │
+       │ row across every screen size. All three ride --pbp-scale, so the fit │
+       │ loop still shrinks a dense slide to fit.                             │
+       │   --pbp-il-orig     original language (Hebrew/Greek)   default 1.30  │
+       │   --pbp-il-translit transliteration                    default 1.00  │
+       │   --pbp-il-gloss    literal gloss                      default 0.92  │
+       │ (1.00 = the same size as the verse text. All three are ABOVE the     │
+       │ verse text at their defaults except translit, which matches it, and  │
+       │ gloss, just under — raise --pbp-il-translit / --pbp-il-gloss past    │
+       │ 1.0 if you want the whole trio strictly larger.)                     │
+       │ Column split desktop: --pbp-il-split (pane share of the row width).  │
+       │ Gap between word stacks: --pbp-il-gap.                               │
+       └──────────────────────────────────────────────────────────────────────┘ */
+    .pbp-slide { --pbp-il-rev: 2;   /* tripwire: check on .pbp-slide in DevTools computed styles */
+                 --pbp-il-orig: 1.30; --pbp-il-translit: 1.00; --pbp-il-gloss: .92;
+                 --pbp-il-split: 42%; --pbp-il-gap: clamp(.7rem, 1.6vw, 1.5rem); }
+
+    .pbp-duo { display: flex; flex-direction: column; gap: clamp(1rem, 2.4vh, 1.8rem); }
+    .pbp-verse-col { min-width: 0; }
+    @media (min-width: 900px) {
+        .pbp-duo { flex-direction: row; align-items: flex-start; gap: clamp(1.5rem, 3.5vw, 3.5rem); }
+        .pbp-verse-col { flex: 1 1 auto; }
+        .pbp-duo > .pbp-il { flex: 0 0 var(--pbp-il-split); }
+    }
+
+    /* The base em for the trio: the verse text's own clamp, so every row
+       tracks the verse size and the knobs above are plain multiples of it. */
+    .pbp-il { --pbp-il-base: calc(clamp(1.35rem, 2.1vw + 1rem, 3rem) * var(--pbp-scale)); text-align: left; }
+    .pbp-il-verse { display: flex; align-items: baseline; gap: .5em; }
+    .pbp-il-verse + .pbp-il-verse { margin-top: clamp(.7rem, 1.8vh, 1.3rem); }
+    .pbp-il-verse.is-rtl { flex-direction: row; }   /* the number stays at the start */
+
+    /* The wrapping row of word-stacks. dir=rtl on the element (set inline
+       for Hebrew) lays the stacks right-to-left; each stack is upright. */
+    .pbp-il-words { display: flex; flex-wrap: wrap; align-items: flex-start;
+                    gap: var(--pbp-il-gap) calc(var(--pbp-il-gap) * 1.2); flex: 1 1 auto; }
+    .pbp-il-word { display: flex; flex-direction: column; align-items: center; text-align: center;
+                   /* a hair of separation so adjacent stacks don't merge */
+                   padding-bottom: .1em; }
+
+    .pbp-il-original {
+        font-family: var(--pp-font, var(--serif));
+        font-size: calc(var(--pbp-il-base) * var(--pbp-il-orig));
+        line-height: 1.2;
+    }
+    .pbp-il-original[dir="rtl"] { direction: rtl; }
+    .pbp-il-translit {
+        font-style: italic; opacity: .82;
+        font-family: var(--pp-font, var(--serif));
+        font-size: calc(var(--pbp-il-base) * var(--pbp-il-translit));
+        line-height: 1.25; margin-top: .12em;
+    }
+    .pbp-il-gloss {
+        opacity: .7;
+        font-family: var(--sans);
+        font-size: calc(var(--pbp-il-base) * var(--pbp-il-gloss));
+        line-height: 1.2; margin-top: .1em;
+    }
+    .pbp-il-vn {
+        font-size: calc(var(--pbp-il-base) * .55); opacity: .55;
+        font-family: var(--sans); align-self: flex-start;
+    }
+    .pbp-il-pending {
+        margin: 0; font-style: italic;
+        font-size: calc(.95rem * var(--pbp-scale));
+        color: var(--pp-muted);
+    }
+
     /* ---- reduced motion ------------------------------------------------- */
     @media (prefers-reduced-motion: reduce) {
         .pbp-slide { transition: none; transform: none; }

@@ -7,10 +7,21 @@
    into CARD-EDIT: the button tints, the card wears a ring, and a menu
    overlays the verse text with the card's actions —
 
-     COPY         MBPericope.duplicateCard — a twin lands to the right.
-     INTERLINEAR  (Phase 3) spawns the original-language child card.
-                  Rendered disabled until then.
+     DUPLICATE    MBPericope.duplicateCard — a twin lands to the right.
+     INTERLINEAR  Coverage is PROBED THE MOMENT THE MENU OPENS, through the
+                  board's session token cache (B.fetchInterlinear): the
+                  button starts disabled ("checking…"), then enables, or
+                  settles on "no source text" for a passage outside
+                  TAHOT/TAGNT coverage. Pressing it spawns the child via
+                  MBPericope.addInterlinearCard. A parent that already has
+                  its child shows "added".
      DELETE       mbConfirm, then MBPericope.removeCard. Undoable anyway.
+                  (Deleting the PARENT cascades to its child — the store's
+                  tether rule.)
+
+   The scissors lives on every expanded card of these two kinds: a VERSE
+   card gets all three actions; an interlinear CHILD gets a delete-only
+   menu (a child neither duplicates nor nests).
 
    Pressing the tinted scissors again, Escape, or ANY render (copy and
    delete both end in one) leaves card-edit. The state is DOM-only and
@@ -48,21 +59,60 @@
     var ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
 
     function cardEl(id) { return grid.querySelector('.peri-card[data-id="' + id + '"]'); }
+    function findCard(board, id) {
+        if (!board) { return null; }
+        for (var i = 0; i < board.cards.length; i++) { if (board.cards[i].id === id) { return board.cards[i]; } }
+        return null;
+    }
 
-    function menuHtml() {
+    var DELETE_BTN = '<button type="button" class="pce-btn is-danger" data-act="delete">' + ICON_TRASH +
+                         '<span class="pce-label">Delete</span></button>';
+
+    function menuHtml(cardId) {
+        var board = B.board(), card = findCard(board, cardId);
+        if (card && card.type === 'interlinear') { return DELETE_BTN; }   // a child's one action
+        var child = board && window.MBPericope.interlinearChild
+            ? window.MBPericope.interlinearChild(board, cardId) : null;
+        // Without a child the button opens DISABLED with a data-probe mark:
+        // probeCoverage() settles it right after the menu is in the DOM.
+        var il = child
+            ? '<button type="button" class="pce-btn" data-act="interlinear" disabled aria-disabled="true">' + ICON_INTERLINEAR +
+                  '<span class="pce-label">Interlinear</span><span class="pce-hint">added</span></button>'
+            : '<button type="button" class="pce-btn" data-act="interlinear" data-probe="1" disabled aria-disabled="true">' + ICON_INTERLINEAR +
+                  '<span class="pce-label">Interlinear</span><span class="pce-hint">checking\u2026</span></button>';
         return '<button type="button" class="pce-btn" data-act="copy">' + ICON_COPY +
-                   '<span class="pce-label">Copy</span></button>' +
-               '<button type="button" class="pce-btn" data-act="interlinear" disabled aria-disabled="true" title="Coming soon">' + ICON_INTERLINEAR +
-                   '<span class="pce-label">Interlinear</span><span class="pce-hint">soon</span></button>' +
-               '<button type="button" class="pce-btn is-danger" data-act="delete">' + ICON_TRASH +
-                   '<span class="pce-label">Delete</span></button>';
+                   '<span class="pce-label">Duplicate</span></button>' +
+               il + DELETE_BTN;
+    }
+
+    // Ask the board's token cache whether the parent's verses have original-
+    // language coverage, and settle the Interlinear button: enabled, or
+    // "no source text". Cached answers resolve on the next microtask, so a
+    // second open of the same card never visibly says "checking".
+    function probeCoverage(id, menu) {
+        var btn = menu.querySelector('[data-act="interlinear"][data-probe]');
+        if (!btn || !B.fetchInterlinear) { return; }
+        var parent = findCard(B.board(), id);
+        if (!parent) { return; }
+        B.fetchInterlinear(parent).then(function (covered) {
+            if (current !== id || !menu.contains(btn)) { return; }   // menu closed / rebuilt meanwhile
+            var hint = btn.querySelector('.pce-hint');
+            btn.removeAttribute('data-probe');
+            if (covered) {
+                btn.disabled = false;
+                btn.removeAttribute('aria-disabled');
+                if (hint) { hint.parentNode.removeChild(hint); }
+            } else if (hint) {
+                hint.textContent = 'no source text';
+            }
+        });
     }
 
     // ---- open / close ----------------------------------------------------
 
     function open(id) {
         var el = cardEl(id);
-        if (!el || el.getAttribute('aria-expanded') !== 'true') { return; }   // expanded verse cards only
+        if (!el || el.getAttribute('aria-expanded') !== 'true') { return; }   // expanded cards only
         if (current && current !== id) { close(); }
         if (current === id) { return; }
         current = id;
@@ -71,7 +121,7 @@
         menu.className = 'peri-card-menu';
         menu.setAttribute('role', 'group');
         menu.setAttribute('aria-label', 'Card actions');
-        menu.innerHTML = menuHtml();
+        menu.innerHTML = menuHtml(id);
         // The menu is a SHEET anchored beside the scissors: a direct child
         // of the card, pinned to the top-right by CSS (left of the button),
         // so on a wide card it follows the button and on a 1-column card it
@@ -79,9 +129,14 @@
         // nothing is measured here.
         el.appendChild(menu);
         el.classList.add('is-card-editing');
+        probeCoverage(id, menu);
 
         var btn = el.querySelector('.peri-card-edit');
-        if (btn) { btn.classList.add('is-active'); btn.setAttribute('aria-pressed', 'true'); }
+        if (btn) {
+            btn.classList.add('is-active');
+            btn.setAttribute('aria-pressed', 'true');
+            btn.setAttribute('aria-expanded', 'true');   // the menu it controls is open
+        }
         var first = menu.querySelector('.pce-btn:not([disabled])');
         if (first) { try { first.focus({ preventScroll: true }); } catch (_) { first.focus(); } }
     }
@@ -95,7 +150,12 @@
         if (menu && menu.parentNode) { menu.parentNode.removeChild(menu); }
         el.classList.remove('is-card-editing');
         var btn = el.querySelector('.peri-card-edit');
-        if (btn) { btn.classList.remove('is-active'); btn.setAttribute('aria-pressed', 'false'); btn.blur(); }
+        if (btn) {
+            btn.classList.remove('is-active');
+            btn.setAttribute('aria-pressed', 'false');
+            btn.setAttribute('aria-expanded', 'false');
+            btn.blur();
+        }
     }
 
     function toggle(id) { if (current === id) { close(); } else { open(id); } }
@@ -117,6 +177,30 @@
         if (!res) { return; }
         B.render();
         reveal(res.card.id);
+    }
+
+    // Spawn the child. probeCoverage already warmed the cache when the menu
+    // opened, so the fetch here answers at once; it stays the source of
+    // truth in case the probe was still in flight when the user tapped.
+    function doInterlinear(id, btn) {
+        var parent = findCard(B.board(), id);
+        if (!parent || !B.fetchInterlinear) { return; }
+        btn.disabled = true;
+        btn.setAttribute('aria-disabled', 'true');
+        B.fetchInterlinear(parent).then(function (covered) {
+            if (current !== id) { return; }        // menu closed / moved on meanwhile
+            if (!covered) {
+                var hint = btn.querySelector('.pce-hint');
+                if (!hint) { hint = document.createElement('span'); hint.className = 'pce-hint'; btn.appendChild(hint); }
+                hint.textContent = 'no source text';
+                return;
+            }
+            var res = window.MBPericope.addInterlinearCard(B.boardId(), id);
+            close();
+            if (!res) { return; }
+            B.render();
+            reveal(res.card.id);
+        });
     }
 
     function doDelete(id) {
@@ -153,24 +237,45 @@
             e.preventDefault(); e.stopPropagation();
             if (act.disabled || !current) { return; }
             var a = act.getAttribute('data-act');
-            if (a === 'copy')        { doCopy(current); }
-            else if (a === 'delete') { doDelete(current); }
+            if (a === 'copy')             { doCopy(current); }
+            else if (a === 'interlinear') { doInterlinear(current, act); }
+            else if (a === 'delete')      { doDelete(current); }
             return;
         }
         // Any other click on the menu's surface (its padding) goes nowhere.
         if (closest(e.target, '.peri-card-menu')) { e.preventDefault(); e.stopPropagation(); }
     }
 
-    // Escape leaves card-edit — caught here in CAPTURE so the board's own
-    // Escape (which collapses the card) doesn't also fire.
+    // Keyboard on the open menu (Phase 5): Escape leaves card-edit — caught
+    // in CAPTURE so the board's own Escape (which collapses the card)
+    // doesn't also fire — and Up/Down/Home/End rove focus through the
+    // enabled actions, wrapping at the ends, so the menu drives from the
+    // keyboard the way it reads.
     function onGridKey(e) {
-        if (!current || (e.key !== 'Escape' && e.key !== 'Esc')) { return; }
+        if (!current) { return; }
         var card = closest(e.target, '.peri-card');
         if (!card || card.getAttribute('data-id') !== current) { return; }
+        var k = e.key;
+        if (k === 'Escape' || k === 'Esc') {
+            e.preventDefault(); e.stopPropagation();
+            var btn = card.querySelector('.peri-card-edit');
+            close();
+            if (btn) { try { btn.focus({ preventScroll: true }); } catch (_) { btn.focus(); } }
+            return;
+        }
+        if (k !== 'ArrowDown' && k !== 'ArrowUp' && k !== 'Home' && k !== 'End') { return; }
+        var menu = card.querySelector('.peri-card-menu');
+        if (!menu || !menu.contains(e.target)) { return; }
+        var all = menu.querySelectorAll('.pce-btn:not([disabled])');
+        if (!all.length) { return; }
         e.preventDefault(); e.stopPropagation();
-        var btn = card.querySelector('.peri-card-edit');
-        close();
-        if (btn) { try { btn.focus({ preventScroll: true }); } catch (_) { btn.focus(); } }
+        var at = -1, i;
+        for (i = 0; i < all.length; i++) { if (all[i] === e.target) { at = i; break; } }
+        if (k === 'Home')           { at = 0; }
+        else if (k === 'End')       { at = all.length - 1; }
+        else if (k === 'ArrowDown') { at = (at + 1) % all.length; }
+        else                        { at = (at - 1 + all.length) % all.length; }
+        try { all[at].focus({ preventScroll: true }); } catch (_) { all[at].focus(); }
     }
 
     function init() {

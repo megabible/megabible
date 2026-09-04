@@ -88,6 +88,7 @@
     @include('bible.partials.sticky-head')
     @include('bible.partials.fab-styles')
     @include('bible.partials.present-styles')
+    @include('bible.partials.interlinear-styles')
 
     /* ---- Board head overrides ------------------------------------------
        --pb-gutter is the distance from the viewport's left edge to the
@@ -1014,6 +1015,30 @@
     .pce-btn.is-danger:hover:not([disabled]) svg { color: var(--tl-crimson); }
     .pce-btn[disabled] { opacity: .45; cursor: default; }
     .pce-hint { margin-left: auto; font-size: .7rem; font-weight: 500; color: var(--muted); }
+
+    /* INTERLINEAR CHILD CARDS (Phase 3). Trio rows + credit come from
+       bible/partials/interlinear-styles (shared with the reader's synthesis
+       card-backs); this is only the card framing. --bk arrives from the
+       PARENT's book, worn as a left accent bar so a child reads as an
+       annotation in the family colour rather than another verse. */
+    .peri-card.is-interlinear { border-left: 4px solid var(--bk); }
+    .peri-card.is-interlinear .iface-verse + .iface-verse { margin-top: .8rem; }
+    .peri-il-msg {
+        margin: .25rem 0 0;
+        font-family: var(--sans); font-size: .8rem;
+        color: var(--muted); font-style: italic;
+    }    
+
+    /* TETHER CURVES (Phase 3): the SVG layer behind the cards holding a
+       curve from each verse card to its interlinear child, in the parent's
+       book colour. z −1 like the group shells and appended after them, so
+       it paints over a group's fill and under every card. KNOBS: stroke
+       width and opacity here; the curve's minimum bow (TETHER_MIN_BOW) in
+       pericope-board.js. */
+    .pb-tethers { position: absolute; left: 0; top: 0; z-index: -1; pointer-events: none; overflow: visible; }
+    .pb-editing .pb-tethers { z-index: 0; }
+    .pb-tether { fill: none; stroke-width: 3; stroke-linecap: round; opacity: .6; }
+    .pb-tether-end { opacity: .75; }    
 
     /* While a drag is live, kill text selection and show the grabbing cursor. */
     .pb-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }

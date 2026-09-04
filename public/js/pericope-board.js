@@ -37,6 +37,7 @@
     var READER      = CFG.readerUrlPattern || '';  // /bible/__TX__/__BOOK__/__CH__
     var HUB         = CFG.hubUrl || '';
     var CARD_TX_URL = CFG.cardTxUrl || '';         // JSON: this ref across every translation
+    var IL_URL      = CFG.interlinearUrlPattern || '';   // tokens endpoint, __TX__/__BOOK__/__CH__ sentinels (Phase 3)
     var SNIP_CAP = 48;                            // collapsed snippet character cap (tweakable)
 
     function esc(s) {
@@ -225,7 +226,244 @@
         return 'grid-column:' + track + ' / span ' + cw + ';grid-row:' + row + ' / span ' + rh + ';';
     }
 
-    function cardHtml(card, isExpanded, colMap) {
+/* ---- interlinear child cards (card-edit Phase 3) --------------------
+       A child card renders its PARENT's verses in the original language —
+       the same original / transliteration / literal trio the reader's
+       synthesis card-backs show (focus-synthesis.js buildBack, ported to
+       the board's ES5 string-building style), with the same CC BY credit.
+       Tokens are NEVER stored: they live in a per-session cache keyed
+       book|chapter|verse (so overlapping cards share fetches), and langs/
+       credits ride along on the first response. A verse that came back
+       WITHOUT tokens (books outside TAHOT/TAGNT coverage) is cached as
+       null — "fetched, uncovered" — so the card can say so without
+       refetching on every paint. */
+    var ilCache   = {};   // "slug|ch|v" -> {lang, source, tokens:[[surface,translit,gloss]…]} | null
+    var ilLangs   = {};   // lang code   -> {name, rtl}
+    var ilCredits = {};   // source key  -> {provider, short, license, url}
+    var ilPending = {};   // "slug|ch"   -> in-flight Promise (collapses repeat asks)
+
+    function ilVerseKey(slug, ch, v) { return slug + '|' + ch + '|' + v; }
+
+    // The verse numbers a parent card spans: its vv when captured, else the
+    // v1..v2 range (a legacy blob card still knows its numbers).
+    function ilVerses(parent) {
+        var out = [], i;
+        if (parent.vv && parent.vv.length) {
+            for (i = 0; i < parent.vv.length; i++) { out.push(parent.vv[i][0]); }
+        } else {
+            for (i = parent.v1; i <= parent.v2; i++) { out.push(i); }
+        }
+        return out;
+    }
+
+    // Fetch any of the parent's verses not yet in the cache. Resolves TRUE
+    // if any verse of the run is covered. A failed fetch resolves false and
+    // caches nothing, so the next deliberate ask retries cleanly — and
+    // hydrateInterlinear knows not to repaint (the repaint-refetch loop).
+    function fetchInterlinear(parent) {
+        var meta = BOOK_META[parent.osis];
+        if (!IL_URL || !meta || !meta.slug) { return Promise.resolve(false); }
+        var verses = ilVerses(parent), missing = [], i;
+        for (i = 0; i < verses.length; i++) {
+            if (ilCache[ilVerseKey(meta.slug, parent.ch, verses[i])] === undefined) { missing.push(verses[i]); }
+        }
+        function covered() {
+            for (var j = 0; j < verses.length; j++) {
+                if (ilCache[ilVerseKey(meta.slug, parent.ch, verses[j])]) { return true; }
+            }
+            return false;
+        }
+        if (!missing.length) { return Promise.resolve(covered()); }
+        var pendKey = meta.slug + '|' + parent.ch;
+        if (ilPending[pendKey]) { return ilPending[pendKey].then(covered); }
+
+        // The route wants a translation segment but the tokens are
+        // translation-agnostic — the card's own tx keeps the URL well-formed.
+        var url = IL_URL.replace('__TX__', encodeURIComponent(parent.tx || 'web'))
+                        .replace('__BOOK__', encodeURIComponent(meta.slug))
+                        .replace('__CH__', encodeURIComponent(parent.ch)) +
+                  '?v=' + encodeURIComponent(missing.join(','));
+        var p = fetch(url, { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { if (!r.ok) { throw new Error('interlinear ' + r.status); } return r.json(); })
+            .then(function (data) {
+                var k, m, langs = data.langs || {}, creds = data.credits || {}, vs = data.verses || {};
+                for (k in langs) { if (langs.hasOwnProperty(k)) { ilLangs[k] = langs[k]; } }
+                for (k in creds) { if (creds.hasOwnProperty(k)) { ilCredits[k] = creds[k]; } }
+                for (m = 0; m < missing.length; m++) {
+                    ilCache[ilVerseKey(meta.slug, parent.ch, missing[m])] = vs[missing[m]] || null;
+                }
+                delete ilPending[pendKey];
+                return covered();
+            })
+            .catch(function () { delete ilPending[pendKey]; return false; });
+        ilPending[pendKey] = p;
+        return p;
+    }
+
+    // Escape, with STEPBible's syllable periods as faint interpuncts — the
+    // reader's fillTranslit, string-flavoured (the dots stay periods in the
+    // data; only the display swaps them).
+    function ilTranslit(val) {
+        return esc(val).split('.').join('<span class="syl-sep">\u00B7</span>');
+    }
+
+    function ilSourceDomain(url) {
+        try { return new URL(url).hostname.replace(/^www\./, ''); }
+        catch (_) { return url; }
+    }
+
+    // The header badge where a verse card's tx code sits: "HEBREW" /
+    // "GREEK" once the cache knows, "ORIGINAL" before.
+    function ilLangLabel(parent) {
+        var meta = BOOK_META[parent.osis];
+        if (meta && meta.slug) {
+            var verses = ilVerses(parent), i, e;
+            for (i = 0; i < verses.length; i++) {
+                e = ilCache[ilVerseKey(meta.slug, parent.ch, verses[i])];
+                if (e) { return ((ilLangs[e.lang] && ilLangs[e.lang].name) || 'Original').toUpperCase(); }
+            }
+        }
+        return 'ORIGINAL';
+    }
+
+    // Collapsed snippet: the first covered verse's opening surface forms.
+    function ilSnippet(parent) {
+        var meta = BOOK_META[parent.osis];
+        if (meta && meta.slug) {
+            var verses = ilVerses(parent), i, e, t, out;
+            for (i = 0; i < verses.length; i++) {
+                e = ilCache[ilVerseKey(meta.slug, parent.ch, verses[i])];
+                if (e && e.tokens.length) {
+                    out = [];
+                    for (t = 0; t < e.tokens.length && t < 6; t++) { out.push(e.tokens[t][0]); }
+                    return out.join(' ');
+                }
+            }
+        }
+        return 'Original language';
+    }
+
+    // The expanded body: the trio per verse plus the CC BY credit — or a
+    // quiet message while tokens load / when the passage has no source.
+    // Reads ONLY the cache (synchronous, like every other cardHtml path);
+    // hydrateInterlinear fills the cache and repaints.
+    function ilBodyHtml(parent) {
+        var meta = BOOK_META[parent.osis];
+        if (!meta || !meta.slug) { return '<p class="peri-il-msg">Unknown book.</p>'; }
+        var verses = ilVerses(parent);
+        var blocks = '', wordCount = 0, firstLang = null, srcSeen = {}, srcList = [];
+        var unfetched = false, labelled = false, i, v, entry;
+        for (i = 0; i < verses.length; i++) {
+            v = verses[i];
+            entry = ilCache[ilVerseKey(meta.slug, parent.ch, v)];
+            if (entry === undefined) { unfetched = true; continue; }
+            if (!entry) { continue; }                      // fetched, uncovered
+            if (!srcSeen[entry.source]) { srcSeen[entry.source] = true; srcList.push(entry.source); }
+            if (!firstLang) { firstLang = entry.lang; }
+            var lang = ilLangs[entry.lang] || { name: 'Original', rtl: false };
+            var rows = [
+                [lang.name,         'row-original', lang.rtl ? ' dir="rtl"' : ''],
+                ['Transliteration', 'row-translit', ''],
+                ['Literal',         'row-gloss',    '']
+            ], r, t, line, val;
+            blocks += '<div class="iface-verse">' +
+                      (verses.length > 1 ? '<span class="peri-vn">' + esc(v) + '</span>' : '');
+            for (r = 0; r < rows.length; r++) {
+                line = '';
+                for (t = 0; t < entry.tokens.length; t++) {
+                    val = entry.tokens[t][r] || '\u00B7';      // token columns match row order
+                    line += (t ? ' ' : '') +
+                            (r === 1 && String(val).indexOf('.') !== -1 ? ilTranslit(val) : esc(val));
+                }
+                if (r === 0) { wordCount += entry.tokens.length; }
+                blocks += '<div class="iface-row">' +
+                              (!labelled ? '<span class="iface-label">' + esc(rows[r][0]) + '</span>' : '') +
+                              '<div class="' + rows[r][1] + '"' + rows[r][2] + '>' + line + '</div>' +
+                          '</div>';
+            }
+            labelled = true;
+            blocks += '</div>';
+        }
+        if (!blocks) {
+            return unfetched
+                ? '<p class="peri-il-msg is-loading">Loading original text\u2026</p>'
+                : '<p class="peri-il-msg">No original-language source for this passage yet.</p>';
+        }
+        // Attribution, CC BY (required) — same wording as the reader's backs.
+        var langName = (ilLangs[firstLang] && ilLangs[firstLang].name) || 'Original';
+        var credit = '', s, c;
+        for (i = 0; i < srcList.length; i++) {
+            s = srcList[i]; c = ilCredits[s] || {};
+            if (i) { credit += '  '; }
+            credit += esc(wordCount + ' ' + langName + ' ' + (wordCount === 1 ? 'word' : 'words') +
+                          ' from ' + (c.provider ? c.provider + ' ' : '') + (c.short || s));
+            if (c.license) { credit += ' \u00B7 ' + esc(c.license); }
+            if (c.url) {
+                credit += ' \u00B7 Source: <a href="' + esc(c.url) + '" target="_blank" rel="noopener">' +
+                          esc(ilSourceDomain(c.url)) + '</a>';
+            }
+        }
+        return '<div class="iface peri-il">' + blocks +
+               '<div class="iface-credit">' + credit + '</div></div>';
+    }
+
+    // Structured view of the session cache for ONE parent card, for
+    // consumers that paint their own interlinear (the presenter, Phase 4).
+    // state: 'ready' (verses lists the covered ones) | 'pending' (fetches
+    // haven't answered yet) | 'none' (fetched — no original-language
+    // source for the run).
+    function interlinearData(parent) {
+        var meta = BOOK_META[parent.osis];
+        if (!meta || !meta.slug) { return { state: 'none', verses: [], credits: ilCredits }; }
+        var verses = ilVerses(parent), out = [], pending = false, i, e;
+        for (i = 0; i < verses.length; i++) {
+            e = ilCache[ilVerseKey(meta.slug, parent.ch, verses[i])];
+            if (e === undefined) { pending = true; continue; }
+            if (!e) { continue; }
+            out.push({ n: verses[i], lang: ilLangs[e.lang] || { name: 'Original', rtl: false },
+                       source: e.source, tokens: e.tokens });
+        }
+        return { state: out.length ? 'ready' : (pending ? 'pending' : 'none'),
+                 verses: out, credits: ilCredits };
+    }    
+
+    function cardHtml(card, isExpanded, colMap, byId) {
+        if (card.type === 'interlinear') {
+            // CHILD card (Phase 3): the parent's reference in the parent's
+            // book colour, a language badge where a verse card's tx code
+            // sits, and the trio body built synchronously from the session
+            // cache (hydrateInterlinear fills it and repaints). The badge
+            // line reuses .peri-card-tx for layout but carries NO data-book,
+            // so hydrateSwitcher's early return leaves it static.
+            var parent = byId ? byId[card.parent] : null;
+            if (!parent) { return ''; }   // orphan mid-session; validate heals on next write
+            var pc    = paletteColor(BOOK_META[parent.osis] && BOOK_META[parent.osis].color);
+            var pfull = displayRef(parent) + ' \u2014 interlinear';
+            var iRef  = '<span class="peri-ref">' +
+                            '<span class="peri-cell">' + esc(cellRef(parent)) + '</span>' +
+                            '<span class="peri-ref-full">' + esc(displayRef(parent)) + '</span>' +
+                            '<span class="peri-ref-short">' + esc(cellRef(parent)) + '</span>' +
+                        '</span>';
+            var iOpen = isExpanded
+                ? ' class="peri-card is-interlinear is-expanded" aria-expanded="true"'
+                : ' class="peri-card is-interlinear" tabindex="0" aria-expanded="false" aria-label="Expand ' + esc(pfull) + '"';
+            return '<article' + iOpen + ' data-id="' + esc(card.id) + '" data-parent="' + esc(card.parent) +
+                       '" data-ref="' + esc(pfull) +
+                       '" data-cw="' + (card.cw || 1) + '" data-rh="' + (card.rh || 1) +
+                       '" style="--bk:var(--tl-' + pc + ');' + placeStyle(card, colMap) + '">' +
+                       '<div class="peri-card-top">' +
+                           '<span class="peri-grip" aria-hidden="true" title="Drag to move">' + GRIP + '</span>' +
+                           '<div class="peri-card-titles">' +
+                               '<div class="peri-card-head">' + iRef + '</div>' +
+                               '<div class="peri-card-tx"><span class="tx-mini is-static">' + esc(ilLangLabel(parent)) + '</span></div>' +
+                           '</div>' +
+                       '</div>' +
+                       '<div class="peri-card-snip">' + esc(snippet(ilSnippet(parent), SNIP_CAP)) + '</div>' +
+                       '<div class="peri-card-text">' + ilBodyHtml(parent) + '</div>' +
+                       '<button type="button" class="peri-card-min" aria-label="Collapse ' + esc(pfull) + ' \u2014 hold to resize" title="Collapse">' + MINIMIZE + '</button>' +
+                       '<button type="button" class="peri-card-edit" data-id="' + esc(card.id) + '" aria-label="Edit ' + esc(pfull) + '" title="Edit card" aria-pressed="false">' + SCISSORS + '</button>' +
+                   '</article>';
+        }    
         if (card.type === 'verse') {
             var color   = paletteColor(BOOK_META[card.osis] && BOOK_META[card.osis].color);
             var full    = displayRef(card);
@@ -400,9 +638,10 @@
             maxRow = bottomRow(board.cards);
             grid.style.gridTemplateColumns = 'repeat(' + layout.count + ', var(--pb-col))';
 
-            var html = '';
-            for (var i = 0; i < board.cards.length; i++) {
-                html += cardHtml(board.cards[i], board.cards[i].exp === true, layout.map);
+            var html = '', byId = {};
+            for (var i = 0; i < board.cards.length; i++) { byId[board.cards[i].id] = board.cards[i]; }
+            for (i = 0; i < board.cards.length; i++) {
+                html += cardHtml(board.cards[i], board.cards[i].exp === true, layout.map, byId);
             }
             // Group shells (Phase 5) go AFTER the cards in the DOM; each
             // LABEL is a separate SIBLING of its shell (r11): the shell sits
@@ -427,11 +666,22 @@
             budgetCache = {};   // any re-render can change text, tx or metrics
 
             // Member cards wear their group's colour as a border tint (the
-            // is-selected wash still wins — it's declared later in the sheet).
+            // is-selected wash still wins — it's declared later in the
+            // sheet). Children are folded in (Phase 3): derived membership
+            // means a child tints with its parent's group.
+            var kidsOf = {}, kk, kc;
+            for (kk = 0; kk < board.cards.length; kk++) {
+                kc = board.cards[kk];
+                if (kc.type === 'interlinear') { (kidsOf[kc.parent] = kidsOf[kc.parent] || []).push(kc.id); }
+            }
             for (gi = 0; gi < (board.groups || []).length; gi++) {
-                var grp = board.groups[gi];
+                var grp = board.groups[gi], eff = [];
                 for (var mi = 0; mi < grp.cards.length; mi++) {
-                    var mel = grid.querySelector('.peri-card[data-id="' + grp.cards[mi] + '"]');
+                    eff.push(grp.cards[mi]);
+                    if (kidsOf[grp.cards[mi]]) { eff = eff.concat(kidsOf[grp.cards[mi]]); }
+                }
+                for (mi = 0; mi < eff.length; mi++) {
+                    var mel = grid.querySelector('.peri-card[data-id="' + eff[mi] + '"]');
                     if (mel) {
                         mel.classList.add('in-group');
                         mel.style.setProperty('--gp', 'var(--tl-' + grp.color + ')');
@@ -443,6 +693,11 @@
             // needs its switcher hydrated; cached refs apply with no network.
             var exp = grid.querySelectorAll('.peri-card.is-expanded'), k;
             for (k = 0; k < exp.length; k++) { hydrateSwitcher(exp[k]); }
+
+            // Interlinear children (Phase 3): warm the token cache; the
+            // response repaints the placeholders.
+            var kids = grid.querySelectorAll('.peri-card.is-interlinear'), ki;
+            for (ki = 0; ki < kids.length; ki++) { hydrateInterlinear(kids[ki]); }            
             return board;
         }
 
@@ -494,7 +749,11 @@
                     continue;
                 } else if (exp === 'true') {
                     textEl   = el.querySelector('.peri-card-text');
-                    versesEl = el.querySelector('.peri-verses');
+                    // A verse card measures .peri-verses; an interlinear
+                    // child measures its trio block (Phase 3). A child
+                    // still showing only a message falls to the
+                    // scrollHeight path below, like a legacy blob.
+                    versesEl = el.querySelector('.peri-verses') || el.querySelector('.peri-il');
                     if (textEl && versesEl) {
                         // chrome (box minus the flexed text container — the
                         // container absorbs all stretch slack, so this is
@@ -860,6 +1119,7 @@
             ext.style.top = '0px';
 
             positionGroups(padL, m);
+            positionTethers();
 
             var maxScroll = grid.scrollWidth - grid.clientWidth;
             anchorRest = Math.max(0, Math.min(maxScroll, restScroll));
@@ -882,6 +1142,11 @@
             var cellX = m.colW + m.colGap, cellY = m.rowUnit + m.rowGap;
             var byId = {}, i, c, sh, g, gi, tMin, tMax, rMin, rMax, mm, t;
             for (i = 0; i < lastBoard.cards.length; i++) { byId[lastBoard.cards[i].id] = lastBoard.cards[i]; }
+            var kidsOf = {}, kk, kc;
+            for (kk = 0; kk < lastBoard.cards.length; kk++) {
+                kc = lastBoard.cards[kk];
+                if (kc.type === 'interlinear') { (kidsOf[kc.parent] = kidsOf[kc.parent] || []).push(kc.id); }
+            }            
             var groups = {};
             for (gi = 0; gi < (lastBoard.groups || []).length; gi++) { groups[lastBoard.groups[gi].id] = lastBoard.groups[gi]; }
             for (i = 0; i < shells.length; i++) {
@@ -889,8 +1154,16 @@
                 g = groups[sh.getAttribute('data-group')];
                 tMin = Infinity; tMax = -Infinity; rMin = Infinity; rMax = -Infinity;
                 if (g) {
+                    // Members plus DERIVED children (Phase 3): a child's
+                    // cells stretch its parent's box, mirroring the store's
+                    // expelForeigners fold.
+                    var eff = [], em;
                     for (mm = 0; mm < g.cards.length; mm++) {
-                        c = byId[g.cards[mm]];
+                        eff.push(g.cards[mm]);
+                        if (kidsOf[g.cards[mm]]) { eff = eff.concat(kidsOf[g.cards[mm]]); }
+                    }
+                    for (em = 0; em < eff.length; em++) {
+                        c = byId[eff[em]];
                         if (!c) { continue; }
                         t = (currentLayout.map[colOf(c)] || 1) - 1;        // 0-based track
                         tMin = Math.min(tMin, t);
@@ -919,6 +1192,88 @@
                     lab.style.top  = (boxT - 6) + 'px';
                 }
             }
+        }
+
+// TETHER CURVES (card-edit Phase 3, item 6). One SVG layer behind the
+        // cards holds a cubic curve from each verse card to its interlinear
+        // child, in the PARENT's book colour. Pure derivation from the two
+        // cards' DOM boxes (offset geometry — unscaled, so the same numbers
+        // are right zoomed), redrawn on every anchor pass right after the
+        // group outlines; nothing is stored, and a pair with either card
+        // missing this paint draws nothing. The curve leaves the parent from
+        // the side that faces the child (right/left when the child is clear
+        // of it horizontally, else bottom/top) and enters the child on the
+        // matching side, so a child to the right reads as a bracket and one
+        // below as a drop line. KNOB: TETHER_MIN_BOW is how far the control
+        // points reach, i.e. how much a short tether still curves; stroke
+        // width and opacity live in the .pb-tether CSS.
+        var TETHER_MIN_BOW = 28;
+
+        function tetherRect(el) {
+            var l = el.offsetLeft, t = el.offsetTop, w = el.offsetWidth, h = el.offsetHeight;
+            return { l: l, t: t, r: l + w, b: t + h, cx: l + w / 2, cy: t + h / 2 };
+        }
+
+        function tetherPath(p, q, color) {
+            var x1, y1, x2, y2, c1x, c1y, c2x, c2y, bow, sgn;
+            if (q.l >= p.r || q.r <= p.l) {            // child clear of the parent sideways
+                if (q.l >= p.r) { x1 = p.r; x2 = q.l; } else { x1 = p.l; x2 = q.r; }
+                y1 = p.cy; y2 = q.cy;
+                sgn = x2 >= x1 ? 1 : -1;
+                bow = Math.max(TETHER_MIN_BOW, Math.abs(x2 - x1) / 2);
+                c1x = x1 + sgn * bow; c1y = y1;
+                c2x = x2 - sgn * bow; c2y = y2;
+            } else {                                    // stacked: leave the near edge vertically
+                if (q.t >= p.b) { y1 = p.b; y2 = q.t; } else { y1 = p.t; y2 = q.b; }
+                x1 = p.cx; x2 = q.cx;
+                sgn = y2 >= y1 ? 1 : -1;
+                bow = Math.max(TETHER_MIN_BOW, Math.abs(y2 - y1) / 2);
+                c1x = x1; c1y = y1 + sgn * bow;
+                c2x = x2; c2y = y2 - sgn * bow;
+            }
+            function n(v) { return Math.round(v * 10) / 10; }
+            var col = (color && color.trim()) || 'var(--accent)';
+            var d = 'M' + n(x1) + ' ' + n(y1) +
+                    ' C' + n(c1x) + ' ' + n(c1y) + ' ' + n(c2x) + ' ' + n(c2y) + ' ' + n(x2) + ' ' + n(y2);
+            return '<path class="pb-tether" d="' + d + '" style="stroke:' + col + '"/>' +
+                   '<circle class="pb-tether-end" cx="' + n(x1) + '" cy="' + n(y1) + '" r="3.5" style="fill:' + col + '"/>' +
+                   '<circle class="pb-tether-end" cx="' + n(x2) + '" cy="' + n(y2) + '" r="3.5" style="fill:' + col + '"/>';
+        }
+
+        function positionTethers() {
+            var layer = grid.querySelector('.pb-tethers');
+            if (!lastBoard) { return; }
+            var pairs = [], i, c, childEl, parentEl;
+            for (i = 0; i < lastBoard.cards.length; i++) {
+                c = lastBoard.cards[i];
+                if (c.type !== 'interlinear') { continue; }
+                childEl  = grid.querySelector('.peri-card[data-id="' + c.id + '"]');
+                parentEl = grid.querySelector('.peri-card[data-id="' + c.parent + '"]');
+                if (childEl && parentEl) { pairs.push([parentEl, childEl]); }
+            }
+            if (!pairs.length) {
+                if (layer) { layer.parentNode.removeChild(layer); }
+                return;
+            }
+            if (!layer) {
+                // Appended AFTER the group shells (paint() wrote those), so at
+                // the same z −1 it paints over a group's fill, under the cards.
+                layer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                layer.setAttribute('class', 'pb-tethers');
+                layer.setAttribute('aria-hidden', 'true');
+                layer.setAttribute('focusable', 'false');
+                grid.appendChild(layer);
+            }
+            var paths = '', maxX = 0, maxY = 0, p, q;
+            for (i = 0; i < pairs.length; i++) {
+                p = tetherRect(pairs[i][0]); q = tetherRect(pairs[i][1]);
+                paths += tetherPath(p, q, pairs[i][0].style.getPropertyValue('--bk'));
+                maxX = Math.max(maxX, p.r, q.r); maxY = Math.max(maxY, p.b, q.b);
+            }
+            var W = Math.ceil(maxX + 8), H = Math.ceil(maxY + 8);
+            layer.setAttribute('width', W); layer.setAttribute('height', H);
+            layer.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+            layer.innerHTML = paths;
         }
 
         // GROUP-FOLLOW preview (r14): reposition ONE group's shell (and chip)
@@ -1015,6 +1370,34 @@
         function shortFor(abbr, list) {
             for (var i = 0; i < list.length; i++) { if (list[i].abbr === abbr) { return list[i].short; } }
             return (abbr || '').toUpperCase();
+        }
+
+        // Interlinear child (Phase 3): if any of the parent's verses is
+        // still UNFETCHED, fetch — and repaint only when the fetch actually
+        // landed. A failure caches nothing, and repainting on failure would
+        // refetch in a loop; the next deliberate render retries instead.
+        // Fully-cached cards (covered or not) built their body
+        // synchronously in cardHtml and need nothing here.
+        function hydrateInterlinear(cardEl) {
+            if (!lastBoard) { return; }
+            var pid = cardEl.getAttribute('data-parent'), parent = null, i;
+            for (i = 0; i < lastBoard.cards.length; i++) {
+                if (lastBoard.cards[i].id === pid) { parent = lastBoard.cards[i]; break; }
+            }
+            if (!parent) { return; }
+            var meta = BOOK_META[parent.osis];
+            if (!meta || !meta.slug) { return; }
+            var verses = ilVerses(parent), need = false, j;
+            for (j = 0; j < verses.length; j++) {
+                if (ilCache[ilVerseKey(meta.slug, parent.ch, verses[j])] === undefined) { need = true; break; }
+            }
+            if (!need) { return; }
+            fetchInterlinear(parent).then(function () {
+                for (var k2 = 0; k2 < verses.length; k2++) {
+                    if (ilCache[ilVerseKey(meta.slug, parent.ch, verses[k2])] === undefined) { return; }   // fetch failed
+                }
+                if (!dragging()) { render(); }
+            });
         }
 
         // Fetch (or reuse) availability for an expanded card's switcher line and
@@ -1247,14 +1630,20 @@
             var el = grid.querySelector('.peri-card[data-id="' + cardId + '"]');
             if (!el || el.getAttribute('aria-expanded') !== 'true') { return null; }
             var textEl   = el.querySelector('.peri-card-text');
-            var versesEl = el.querySelector('.peri-verses');
-            if (!textEl || !versesEl) { return null; }   // legacy blob: no budget until self-heal
+            // A verse card's content is .peri-verses; a child's is its trio
+            // block (.peri-il). A child still showing only a message has no
+            // budget yet, like a legacy blob.
+            var versesEl = el.querySelector('.peri-verses') || el.querySelector('.peri-il');
+            if (!textEl || !versesEl) { return null; }   // legacy blob / unfetched child: no budget yet
             var m = gridMetrics();
             var pitch = m.rowUnit + m.rowGap;
             var z = (zoomLevel > 0) ? zoomLevel : 1;
             var chrome = (el.getBoundingClientRect().height -
                           textEl.getBoundingClientRect().height) / z;
             ensureProbe();
+            // The probe mirrors the card's kind so the child's left accent
+            // bar (border-left) is in the width it measures.
+            probeEl.classList.toggle('is-interlinear', el.classList.contains('is-interlinear'));
             probeEl.style.width = (cw * m.colW + (cw - 1) * m.colGap) + 'px';
             probeVerses.innerHTML = versesEl.innerHTML;
             var textH = probeVerses.getBoundingClientRect().height;
@@ -1270,7 +1659,7 @@
             return out;
         }
 
-        // The whole rulebook for one card, or null (not a verse card / not
+        // The whole rulebook for one card, or null (not a verse or interlinear card / not
         // expanded / not found). rowsAt and maxRhAt are live functions so the
         // gesture can query widths lazily; maxCw is precomputed by walking
         // widths until the content stops filling the minimum height.
@@ -1280,7 +1669,7 @@
             for (i = 0; i < b.cards.length; i++) {
                 if (b.cards[i].id === cardId) { card = b.cards[i]; break; }
             }
-            if (!card || card.type !== 'verse' || card.exp !== true) { return null; }
+            if (!card || (card.type !== 'verse' && card.type !== 'interlinear') || card.exp !== true) { return null; }
             var maxCw = 1, w, p;
             for (w = 2; w <= RESIZE_MAX_CW; w++) {
                 p = probeCard(cardId, w);
@@ -1381,7 +1770,7 @@
         render();           // paints, settles spans, and anchors home under the header
         // Deployment marker: one line so a stale cached script is instantly
         // visible. Bump when the geometry code changes.
-        if (window.console && console.info) { console.info('[pericope] board geometry r17'); }
+        if (window.console && console.info) { console.info('[pericope] board geometry r20'); }
 
         // ---- public surface for the companion scripts ---------------------
         // pericope-drag.js (Phase 3) and pericope-edit.js (Phase 5) attach to
@@ -1402,6 +1791,11 @@
             resizeBudget: resizeBudget,
             // r14: drag's live group-follow outline while a member is held.
             previewGroupCells: previewGroupCells,
+            // Phase 3: the interlinear session cache — card-edit's coverage
+            // probe and the child cards' hydration share it.
+            fetchInterlinear: fetchInterlinear,          
+            interlinearData:  interlinearData,   // Phase 4: the presenter's read        
+            positionTethers:  positionTethers,   // Phase 5: live redraw during resize/drag previews      
             render:      render,
             applyAnchor: applyAnchor,
             anchorRest:  function () { return anchorRest; },

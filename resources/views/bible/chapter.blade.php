@@ -275,68 +275,13 @@
     .synthesis-card.is-flipped .face-front { opacity: 0; transform: translateY(-8px); pointer-events: none; }
     .synthesis-card.is-flipped .face-back  { opacity: 1; transform: none; pointer-events: auto; }
 
-    /* ---- the interlinear trio ---- */
-    .iface-verse + .iface-verse { margin-top: 1rem; }
-    .iface-row { margin-bottom: .55rem; }
-    .iface-row:last-child { margin-bottom: 0; }
-    .iface-label {
-        display: block;
-        font-family: var(--sans); font-size: .62rem; font-weight: 600;
-        text-transform: uppercase; letter-spacing: .08em;
-        color: var(--muted);
-        margin-bottom: .15rem;
-    }
-    /* The interlinear face follows the reader's SIZE and SPACING, but NOT the
-       serif/sans toggle: each row pins its own family, so --reading-family
-       never reaches it. Row sizes are em off --reading-size — the multipliers
-       reproduce the old fixed sizes at the 19px default and scale from there.
-       Leading is calc()'d off --reading-leading the same way the poetry lines
-       are, preserving the original's extra air over the translit and gloss. */
-    .iface { font-size: var(--reading-size); }
-    .row-original { font-family: var(--serif); font-size: 1.14em; line-height: calc(var(--reading-leading) + .25); }
-    .row-original[dir="rtl"] { text-align: right; }   /* Hebrew/Aramaic read right-to-left */
-    .row-translit { font-family: var(--serif); font-style: italic; font-size: .82em; line-height: calc(var(--reading-leading) + .05); }
-    .row-gloss    { font-family: var(--sans); font-size: .74em; line-height: calc(var(--reading-leading) + .05); color: var(--muted); }
-
-    /* STEPBible marks syllables with periods ('be.re.Shit'); we show them
-       as faint, raised interpuncts. Each is its own span (fillTranslit in
-       focus-synthesis.js) because CSS can't target a character mid-text. */
-    .syl-sep {
-        opacity: .45;             /* fainter than the syllables around it */
-        /* · (U+00B7) already sits near mid-height in most serifs; if yours
-           sets it low, nudge: position: relative; top: -.04em; */
-    }
-    .iface .w.pin .syl-sep { opacity: .6; }   /* legible on the accent fill */
-
-    /* Word chips: hover previews the word across all three rows; click pins
-       it (multiple pins allowed) — the verse-focus interaction, one level
-       down. Same hug-the-text treatment as verse highlights. */
-    .iface .w {
-        cursor: pointer;
-        border-radius: 4px;
-        padding: 0 .12em;
-        margin: 0 -.02em;
-        transition: background-color .12s ease, color .12s ease;
-        -webkit-box-decoration-break: clone;
-                box-decoration-break: clone;
-    }
-    .iface .w.hl  { background: var(--rule); }
-    .iface .w.pin { background: var(--accent); color: #fff; }
-
-    /* CC BY attribution, required by the STEPBible license. */
-    .iface-credit {
-        margin-top: .9rem; padding-top: .6rem;
-        border-top: 1px solid var(--rule);
-        font-family: var(--sans); font-size: .68rem; color: var(--muted);
-    }
-    .iface-credit a { color: inherit; }
-
     /* Respect users who'd rather not have motion. */
     @media (prefers-reduced-motion: reduce) {
         .verse, .fab, .synthesis,
         .card-faces, .card-faces .face { transition: none; }
     }
-</style>
+   @include('bible.partials.interlinear-styles')
+   </style>
 @endsection
 
 {{--

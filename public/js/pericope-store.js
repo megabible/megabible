@@ -485,16 +485,20 @@
             // time, and tokens are never persisted, so this card is nothing
             // but the tether plus geometry. Parent RESOLUTION happens in
             // validateBoard and the mutators (which can see the card list) —
-            // an orphan is dropped there, not here. Expand/collapse and the
-            // collapsed-is-1×1 invariant work exactly like a verse card's;
-            // ew/eh (manual size) is deliberately NOT carried — child resize
-            // comes later.
+            // an orphan is dropped there, not here. Expand/collapse, the
+            // manual size (ew/eh, hold-to-resize) and the collapsed-is-1×1
+            // invariant all work exactly like a verse card's.
             if (!isStr(input.parent) || !input.parent) {
                 return { card: null, reason: 'interlinear card missing parent' };
             }
             card.parent = cleanText(input.parent, 32);
             card.exp = input.exp === true;
+            if (isNum(input.ew) && isNum(input.eh)) {
+                card.ew = clampInt(input.ew, 1, CAPS.gridColSpanMax, 1);
+                card.eh = clampInt(input.eh, 1, CAPS.gridRowSpanMax, 1);
+            }
             if (!card.exp) { card.cw = 1; card.rh = 1; }
+            else if (card.ew != null) { card.cw = card.ew; card.rh = card.eh; }
         } else if (type === 'heading') {
             card.text = cleanText(input.text, CAPS.headingMax);
         } else { // note
@@ -1077,7 +1081,7 @@
         for (i = 0; i < board.cards.length; i++) {
             if (board.cards[i].id === cardId) { card = board.cards[i]; break; }
         }
-        if (!card || card.type !== 'verse' || card.exp !== true) { return null; }
+        if (!card || (card.type !== 'verse' && card.type !== 'interlinear') || card.exp !== true) { return null; }
         var newCw = clampInt(cw, 1, CAPS.gridColSpanMax, cardCw(card));
         var newRh = clampInt(rh, 1, CAPS.gridRowSpanMax, cardRh(card));
         card.cw = newCw; card.rh = newRh;
@@ -1101,7 +1105,7 @@
         for (i = 0; i < board.cards.length; i++) {
             if (board.cards[i].id === cardId) { card = board.cards[i]; break; }
         }
-        if (!card || card.type !== 'verse') { return null; }
+        if (!card || (card.type !== 'verse' && card.type !== 'interlinear')) { return null; }
         if (card.ew == null && card.eh == null) { return board; }   // nothing to forget
         delete card.ew; delete card.eh;
         board.updated = now();
@@ -1143,12 +1147,13 @@
     // ADD an interlinear CHILD to a verse card (the card-edit menu's
     // "Interlinear" button). ONE per parent — a second ask returns null and
     // the UI reads interlinearChild() to grey the button instead. The child
-    // spawns EXPANDED on the parent's row just right of it (the same landing
-    // a copy gets), as the collision anchor; derived membership means a
-    // grouped parent's child is born inside the group and never bounced by
-    // the territory rule. Tokens are NEVER stored — the board fetches them
-    // per session — so the card is only the tether plus geometry. A real
-    // edit. -> { board, card } | null.
+    // is born with the PARENT'S SIZE — exp, cw/rh and any manual ew/eh —
+    // exactly as a duplicate is, and lands on the parent's row just right
+    // of it as the collision anchor; derived membership means a grouped
+    // parent's child is born inside the group and never bounced by the
+    // territory rule. Tokens are NEVER stored — the board fetches them per
+    // session — so the card is only the tether plus geometry. A real edit.
+    // -> { board, card } | null.
     function addInterlinearCard(id, parentId) {
         var board = get(id);
         if (!board) { return null; }
@@ -1162,7 +1167,9 @@
         }
         if (!parent || parent.type !== 'verse') { return null; }
         var v = validateCard({
-            type: 'interlinear', parent: parentId, exp: true,
+            type: 'interlinear', parent: parentId,
+            exp: parent.exp === true, cw: cardCw(parent), rh: cardRh(parent),
+            ew: parent.ew, eh: parent.eh,
             col: (isNum(parent.col) ? parent.col : 1) + cardCw(parent),
             row: isNum(parent.row) ? parent.row : 1
         }, seen);
@@ -1421,7 +1428,7 @@
                 f = shareFlags(c.exp === true, cardCw(c), c.ew, c.eh);
             } else if (c.type === 'interlinear') {
                 fields = ['~i', encIdx[c.parent], c.col, c.row];
-                f = shareFlags(c.exp === true, cardCw(c));
+                f = shareFlags(c.exp === true, cardCw(c), c.ew, c.eh);
             } else {
                 fields = [(c.type === 'heading' ? '~h' : '~n'), shEsc(c.text || ''), c.col, c.row];
                 f = shareFlags(false, cardCw(c));
@@ -1495,7 +1502,7 @@
                 if (!m || (!m[1] && !m[2] && !m[3])) { return fail('card ' + i + ': bad flags "' + flags + '"'); }
                 if (m[1] && (card.type === 'verse' || card.type === 'interlinear')) { card.exp = true; }
                 if (m[2]) { card.cw = parseInt(m[2], 10); }
-                if (m[3] && card.type === 'verse') {   // manual size (Phase C)
+                if (m[3] && (card.type === 'verse' || card.type === 'interlinear')) {   // manual size (Phase C)
                     card.ew = card.cw || 1;
                     card.eh = parseInt(m[3], 10);
                 }
@@ -1574,7 +1581,8 @@
                          ew: dc.ew, eh: dc.eh };   // manual size (Phase C), if shared
             } else if (dc.type === 'interlinear') {
                 card = { id: cid, type: 'interlinear', parent: ids[dc.parentIdx],
-                         col: dc.col, row: dc.row, cw: dc.cw, exp: dc.exp === true };
+                         col: dc.col, row: dc.row, cw: dc.cw, exp: dc.exp === true,
+                         ew: dc.ew, eh: dc.eh };
             } else {
                 card = { id: cid, type: dc.type, text: dc.text,
                          col: dc.col, row: dc.row, cw: dc.cw };
@@ -1921,12 +1929,21 @@
         if (!isObj(board) || !isArray(board.cards)) { return out; }
         ensureGridPlacement(board);
 
+        // A child cell borrows its PARENT's book colour on the thumbnail
+        // (card-edit Phase 3): map children to the parent's osis up front.
+        var osisOf = {}, pin;
+        for (pin = 0; pin < board.cards.length; pin++) {
+            if (board.cards[pin].type === 'verse') { osisOf[board.cards[pin].id] = board.cards[pin].osis; }
+        }
+
         var byId = {}, i, c, f, rh;
         for (i = 0; i < board.cards.length; i++) {
             c = board.cards[i];
             if (!isObj(c) || !hasPos(c)) { continue; }
             rh = (c.type === 'verse' && c.exp !== true) ? 1 : cardRh(c);
-            f = { id: c.id, type: c.type, osis: c.osis || null, exp: c.exp === true,
+            f = { id: c.id, type: c.type,
+                  osis: c.type === 'interlinear' ? (osisOf[c.parent] || null) : (c.osis || null),
+                  exp: c.exp === true,
                   col: c.col, row: c.row, cw: cardCw(c), rh: rh };
             out.cards.push(f);
             byId[f.id] = f;
@@ -1976,6 +1993,14 @@
        Notes are left out (for now). Unplaced cards are placed first
        (ensureGridPlacement, as everywhere).
 
+       INTERLINEAR (card-edit Phase 4) — a part whose card carries an
+       interlinear CHILD is flagged il:true, and the presenter draws the
+       original-language trio beside the verse text. The deck itself stays
+       token-free (tokens live in the board's session cache); the flag also
+       WEIGHTS the part: three rows per verse roughly triples the content,
+       so il parts count IL_WEIGHT× against the budget and split at that
+       fraction of it.
+
        BUDGET — a slide holds at most SLIDE.chars of verse text. Set high
        on purpose: keeping a group or a long range on ONE slide wins, and
        the presenter shrinks type / goes two-column to make it fit. Past it the slide continues:
@@ -1989,7 +2014,7 @@
        -> [ { kind:'title', text, sub },
             { kind:'heading', text },
             { kind:'verse'|'group', label, color, cont,
-              parts:[ { card, verses:[[n,text]…]|null, text } ] } ]        */
+              parts:[ { card, verses:[[n,text]…]|null, text, il?:true } ] } ] */
     var SLIDE = { chars: 1600 };   // one slide first; the presenter fits type and goes two-column
 
     function cardVerseRows(card) {
@@ -2009,8 +2034,20 @@
         return makePart(card, rows, rows ? null : (card.text || ''));
     }
 
-    // Split one over-budget part into a run of parts, each within budget.
+    // An interlinear pane roughly TRIPLES a part's vertical content (three
+    // rows per verse beside the text), so il parts weigh IL_WEIGHT× against
+    // the slide budget and split at that fraction of it (Phase 4).
+    var IL_WEIGHT = 3;
+    function partWeight(p) { return partText(p).length * (p.il ? IL_WEIGHT : 1); }
+
+    // Split one over-budget part into a run of parts, each within budget;
+    // the il flag rides onto every piece.
     function splitPart(part, budget) {
+        var out = splitPartRaw(part, budget), i;
+        if (part.il) { for (i = 0; i < out.length; i++) { out[i].il = true; } }
+        return out;
+    }
+    function splitPartRaw(part, budget) {
         var out = [], i, chunk, len, cut, t;
         if (part.verses) {
             chunk = []; len = 0;
@@ -2045,11 +2082,11 @@
             out.push(sl); cur = []; len = 0;
         }
         for (i = 0; i < parts.length; i++) {
-            p = parts[i]; pl = partText(p).length;
+            p = parts[i]; pl = partWeight(p);
             if (pl > SLIDE.chars) {
-                pieces = splitPart(p, SLIDE.chars);
+                pieces = splitPart(p, Math.floor(SLIDE.chars / (p.il ? IL_WEIGHT : 1)));
                 for (j = 0; j < pieces.length; j++) {
-                    var l2 = partText(pieces[j]).length;
+                    var l2 = partWeight(pieces[j]);
                     if (cur.length && len + l2 > SLIDE.chars) { flush(); }
                     cur.push(pieces[j]); len += l2;
                 }
@@ -2081,6 +2118,19 @@
             for (m = 0; m < g.cards.length; m++) { groupOf[g.cards[m]] = g; }
         }
 
+        // Interlinear flags (Phase 4): a part whose card HAS a child rides
+        // with il:true. Pure derivation — no tokens here.
+        var hasChild = {};
+        for (i = 0; i < board.cards.length; i++) {
+            c = board.cards[i];
+            if (isObj(c) && c.type === 'interlinear') { hasChild[c.parent] = true; }
+        }
+        function pf(card) {
+            var p = partFromCard(card);
+            if (hasChild[card.id]) { p.il = true; }
+            return p;
+        }
+
         var emitted = {}, members, k;
         for (i = 0; i < placed.length; i++) {
             c = placed[i];
@@ -2091,14 +2141,14 @@
             if (c.type !== 'verse') { continue; }   // notes: not in the deck (yet)
             g = groupOf[c.id];
             if (!g) {
-                out.push.apply(out, packSlide({ kind: 'verse', label: null, color: null }, [partFromCard(c)]));
+                out.push.apply(out, packSlide({ kind: 'verse', label: null, color: null }, [pf(c)]));
                 continue;
             }
             if (emitted[g.id]) { continue; }
             emitted[g.id] = true;
             members = [];
             for (k = i; k < placed.length; k++) {
-                if (placed[k].type === 'verse' && groupOf[placed[k].id] === g) { members.push(partFromCard(placed[k])); }
+                if (placed[k].type === 'verse' && groupOf[placed[k].id] === g) { members.push(pf(placed[k])); }
             }
             out.push.apply(out, packSlide({ kind: 'group', label: g.label || '', color: g.color || null }, members));
         }

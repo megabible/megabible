@@ -101,6 +101,12 @@
         for (i = 0; i < board.cards.length; i++) { if (board.cards[i].id === id) { me = board.cards[i]; break; } }
         if (!me) { return; }
 
+        // Interlinear CHILD (Phase 3): draggable like any card, but never
+        // adoptable — its membership derives from its parent, and its "own"
+        // group IS the parent's.
+        var isChild = me.type === 'interlinear';
+        var memberId = isChild ? me.parent : id;        
+
         // AUTO-ZOOM (touch only, and only if the board isn't already zoomed):
         // zoom out around the finger BEFORE any measurement below, so the
         // reach, padding and grab offset are all taken at the drag's scale.
@@ -130,12 +136,22 @@
         // membership can't change mid-hold.
         var groupBoxes = [], own = null, gi, g, mm, mc, byId = {}, t, bx;
         for (i = 0; i < board.cards.length; i++) { byId[board.cards[i].id] = board.cards[i]; }
+        var kidsOf = {}, kk, kc;
+        for (kk = 0; kk < board.cards.length; kk++) {
+            kc = board.cards[kk];
+            if (kc.type === 'interlinear') { (kidsOf[kc.parent] = kidsOf[kc.parent] || []).push(kc.id); }
+        }
         for (gi = 0; gi < (board.groups || []).length; gi++) {
             g = board.groups[gi];
-            if (g.cards.indexOf(id) !== -1) { own = g.id; continue; }
+            if (g.cards.indexOf(memberId) !== -1) { own = g.id; continue; }
             bx = { gid: g.id, color: g.color, tMin: Infinity, tMax: -Infinity, rMin: Infinity, rMax: -Infinity };
+            var eff = [];
             for (mm = 0; mm < g.cards.length; mm++) {
-                mc = byId[g.cards[mm]];
+                eff.push(g.cards[mm]);
+                if (kidsOf[g.cards[mm]]) { eff = eff.concat(kidsOf[g.cards[mm]]); }
+            }
+            for (mm = 0; mm < eff.length; mm++) {
+                mc = byId[eff[mm]];
                 if (!mc) { continue; }
                 t = (layout.map[colOf(mc)] || 1) - 1;
                 bx.tMin = Math.min(bx.tMin, t);
@@ -159,7 +175,7 @@
             col: null, row: null, trackIdx: 0, moved: false,
             grabX: e.clientX - rect0.left, grabY: e.clientY - rect0.top,
             autoZoom: autoZoom, lastX: e.clientX, lastY: e.clientY,
-            groupBoxes: groupBoxes, ownGroup: own,
+            groupBoxes: groupBoxes, ownGroup: own, noAdopt: isChild,
             adoptTarget: null, adoptTimer: null, adopted: null,
             ghost: null, drop: null
         };
@@ -270,6 +286,8 @@
     // staged adoption. Leaving an adopted group's box cancels the adoption;
     // hovering a different group re-arms the timer for it.
     function courtship() {
+        // A CHILD is never adopted (Phase 3) — no timers, no tinting.
+        if (drag.noAdopt) { return; }
         var b = boxUnderTarget();
         if (drag.adopted) {
             if (b && b.gid === drag.adopted.gid) { return; }   // still home
@@ -364,6 +382,8 @@
                 el.style.transition = 'transform ' + FLIP_MS + 'ms ease';
                 el.style.transform  = '';
             }
+            // Pushed cards can be a tether's endpoint (Phase 5).
+            if (B.positionTethers) { B.positionTethers(); }
         }
 
         // Drop room: monotonic during a drag, so the page never shrinks under
@@ -398,8 +418,18 @@
         }
         if (!g) { return; }
         for (i = 0; i < drag.board.cards.length; i++) { byId[drag.board.cards[i].id] = drag.board.cards[i]; }
+        // Members plus DERIVED children (Phase 3), so a child in the group
+        // — including the dragged one — stretches the live outline too.
+        var eff = [], kc;
         for (i = 0; i < g.cards.length; i++) {
-            id = g.cards[i]; c = byId[id];
+            eff.push(g.cards[i]);
+            for (kc = 0; kc < drag.board.cards.length; kc++) {
+                if (drag.board.cards[kc].type === 'interlinear' &&
+                    drag.board.cards[kc].parent === g.cards[i]) { eff.push(drag.board.cards[kc].id); }
+            }
+        }
+        for (i = 0; i < eff.length; i++) {
+            id = eff[i]; c = byId[id];
             if (!c) { continue; }
             if (id === drag.id) {
                 cells.push({ col: drag.col, row: drag.row, cw: drag.cw, rh: drag.rh });

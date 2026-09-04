@@ -216,6 +216,10 @@
             el.style.transition = 'transform ' + FLIP_MS + 'ms ease';
             el.style.transform  = '';
         }
+        // Tether curves follow the preview (Phase 5): grid positions are
+        // already at the candidate layout, so the curve points where the
+        // FLIPing cards are headed.
+        if (B.positionTethers) { B.positionTethers(); }
     }
 
     function rzEnd() {
