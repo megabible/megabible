@@ -365,11 +365,18 @@
              vigil book hub keeps its switcher — progress is per-edition.) --}}
         <div class="head-actions">
             <x-head-folder persist="reader">
-                <a class="fld-app" id="app-vigil"
-                   href="{{ route('typing.vigil.book', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug]) }}"
-                   aria-label="Type this book (Vigil)" title="Vigil">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
-                </a>
+                @include('bible.partials.vigil-sheet', [
+                    'mode'        => 'enter',
+                    'href'        => route('typing.vigil.book', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug]),
+                    'lead'        => 'Type this book, chapter by chapter. Progress is saved on this device.',
+                    'actionLabel' => 'Begin Typing Vigil',
+                ])
+                <details class="pericope-app" id="app-pericope">
+                    <summary class="fld-app" aria-label="Pericopes" title="Pericopes">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
+                    </summary>
+                    <div class="ps-panel" role="group" aria-label="Pericopes"></div>
+                </details>                
                 @include('bible.partials.text-settings', ['tsChecks' => false])
             </x-head-folder>
         </div>

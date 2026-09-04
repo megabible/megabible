@@ -56,15 +56,22 @@
     @media (max-width: 600px) {
         .fab-pill-suffix { display: none; }
     }
-    /* Ghost icon buttons in the pill: copy, share, and the close/escape hatch. */
+    /* Ghost icon buttons in the pill: copy, scrim, share, and the close/escape
+       hatch. Some are <button>s, the scrim is an <a> — one chrome for both,
+       so text-decoration is stripped here. */
     .fab-icon {
         flex: 0 0 auto;
         display: inline-flex; align-items: center; justify-content: center;
         width: 38px; height: 38px;
         border: none; border-radius: 50%;
         background: none; color: var(--muted); cursor: pointer;
+        text-decoration: none;
         transition: color .12s, background .12s;
     }
+    /* display:inline-flex above overrides the browser's [hidden] rule, so a
+       hidden icon (the scrim at 0 or 2+ selected verses) would still paint
+       without this. Same trap head-folder documents for .fld-app. */
+    .fab-icon[hidden] { display: none; }
     .fab-icon:hover { color: var(--accent); background: var(--panel); }
     /* Brief confirmation flash after a copy/share action. */
     .fab-icon.is-done { color: var(--accent); }

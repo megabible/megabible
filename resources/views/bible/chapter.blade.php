@@ -313,14 +313,17 @@
              the state. --}}
         <div class="head-actions">
             <x-head-folder persist="reader">
-                {{-- Scrimmage: a navigation, so an <a>. A scrim is always ONE
-                     verse (App\Support\Challenge), so the engine arms it —
-                     href + aria-disabled=false — only while exactly one verse
-                     is selected, and disarms it otherwise. Starts disarmed. --}}
-                <a class="fld-app" id="app-scrim" aria-disabled="true" tabindex="-1"
-                   aria-label="Type this verse in Scrimmage" title="Scrimmage this verse">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>
-                </a>
+                {{-- Vigil: the candle. Now a sheet app (partials/vigil-sheet)
+                     like pericope and Aa — opening it no longer toggles the
+                     Vigil; its Begin action does, carrying the lowest selected
+                     verse when one is in hand. --}}
+                @include('bible.partials.vigil-sheet', [
+                    'mode'        => 'enter',
+                    'href'        => route('typing.vigil', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug, 'chapter' => $chapter]),
+                    'lead'        => 'Type this chapter, verse by verse. Progress is saved on this device.',
+                    'actionLabel' => 'Begin Typing Vigil',
+                    'versePrefix' => $refChapter !== null ? "{$refBook} {$refChapter}:" : "{$refBook} ",
+                ])
                 {{-- Pericope: scissors. A panel beneath the pill, like Aa —
                      pericope-sheet.js fills .ps-panel on open. Always
                      openable: with nothing selected it's a browse list of
@@ -330,14 +333,7 @@
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
                     </summary>
                     <div class="ps-panel" role="group" aria-label="Pericopes"></div>
-                </details>
-                {{-- Vigil: the candle. The inline script below rewrites the
-                     href at click time to carry the lowest selected verse. --}}
-                <a class="fld-app" id="app-vigil"
-                   href="{{ route('typing.vigil', ['translation' => strtolower($translation->abbreviation), 'book' => $book->slug, 'chapter' => $chapter]) }}"
-                   aria-label="Type this chapter (Vigil)" title="Vigil">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2.5c1.9 2 3 3.6 3 5.2a3 3 0 0 1-6 0c0-1.1.5-2.1 1.3-3.1"/><rect x="9" y="11" width="6" height="9.5" rx="1.2"/><line x1="7.5" y1="21" x2="16.5" y2="21"/></svg>
-                </a>                
+                </details>                        
                 @include('bible.partials.text-settings')
             </x-head-folder>
         </div>
@@ -453,26 +449,6 @@
 @section('scripts')
 <script src="{{ asset('js/verse-hover.js') }}?v={{ filemtime(public_path('js/verse-hover.js')) }}" defer></script>
 <script src="{{ asset('js/sticky-head.js') }}?v={{ filemtime(public_path('js/sticky-head.js')) }}" defer></script>
-
-<script>
-    (function () {
-        document.addEventListener('click', function (e) {
-            const t = e.target.closest('#app-vigil');
-            if (!t) return;
-            let min = Infinity;
-            document.querySelectorAll('.verse.is-selected').forEach(function (v) {
-                const n = parseInt(v.dataset.verse, 10);
-                if (!isNaN(n) && n < min) min = n;
-            });
-            if (!isFinite(min)) return;
-            try {
-                const u = new URL(t.href, location.origin);
-                u.searchParams.set('v', min);
-                t.href = u.toString();
-            } catch (err) { /* leave the href untouched */ }
-        });
-    })();
-</script>
 
 {{--
   FOCUS & SYNTHESIS MODE lives in public/js/focus-synthesis.js. This inline

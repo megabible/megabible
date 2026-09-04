@@ -58,8 +58,10 @@
     };
 
     let   fab, synthEl, countEl, savedScrollY = 0, scrollLocked = false;
-    // Head-folder apps the engine DRIVES but never builds: server-rendered in
-    // chapter.blade's <x-head-folder>, found by id in buildChrome().
+    // The FAB's scrim link (fold-unify r4: back in the FAB, between copy and
+    // share, where it lived before the folder era). A scrim is always ONE
+    // verse, so it only makes sense beside the selection tools: hidden except
+    // at exactly one selected verse. Built with the FAB in buildChrome().
     let   scrimBtn;
 
     const el = (tag, cls) => {
@@ -72,6 +74,7 @@
     const ICON_CLOSE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="6" y1="6" x2="18" y2="18"/><line x1="18" y1="6" x2="6" y2="18"/></svg>';
     const ICON_COPY  = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
     const ICON_SHARE = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.6" y1="13.5" x2="15.4" y2="17.5"/><line x1="15.4" y1="6.5" x2="8.6" y2="10.5"/></svg>';
+    const ICON_SCRIM = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.24 12.24a6 6 0 0 0-8.49-8.49L5 10.5V19h8.5z"/><line x1="16" y1="8" x2="2" y2="22"/><line x1="17.5" y1="15" x2="9" y2="15"/></svg>';
     const ICON_CHECK = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
     const ICON_FLIP  = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2.1l4 4-4 4"/><path d="M3 12.2v-2a4 4 0 0 1 4-4h14"/><path d="M7 21.9l-4-4 4-4"/><path d="M21 11.8v2a4 4 0 0 1-4 4H3"/></svg>';
 
@@ -308,6 +311,7 @@
                 ICON_ARROW +
             `</button>` +
             `<button type="button" class="fab-icon fab-copy" aria-label="Copy selected verses" title="Copy verses">${ICON_COPY}</button>` +
+            `<a class="fab-icon fab-scrim" hidden aria-label="Type this verse in Scrimmage" title="Scrimmage this verse">${ICON_SCRIM}</a>` +
             `<button type="button" class="fab-icon fab-share" aria-label="Copy link to this selection" title="Share link">${ICON_SHARE}</button>` +
             `<button type="button" class="fab-icon fab-close" aria-label="Exit focus mode" title="Exit">${ICON_CLOSE}</button>`;
         document.body.appendChild(fab);
@@ -316,18 +320,10 @@
         fab.querySelector('.fab-share').addEventListener('click', onShare);
         fab.querySelector('.fab-close').addEventListener('click', exitFocus);
 
-        // The apps in the sticky head's folder. Server-rendered (chapter.blade)
-        // so they exist with or without a selection; syncApps() keeps their
-        // armed/disabled state in step with the selection. Either may be
-        // absent on a page that omits it — every use is null-guarded.
-        scrimBtn = document.getElementById('app-scrim');
-        if (scrimBtn) {
-            // A disarmed anchor has no href, but a click must still go
-            // nowhere and must not fall through to the page's dismiss logic.
-            scrimBtn.addEventListener('click', (e) => {
-                if (scrimBtn.getAttribute('aria-disabled') === 'true') e.preventDefault();
-            });
-        }
+        // The scrim link just built above. No disarmed-click guard needed any
+        // more: it's [hidden] (display:none, unclickable) except at exactly
+        // one selected verse, and whenever it's visible it has a real href.
+        scrimBtn = fab.querySelector('.fab-scrim');
 
         // The synthesis board is rendered in Blade (see section('content'))
         // so it can include the shared translation switcher. We just grab it
@@ -379,13 +375,15 @@
             : `${selected.size} verses`;
     };
 
-    // Keep the folder's apps in step with the selection, and tell anyone
-    // listening (the pericope panel, later pages) what's in hand. Runs on
-    // EVERY selection change, including to empty — so the apps disarm as
-    // soon as the last verse is dropped.
-    //   scrim    armed only at exactly one verse (a scrim is one verse by
+    // Keep the selection's dependents in step, and tell anyone listening
+    // (the pericope panel, the vigil sheet, later pages) what's in hand.
+    // Runs on EVERY selection change, including to empty.
+    //   scrim    visible only at exactly one verse (a scrim is one verse by
     //            definition, see App\Support\Challenge); MB.scrimUrl is the
-    //            scrimmage route with a __V__ slot.
+    //            scrimmage route with a __V__ slot. It sits in the FAB, so
+    //            when the FAB parks (empty selection) it's gone anyway —
+    //            the hidden flag covers 2+ verses, when the FAB is up but
+    //            a scrim makes no sense.
     //   pericope reads the published hand itself (pericope-sheet.js).
     const syncApps = () => {
         const count = selected.size;
@@ -393,12 +391,10 @@
         if (scrimBtn) {
             if (count === 1 && MB.scrimUrl) {
                 scrimBtn.href = MB.scrimUrl.replace('__V__', [...selected][0]);
-                scrimBtn.setAttribute('aria-disabled', 'false');
-                scrimBtn.removeAttribute('tabindex');
+                scrimBtn.hidden = false;
             } else {
+                scrimBtn.hidden = true;
                 scrimBtn.removeAttribute('href');
-                scrimBtn.setAttribute('aria-disabled', 'true');
-                scrimBtn.setAttribute('tabindex', '-1');
             }
         }
         // Publish the hand two ways: the global for a panel that opens LATER
