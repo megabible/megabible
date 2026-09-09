@@ -130,11 +130,16 @@
             cws[cid] = parseInt(el.getAttribute('data-cw') || '1', 10);
         }
 
-        // Group territory snapshot (Phase 5b): each foreign group's bounding
-        // box in track/row space, for the hover-to-adopt test. The dragged
-        // card's own group never courts it. Boxes are frozen for the drag —
-        // membership can't change mid-hold.
-        var groupBoxes = [], own = null, gi, g, mm, mc, byId = {}, t, bx;
+        // Group territory snapshot (revamp): each FOREIGN group's exact CELL
+        // set in track/row space — the UNION of its members' (and derived
+        // children's) cells, mirroring the store's groupCells but in the
+        // drag's own track coordinates. The drop test asks whether the held
+        // card's candidate footprint touches any of these cells; a hit with
+        // no adoption is a REJECTION (the card snaps home). Landing in a
+        // group's empty NOTCH touches nothing and places freely. Frozen for
+        // the drag — membership can't change mid-hold. The card's own group
+        // is skipped (it never courts or rejects its own member).
+        var groupBoxes = [], own = null, gi, g, mm, mc, byId = {}, bt, br, dt, dr, hasCell;
         for (i = 0; i < board.cards.length; i++) { byId[board.cards[i].id] = board.cards[i]; }
         var kidsOf = {}, kk, kc;
         for (kk = 0; kk < board.cards.length; kk++) {
@@ -144,8 +149,8 @@
         for (gi = 0; gi < (board.groups || []).length; gi++) {
             g = board.groups[gi];
             if (g.cards.indexOf(memberId) !== -1) { own = g.id; continue; }
-            bx = { gid: g.id, color: g.color, tMin: Infinity, tMax: -Infinity, rMin: Infinity, rMax: -Infinity };
-            var eff = [];
+            var bx = { gid: g.id, color: g.color, cells: {} };
+            var eff = []; hasCell = false;
             for (mm = 0; mm < g.cards.length; mm++) {
                 eff.push(g.cards[mm]);
                 if (kidsOf[g.cards[mm]]) { eff = eff.concat(kidsOf[g.cards[mm]]); }
@@ -153,13 +158,16 @@
             for (mm = 0; mm < eff.length; mm++) {
                 mc = byId[eff[mm]];
                 if (!mc) { continue; }
-                t = (layout.map[colOf(mc)] || 1) - 1;
-                bx.tMin = Math.min(bx.tMin, t);
-                bx.tMax = Math.max(bx.tMax, t + (mc.cw || 1) - 1);
-                bx.rMin = Math.min(bx.rMin, mc.row || 1);
-                bx.rMax = Math.max(bx.rMax, (mc.row || 1) + (mc.rh || 1) - 1);
+                bt = (layout.map[colOf(mc)] || 1) - 1;      // 0-based track of the member's left
+                br = mc.row || 1;
+                for (dt = 0; dt < (mc.cw || 1); dt++) {
+                    for (dr = 0; dr < (mc.rh || 1); dr++) {
+                        bx.cells[(bt + dt) + ',' + (br + dr)] = true;
+                        hasCell = true;
+                    }
+                }
             }
-            if (bx.tMin !== Infinity) { groupBoxes.push(bx); }
+            if (hasCell) { groupBoxes.push(bx); }
         }
 
         var rect0 = card.getBoundingClientRect();
@@ -261,8 +269,8 @@
         if (col !== drag.col || row !== drag.row) {
             drag.col = col; drag.row = row; drag.trackIdx = trackIdx;
             placeDrop();
-            preview();
-            courtship();
+            courtship();          // arm / cancel the adopt timer for this cell
+            applyDisposition();   // paint reject/free and run the matching preview
         }
 
         autoScroll(e);
@@ -270,16 +278,34 @@
 
     // ---- hover-to-adopt (Phase 5b) --------------------------------------
 
-    // The group box (if any) the current target cell intersects.
-    function boxUnderTarget() {
-        var cl = drag.trackIdx, cr = drag.trackIdx + drag.cw - 1;
-        var ct = drag.row, cb = drag.row + drag.rh - 1;
-        var i, b;
+    // Scan the FOREIGN groups the held card's candidate footprint touches at
+    // (trackIdx,row), cell-exact. -> { other, ownAdopt }:
+    //   other    = a foreign group NOT staged for adoption → a REJECTION
+    //   ownAdopt = the group currently staged for adoption, hit by the
+    //              footprint → the drop that will JOIN it
+    // A NOTCH between groups touches no member cell, so it scans clean and
+    // the drop places freely — exactly how groups nestle (Phase 1).
+    function scanForeign(trackIdx, row) {
+        var i, b, dt, dr, hit, res = { other: null, ownAdopt: null };
         for (i = 0; i < drag.groupBoxes.length; i++) {
-            b = drag.groupBoxes[i];
-            if (cl <= b.tMax && cr >= b.tMin && ct <= b.rMax && cb >= b.rMin) { return b; }
+            b = drag.groupBoxes[i]; hit = false;
+            for (dt = 0; dt < drag.cw && !hit; dt++) {
+                for (dr = 0; dr < drag.rh && !hit; dr++) {
+                    if (b.cells[(trackIdx + dt) + ',' + (row + dr)]) { hit = true; }
+                }
+            }
+            if (!hit) { continue; }
+            if (drag.adopted && b.gid === drag.adopted.gid) { res.ownAdopt = b; }
+            else { res.other = b; }
         }
-        return null;
+        return res;
+    }
+
+    // The foreign group the courtship timer cares about: the adopted one if
+    // the footprint is still inside it, else the first not-yet-adopted group.
+    function boxUnderTarget() {
+        var s = scanForeign(drag.trackIdx, drag.row);
+        return s.ownAdopt || s.other;
     }
 
     // Runs on every TARGET CHANGE: manage the courtship timer and any
@@ -321,12 +347,30 @@
             drag.ghost.classList.toggle('is-adopting', !!b);
             drag.ghost.style.setProperty('--gp', gp);
         }
-        var i, sh, list = grid.querySelectorAll('.pb-group.is-adopting');
+        var i, sh, list = grid.querySelectorAll('.pb-group-shape.is-adopting');
         for (i = 0; i < list.length; i++) { list[i].classList.remove('is-adopting'); }
         if (b) {
-            sh = grid.querySelector('.pb-group[data-group="' + b.gid + '"]');
+            sh = grid.querySelector('.pb-group-shape[data-group="' + b.gid + '"]');
             if (sh) { sh.classList.add('is-adopting'); }
         }
+        // Adoption just changed the drop's legality: repaint reject/free and
+        // re-run the matching preview (an adopt now PUSHES the member aside;
+        // cancelling reverts to the snap-home reject state).
+        if (drag && drag.col != null) { applyDisposition(); }
+    }
+
+    // Paint the drop's legality at the current target and run the matching
+    // preview. A foreign, non-adopted overlap REJECTS: the indicator and
+    // ghost go crimson-dashed and NOTHING is pushed (the drop won't land, so
+    // the board must not shuffle under it). Free / adopting targets push
+    // normally. Called on every target change and whenever adoption flips.
+    function applyDisposition() {
+        var s = scanForeign(drag.trackIdx, drag.row);
+        var rejecting = !!s.other;                         // any non-adopted foreign overlap blocks
+        drag.rejecting = rejecting;
+        if (drag.drop)  { drag.drop.classList.toggle('is-rejected', rejecting); }
+        if (drag.ghost) { drag.ghost.classList.toggle('is-rejected', rejecting); }
+        if (rejecting) { resetPreview(); } else { preview(); }
     }
 
     function placeDrop() {
@@ -404,13 +448,49 @@
         previewOwnGroup(rows);
     }
 
+    // The REJECT counterpart of preview(): a rejected drop pushes nothing, so
+    // every other card animates back to its RESTING row (drag.rows) with the
+    // same FLIP, and the dragged card's own-group outline is drawn at the
+    // card's ORIGINAL cell (it isn't going anywhere). Idempotent — cards
+    // already at rest are skipped.
+    function resetPreview() {
+        var changed = [], before = {}, id, el, after, delta, i;
+        for (id in drag.rows) {
+            if (!drag.rows.hasOwnProperty(id) || id === drag.id) { continue; }
+            el = drag.els[id];
+            if (!el || drag.applied[id] === drag.rows[id]) { continue; }
+            changed.push(id);
+            before[id] = el.getBoundingClientRect().top;
+        }
+        if (changed.length) {
+            for (i = 0; i < changed.length; i++) {
+                id = changed[i]; el = drag.els[id];
+                el.style.transition = 'none';
+                el.style.transform  = '';
+                el.style.gridRow    = drag.rows[id] + ' / span ' + drag.spans[id];
+                drag.applied[id]    = drag.rows[id];
+                after = el.getBoundingClientRect().top;
+                delta = (before[id] - after) / zoom();
+                el.style.transform = 'translate3d(0,' + delta + 'px,0)';
+            }
+            void grid.offsetWidth;
+            for (i = 0; i < changed.length; i++) {
+                el = drag.els[changed[i]];
+                el.style.transition = 'transform ' + FLIP_MS + 'ms ease';
+                el.style.transform  = '';
+            }
+            if (B.positionTethers) { B.positionTethers(); }
+        }
+        previewOwnGroup(drag.rows, true);   // own outline stays at the card's original cell
+    }
+
     // GROUP-FOLLOW (r14): while a MEMBER card is dragged, its own group's
     // outline tracks the hover live — the box is recomputed from the other
     // members' PREVIEWED rows (they may be getting pushed too) plus the
     // dragged card's candidate cell, so the person watches the territory
     // reshape before dropping. The board owns the pixel maths
     // (B.previewGroupCells); the drop/cancel render restores truth.
-    function previewOwnGroup(rows) {
+    function previewOwnGroup(rows, useOrig) {
         if (!drag || !drag.ownGroup || drag.col == null || !B.previewGroupCells) { return; }
         var g = null, i, c, id, cells = [], byId = {};
         for (i = 0; i < (drag.board.groups || []).length; i++) {
@@ -432,7 +512,9 @@
             id = eff[i]; c = byId[id];
             if (!c) { continue; }
             if (id === drag.id) {
-                cells.push({ col: drag.col, row: drag.row, cw: drag.cw, rh: drag.rh });
+                cells.push(useOrig
+                    ? { col: drag.origCol, row: drag.origRow, cw: drag.cw, rh: drag.rh }
+                    : { col: drag.col, row: drag.row, cw: drag.cw, rh: drag.rh });
             } else {
                 cells.push({
                     col: colOf(c),
@@ -485,21 +567,28 @@
         if (self) { self.classList.remove('is-dragging'); }
 
         var moved = commit && d.moved && d.col != null;
-        var changed = moved && !(d.col === d.origCol && d.row === d.origRow);
+        // Final disposition on the drop cell (the adopt timer may have landed
+        // an instant ago). scanForeign reads the live `drag`, so run it BEFORE
+        // clearing it. A foreign, non-adopted overlap REJECTS: no write, and
+        // the untouched card snaps home on render (Option A). An overlap of
+        // ONLY the adopted group JOINS it (addToGroup before moveCard, so the
+        // store's guard counts the card as a member and keeps it).
+        var s = moved ? scanForeign(d.trackIdx, d.row) : { other: null, ownAdopt: null };
+        var rejected = moved && !!s.other;
+        var willAdopt = moved && !rejected && !!s.ownAdopt;
+        var changed = moved && !rejected && !(d.col === d.origCol && d.row === d.origRow);
         drag = null;   // clear BEFORE render so the board's anchor runs
 
         if (changed) {
             B.swallowNextClick();
-            // Adoption commits only if the card is DROPPED inside the box it
-            // was adopted into — and it must land before moveCard, so the
-            // territory rule counts the card as a member instead of
-            // expelling it from its new home.
-            if (d.adopted && dropStillInside(d)) {
+            if (willAdopt) {
                 window.MBPericope.addToGroup(d.boardId, d.adopted.gid, [d.id]);
             }
             window.MBPericope.moveCard(d.boardId, d.id, d.col, d.row);
+        } else if (rejected) {
+            B.swallowNextClick();   // the release was a drag gesture, not a tap — don't open the card
         }
-        B.render();   // rebuilds the DOM (clearing every preview transform), restores padding + anchored view
+        B.render();   // rejected / unchanged → card still at its stored cell → snaps home
 
         // If the dropped card landed cut off at a strip edge, nudge the pan
         // just enough to reveal it; otherwise the board stays exactly put.
@@ -515,18 +604,6 @@
 
         // Auto-zoom's other half: back to full size around the drop point.
         if (d.autoZoom && B.setZoom) { B.setZoom(1, d.lastX, d.lastY); }
-    }
-
-    // Was the final cell still inside the adopted group's snapshot box?
-    function dropStillInside(d) {
-        var i, b;
-        for (i = 0; i < d.groupBoxes.length; i++) {
-            b = d.groupBoxes[i];
-            if (b.gid !== d.adopted.gid) { continue; }
-            return d.trackIdx <= b.tMax && d.trackIdx + d.cw - 1 >= b.tMin &&
-                   d.row <= b.rMax && d.row + d.rh - 1 >= b.rMin;
-        }
-        return false;
     }
 
     // ---- wiring ----------------------------------------------------------

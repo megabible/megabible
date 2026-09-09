@@ -137,6 +137,19 @@
     'use strict';
 
     var HUB_URL   = @json($hubUrl);    // base for board links: HUB_URL + '/' + slug
+
+    // Scroll r4: tiles link STRAIGHT to the visitor's preferred view, so
+    // the usual path into a board never pays the grid page's dispatcher
+    // redirect. Same rule as the dispatcher: an explicit preference wins;
+    // no preference means phones read, desktops arrange.
+    function prefersScroll() {
+        try {
+            var v = localStorage.getItem('mb.pericope.view');
+            if (v === 'scroll') { return true; }
+            if (v === 'grid')   { return false; }
+        } catch (e) {}
+        return !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches);
+    }
     var BOOK_META = @json($bookMeta);  // osis => {name, slug, off, single, short, color}
 
     function esc(s) {
@@ -166,8 +179,10 @@
     var TRASH    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
 
     /* ---- MINI-BOARD THUMBNAIL -------------------------------------------
-       Geometry comes from MBPericope.footprint() (logical grid cells, groups
-       as bounding boxes); this only turns cells into SVG rectangles.
+       Geometry comes from MBPericope.footprint() (logical grid cells; groups
+       as CELL UNIONS, revamp); cards become SVG rectangles and each group's
+       outline is TRACED through the store's shared tracer — the very same
+       shape the board draws, at miniature scale, islands, notches and all.
 
        Units are LOGICAL, not pixels: one cell is 27 × 10 with a gap of 2,
        the same 2.7:1 proportion as the real board's cell (~240 × 89 px,
@@ -184,7 +199,6 @@
        and the board it opens into don't feel like different objects. */
     var U = { col: 27, row: 10, gap: 2 };
     var PITCH_X = U.col + U.gap, PITCH_Y = U.row + U.gap;
-    var HALO = 1.5;                  // group box overhang past member cells
     var WINDOW = {
         cols: 7,                     // window width, in columns (the zoomed-out view)
         aspect: 3 / 4                // must match .peri-tile-thumb's aspect-ratio
@@ -242,21 +256,33 @@
         return rect(x, y, w, h, 1.5, 'fill:var(--panel);stroke:var(--rule);stroke-width:.6;stroke-dasharray:1.6 1');
     }
 
-    function groupBox(g) {
+    // The group's traced outline (revamp): the store's shared tracer turns
+    // the cell union into the same tight, notch-following shape the board
+    // draws — mapped into thumbnail units with a half-gap halo, corners
+    // rounded at 2 (the old box's rx). Holes and islands come for free.
+    function groupPath(g) {
         var color = paletteColor(g.color);
-        var x = colX(g.c0) - HALO, y = rowY(g.r0) - HALO;
-        var w = (g.c1 - g.c0 + 1) * PITCH_X - U.gap + 2 * HALO;
-        var h = (g.r1 - g.r0 + 1) * PITCH_Y - U.gap + 2 * HALO;
-        return rect(x, y, w, h, 2,
-            'fill:var(--tl-' + color + ');fill-opacity:.09;stroke:var(--tl-' + color + ');stroke-opacity:.7;stroke-width:.8');
+        var loops = window.MBPericope.cellOutlines(g.cells);
+        if (!loops.length) { return ''; }
+        function gx(v) { return colX(v) - U.gap / 2; }
+        function gy(v) { return rowY(v) - U.gap / 2; }
+        var d = window.MBPericope.roundedPathD(loops, gx, gy, 2);
+        return '<path d="' + d + '" style="fill:var(--tl-' + color + ');fill-opacity:.09' +
+               ';stroke:var(--tl-' + color + ');stroke-opacity:.7;stroke-width:.8"/>';
     }
-    // The label chip: a solid tab floating just above the box's top-left,
-    // painted LAST so it sits over cards, exactly like the board's sibling chip.
-    function groupChip(g) {
+    // The label chips: a solid tab floating just above each ISLAND's top-left
+    // (one per island, matching the board's per-island chips), painted LAST
+    // so they sit over cards, exactly like the board's sibling chip.
+    function groupChips(g) {
         var color = paletteColor(g.color);
-        var x = colX(g.c0) - HALO + 1.5, y = rowY(g.r0) - HALO - 2.2;
-        var w = Math.min(12, (g.c1 - g.c0 + 1) * PITCH_X - U.gap);
-        return rect(x, y, w, 3, .9, 'fill:var(--tl-' + color + ')');
+        var islands = window.MBPericope.cellIslands(g.cells);
+        var out = '', i, x, y;
+        for (i = 0; i < islands.length; i++) {
+            x = colX(islands[i].t) - U.gap / 2 + 1.5;
+            y = rowY(islands[i].r) - U.gap / 2 - 2.2;
+            out += rect(x, y, 12, 3, .9, 'fill:var(--tl-' + color + ')');
+        }
+        return out;
     }
 
     function thumbHtml(board) {
@@ -266,12 +292,12 @@
         var W = WINDOW.cols * PITCH_X, H = W * WINDOW.aspect;
         var homeW = window.MBPericope.CAPS.gridCols * PITCH_X - U.gap;
         var x0 = homeW / 2 - W / 2;        // centre the window on the home block
-        var y0 = -(HALO + 2.5);            // headroom so a row-1 group's chip is visible
+        var y0 = -(U.gap / 2 + 2.5);       // headroom so a row-1 group's chip is visible
 
         var body = '', i;
-        for (i = 0; i < fp.groups.length; i++) { body += groupBox(fp.groups[i]); }
+        for (i = 0; i < fp.groups.length; i++) { body += groupPath(fp.groups[i]); }
         for (i = 0; i < fp.cards.length;  i++) { body += cardRect(fp.cards[i]); }
-        for (i = 0; i < fp.groups.length; i++) { body += groupChip(fp.groups[i]); }
+        for (i = 0; i < fp.groups.length; i++) { body += groupChips(fp.groups[i]); }
 
         return '<span class="peri-tile-thumb">' +
                    '<svg viewBox="' + num(x0) + ' ' + num(y0) + ' ' + num(W) + ' ' + num(H) +
@@ -282,7 +308,7 @@
     }
 
     function tileHtml(entry) {
-        var href  = HUB_URL + '/' + encodeURIComponent(entry.slug);
+        var href  = HUB_URL + '/' + encodeURIComponent(entry.slug) + (prefersScroll() ? '/scroll' : '');
         var board = window.MBPericope.get(entry.id);   // one small localStorage read per tile
         var cards = (board && board.cards) || [];
         var sub   = window.MBPericope.summarize(cards).label;

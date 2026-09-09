@@ -124,10 +124,32 @@ class BookMetadata
                 // clay. canon.php is the display source of truth; the DB
                 // column is only a fallback for a book canon.php doesn't list.
                 'color'  => $colors[$bySlug[$bk->slug] ?? $bk->section] ?? 'clay',
+                // Scroll r1: the canon SECTION key itself ('neviim',
+                // 'johannine' …), from the same lookup as the colour, so the
+                // feed's summary line can say "from the Nevi’im and Johannine
+                // Works" via sectionLabels() without a second table.
+                'section' => $bySlug[$bk->slug] ?? $bk->section,                
             ];
         }
 
         return $meta;
+    }
+
+    /**
+     * section key => display label, straight from canon.sections
+     * ('neviim' => 'Nevi’im', 'johannine' => 'Johannine Works'). Shipped to
+     * the Pericope board so the scroll feed's summary line can name
+     * sections; the key itself rides on each displayMeta() entry.
+     *
+     * @return array<string,string>
+     */
+    public static function sectionLabels(): array
+    {
+        $out = [];
+        foreach (config('canon.sections', []) as $key => $def) {
+            $out[$key] = $def['label'] ?? $key;
+        }
+        return $out;
     }
 
     /**

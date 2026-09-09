@@ -89,13 +89,37 @@ Route::prefix('extras/pericope')->name('extras.pericope')->group(function () {
     // The hub — /extras/pericope
     Route::get('/', [PericopeController::class, 'hub'])->name('');
 
+    // Scroll r2: the anonymous like counters — the book_visits pattern
+    // applied to feed posts. POST /like increments or decrements one key's
+    // aggregate; POST /likes returns counts for a batch of keys (one call
+    // per feed open). POST-only literals can never collide with the GET
+    // {slug} route below, but they're registered up here per house habit —
+    // and `like` / `likes` join the store's RESERVED_SLUGS so no board can
+    // ever squat the names. Throttled like any write.
+    Route::post('/like', [PericopeController::class, 'like'])
+        ->middleware('throttle:30,1')
+        ->name('.like');
+    Route::post('/likes', [PericopeController::class, 'likeCounts'])
+        ->middleware('throttle:30,1')
+        ->name('.likes');
+
     // The share-link landing page (share plan S2). Fragment-borne board data
     // never reaches the server; this just ships the import shell.
     Route::get('/shared', [PericopeController::class, 'shared'])->name('.shared');
     // Phase 4:  Route::get('/verses',  [PericopeController::class, 'verses'])->name('.verses');
 
-    // One board — /extras/pericope/{slug}. Client-resolved; unknown slugs render
-    // a "not found" state rather than a server 404 (the server has no board data).
+    // Scroll r3: the same board as a read-only FEED on its own page. Two
+    // segments, so the single-segment {slug} route below could never
+    // swallow it — registered first anyway, per house habit. The grid
+    // page's inline dispatcher redirects here when the visitor's saved
+    // view preference (or a phone with no preference) says Scroll.
+    Route::get('/{slug}/scroll', [PericopeController::class, 'scroll'])
+        ->where('slug', '[a-z0-9-]+')
+        ->name('.scroll');
+
+    // One board — /extras/pericope/{slug}: the GRID, the source of truth.
+    // Client-resolved; unknown slugs render a "not found" state rather than
+    // a server 404 (the server has no board data).
     Route::get('/{slug}', [PericopeController::class, 'board'])
         ->where('slug', '[a-z0-9-]+')
         ->name('.board');

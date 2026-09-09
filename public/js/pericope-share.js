@@ -400,7 +400,16 @@
             if (dc.type === 'verse' && res.cardIds[i]) { jobs.push({ dc: dc, cid: res.cardIds[i] }); }
         }
 
-        var doneUrl = ((CFG.hubUrl || '/extras/pericope').replace(/\/$/, '')) + '/' + encodeURIComponent(res.board.slug);
+        // Scroll r4: the import lands in the visitor's preferred view (the
+        // hub tiles' rule), skipping the grid dispatcher's second hop.
+        var wantScroll = false;
+        try {
+            var vv = localStorage.getItem('mb.pericope.view');
+            wantScroll = vv === 'scroll' ||
+                (!vv && !!(window.matchMedia && window.matchMedia('(max-width: 640px)').matches));
+        } catch (e) {}
+        var doneUrl = ((CFG.hubUrl || '/extras/pericope').replace(/\/$/, '')) + '/' +
+                      encodeURIComponent(res.board.slug) + (wantScroll ? '/scroll' : '');
         function finish() { location.replace(doneUrl); }
 
         if (!jobs.length) { return finish(); }

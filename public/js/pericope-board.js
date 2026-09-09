@@ -595,11 +595,11 @@
                                 // chrome alone nearly buys the 2-row minimum
                                 // at any width, which let a one-verse card
                                 // stretch to 4 columns (the Philemon 17 bug).
-        var EDGE_BREATHE = 24;  // KNOB: mobile pan margin past the outermost cards (px)
-        // Same breakpoint as the CSS column-width switch.
-        function isMobile() {
-            return !!(window.matchMedia && window.matchMedia('(max-width: 520px)').matches);
-        }
+        var EDGE_BREATHE = 24;  // KNOB: pan margin past the outermost cards
+                                // (px, both platforms since nav r22 — the
+                                // desktop full-column margin is retired, and
+                                // isMobile() went with it: these two breathe
+                                // sites were its only callers)
         var zoomLevel = 1;
         var zoomWrap  = document.getElementById('pb-zoomwrap');
         var zoomBtn   = document.getElementById('pb-zoom');
@@ -624,12 +624,12 @@
             document.title = board.name + ' — Pericope — MEGABIBLE.net';
 
             if (!board.cards.length) {
-                subEl.textContent = '';
+                if (subEl) { subEl.textContent = ''; }
                 grid.hidden = true; empty.hidden = false; grid.innerHTML = '';
                 grid.style.gridTemplateColumns = '';
                 return board;
             }
-            subEl.textContent = subtitleLabel(board.cards);
+            if (subEl) { subEl.textContent = subtitleLabel(board.cards); }
             empty.hidden = true; grid.hidden = false;
 
             var layout = columnLayout(board.cards);
@@ -643,25 +643,12 @@
             for (i = 0; i < board.cards.length; i++) {
                 html += cardHtml(board.cards[i], board.cards[i].exp === true, layout.map, byId);
             }
-            // Group shells (Phase 5) go AFTER the cards in the DOM; each
-            // LABEL is a separate SIBLING of its shell (r11): the shell sits
-            // at z −1 behind the cards, and a child can never escape its
-            // parent's stacking context — with stretched cards filling their
-            // full claimed rows, a label inside the shell vanished under any
-            // card in the row above. As a sibling with its own z-index the
-            // chip paints over cards again. Both are positioned in px by
-            // positionGroups() (applyAnchor calls it once the pad is known);
-            // here they only get identity and colour.
-            for (var gi = 0; gi < (board.groups || []).length; gi++) {
-                var g = board.groups[gi];
-                html += '<div class="pb-group" data-group="' + esc(g.id) + '"' +
-                        ' style="--gp: var(--tl-' + esc(g.color) + ')"></div>' +
-                        '<span class="pb-group-label" data-group="' + esc(g.id) + '"' +
-                        ' style="--gp: var(--tl-' + esc(g.color) + ')">' +
-                        '<span class="pb-group-label-text">' + esc(g.label || 'Group') + '</span>' +
-                        '<svg class="pb-group-label-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>' +
-                        '</span>';
-            }
+            // Group outlines AND label chips are both built by
+            // positionGroups() now (revamp): the outline is a traced path in
+            // the .pb-groups layer, and chips are created ONE PER ISLAND —
+            // a count paint() can't know, since islands are geometry. paint()
+            // emits nothing for groups; the anchor pass right after it
+            // (applyAnchor → positionGroups) populates both.
             grid.innerHTML = html;
             budgetCache = {};   // any re-render can change text, tx or metrics
 
@@ -674,7 +661,7 @@
                 kc = board.cards[kk];
                 if (kc.type === 'interlinear') { (kidsOf[kc.parent] = kidsOf[kc.parent] || []).push(kc.id); }
             }
-            for (gi = 0; gi < (board.groups || []).length; gi++) {
+            for (var gi = 0; gi < (board.groups || []).length; gi++) {
                 var grp = board.groups[gi], eff = [];
                 for (var mi = 0; mi < grp.cards.length; mi++) {
                     eff.push(grp.cards[mi]);
@@ -838,6 +825,21 @@
                 zoomWrap.style.setProperty('width', vw + 'px', 'important');
                 zoomWrap.style.setProperty('margin-left',  'calc(50% - ' + (vw / 2) + 'px)', 'important');
                 zoomWrap.style.setProperty('margin-right', 'calc(50% - ' + (vw / 2) + 'px)', 'important');
+                // MEASURE-AND-CORRECT (nav r21). The formula above assumes the
+                // container's content box is centred EXACTLY in the client area;
+                // anything that skews that by even a pixel (scrollbar-gutter
+                // asymmetry, sub-pixel container rounding) pokes this full-bleed
+                // wrapper past the viewport edge — and a one-pixel poke is a
+                // full PAGE horizontal scrollbar. So: write the formula, measure
+                // where the left edge actually landed, and fold the error back
+                // into margin-left. Ground truth over arithmetic — the same
+                // doctrine as updateZoomBox(). (A hidden board measures 0,0 and
+                // is left alone.)
+                var wl = zoomWrap.getBoundingClientRect().left + (window.pageXOffset || 0);
+                if (wl > 0.5 || wl < -0.5) {
+                    zoomWrap.style.setProperty('margin-left',
+                        'calc(50% - ' + (vw / 2 + wl) + 'px)', 'important');
+                }
             }
             if (scroll) {
                 // Zoomed, the strip is laid out 1/zoom wider so the scaled
@@ -1088,15 +1090,19 @@
             var homeOffset = (currentLayout.homeTrack - 1) * cellX;   // width of columns left of home
             var raw = headerGutter() - homeOffset;
 
-            // BREATHING ROOM: the pan range always ends a little past the
-            // outermost cards. On DESKTOP that's one full blank column each
-            // side (the drag's new-column targets physically exist in it).
-            // On MOBILE a whole blank column read as dead space, so the
-            // margin is a slim EDGE_BREATHE instead — the −1 drop column
-            // still works, its indicator just clamps to a sliver at the
-            // screen edge (pericope-drag.js). Home stays anchored under the
-            // header via restScroll.
-            var breathe = isMobile() ? EDGE_BREATHE : cellX;
+            // BREATHING ROOM (nav r22): the pan range always ends a slim
+            // EDGE_BREATHE past the outermost cards — BOTH platforms now.
+            // Desktop used to keep one full blank column each side so the
+            // drag's new-column targets physically existed at rest, but a
+            // whole empty column read as dead space there just as it did on
+            // mobile, and it alone could push a board that otherwise fit
+            // into growing a scrollbar. The mobile machinery was always
+            // geometric, not mobile-specific: the −1 drop indicator clamps
+            // to a sliver at the clip edge (pericope-drag.js placeDrop) and
+            // the +1 indicator, an absolutely positioned grid child,
+            // extends the scrollable range itself while the drag holds it.
+            // Home stays anchored under the header via restScroll.
+            var breathe = EDGE_BREATHE;
             var padL, restScroll;
             if (raw >= breathe) { padL = raw; restScroll = 0; }
             else { padL = breathe; restScroll = breathe - raw; }
@@ -1115,7 +1121,7 @@
                 grid.appendChild(ext);
             }
             ext.style.left = (padL + currentLayout.count * cellX - m.colGap +
-                              (isMobile() ? EDGE_BREATHE : cellX)) + 'px';
+                              EDGE_BREATHE) + 'px';
             ext.style.top = '0px';
 
             positionGroups(padL, m);
@@ -1128,70 +1134,155 @@
             updateFades();
         }
 
-        // GROUP OUTLINES (Phase 5). Pure derivation: each group's box is the
-        // bounding rectangle of its member cards' grid cells (plus a small
-        // halo), computed fresh every anchor pass — nothing is stored. A
-        // group whose members are all missing this paint renders nothing.
-        var GROUP_HALO = 7;   // px the outline extends beyond the member cells
+        // GROUP OUTLINES (revamp). Each group's territory is the tight UNION
+        // of its members' (and derived children's) cells — never a bounding
+        // rectangle — traced into ONE SVG path that hugs the cards, bridging
+        // internal gaps and following notches so groups nestle flush. All
+        // groups live in a single <svg class="pb-groups"> layer (like the
+        // tether layer), rebuilt fresh every anchor pass; nothing is stored.
+        // The topology (cellOutlines / cellIslands / roundedPathD) lives in
+        // the STORE so the hub thumbnail traces the very same shapes; this
+        // file owns only the board's pixel mapping and DOM.
+        // Label chips stay HTML siblings (text, ellipsis, edit-mode taps) —
+        // ONE PER ISLAND: members that drift apart keep a chip on every blob.
+        var CORNER_R = 12;         // KNOB: outline corner radius (px, unscaled)
         var lastGroupPad = null;   // { padL, m } from the latest positionGroups
+
+        // A group's cell set in TRACK space (0-based track = layout column
+        // index − 1), members plus derived interlinear children — mirrors the
+        // store's groupCells, but in the coordinates the board paints in.
+        function groupCellSet(g, byId, kidsOf) {
+            var cells = {}, eff = [], mm, c, dt, dr, t, r;
+            for (mm = 0; mm < g.cards.length; mm++) {
+                eff.push(g.cards[mm]);
+                if (kidsOf[g.cards[mm]]) { eff = eff.concat(kidsOf[g.cards[mm]]); }
+            }
+            for (mm = 0; mm < eff.length; mm++) {
+                c = byId[eff[mm]];
+                if (!c) { continue; }
+                t = (currentLayout.map[colOf(c)] || 1) - 1;
+                r = c.row || 1;
+                for (dt = 0; dt < (c.cw || 1); dt++) {
+                    for (dr = 0; dr < (c.rh || 1); dr++) { cells[(t + dt) + ',' + (r + dr)] = true; }
+                }
+            }
+            return cells;
+        }
+
+        // Trace one cell set to a path plus the geometry the caller needs. The
+        // pixel mapping bakes in a HALF-GAP halo on every side (so the outline
+        // sits centred in the gutter between the group and its neighbours) —
+        // this is the tunable "how far the outline reaches" knob, now derived
+        // from the grid's own gaps instead of a fixed GROUP_HALO. Topology
+        // comes from the STORE's shared tracer.
+        function traceGroupPath(cellSet, padL, m) {
+            var cellX = m.colW + m.colGap, cellY = m.rowUnit + m.rowGap;
+            function X(gx) { return padL + gx * cellX - m.colGap / 2; }
+            function Y(gy) { return m.padT + (gy - 1) * cellY - m.rowGap / 2; }
+            var loops = window.MBPericope.cellOutlines(cellSet);
+            if (!loops.length) { return null; }
+            var tMax = -Infinity, rMax = -Infinity, k, pp;
+            for (k in cellSet) {
+                if (!cellSet.hasOwnProperty(k)) { continue; }
+                pp = k.split(',');
+                tMax = Math.max(tMax, +pp[0]);
+                rMax = Math.max(rMax, +pp[1]);
+            }
+            return {
+                d: window.MBPericope.roundedPathD(loops, X, Y, CORNER_R),
+                cellX: cellX, cellY: cellY,
+                maxX: X(tMax + 1), maxY: Y(rMax + 1)
+            };
+        }
+
+        // The single groups layer, recreated after each paint() (which wipes
+        // grid.innerHTML). Inserted FIRST so it paints behind the cards and
+        // below the tether layer (both at z −1, DOM order decides).
+        function ensureGroupLayer() {
+            var layer = grid.querySelector('.pb-groups');
+            if (!layer) {
+                layer = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                layer.setAttribute('class', 'pb-groups');
+                layer.setAttribute('aria-hidden', 'true');
+                layer.setAttribute('focusable', 'false');
+                if (grid.firstChild) { grid.insertBefore(layer, grid.firstChild); }
+                else { grid.appendChild(layer); }
+            }
+            return layer;
+        }
+
+        // GROUP LABEL CHIPS — one per ISLAND (revamp). paint() no longer
+        // emits labels; they're created here (a fresh paint wipes them with
+        // everything else) and re-synced on every pass, so a group whose
+        // members drift into separate blobs grows a chip on each blob and a
+        // group that reunites sheds the spares. Anchor: the island's topmost
+        // row, leftmost cell in it — always a REAL card cell, never the
+        // empty corner of a bounding box. Edit-mode taps keep working on any
+        // copy (the handler only reads data-group).
+        var PENCIL_SVG = '<svg class="pb-group-label-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+
+        function makeGroupLabel(g) {
+            var lab = document.createElement('span');
+            lab.className = 'pb-group-label';
+            lab.setAttribute('data-group', g.id);
+            lab.style.setProperty('--gp', 'var(--tl-' + g.color + ')');
+            var txt = document.createElement('span');
+            txt.className = 'pb-group-label-text';
+            txt.textContent = g.label || 'Group';
+            lab.appendChild(txt);
+            lab.insertAdjacentHTML('beforeend', PENCIL_SVG);
+            return lab;
+        }
+
+        function positionChip(lab, t, r, padL, m) {
+            var cellX = m.colW + m.colGap, cellY = m.rowUnit + m.rowGap;
+            lab.hidden = false;
+            lab.style.left = (padL + t * cellX - m.colGap / 2 + 10) + 'px';   // chip hugs the island's top-left
+            lab.style.top  = (m.padT + (r - 1) * cellY - m.rowGap / 2 - 6) + 'px';   // translateY(-100%) lifts it clear
+        }
+
+        // Reconcile a group's chips with its islands: reuse what's there,
+        // grow or shed to match, position each at its island's anchor. An
+        // empty cell set (no placed members) removes every chip.
+        function syncGroupLabels(g, cellSet, padL, m) {
+            var islands = window.MBPericope.cellIslands(cellSet);
+            var labs = grid.querySelectorAll('.pb-group-label[data-group="' + g.id + '"]');
+            var i, lab;
+            for (i = islands.length; i < labs.length; i++) {
+                labs[i].parentNode.removeChild(labs[i]);
+            }
+            for (i = 0; i < islands.length; i++) {
+                lab = i < labs.length ? labs[i] : grid.appendChild(makeGroupLabel(g));
+                positionChip(lab, islands[i].t, islands[i].r, padL, m);
+            }
+        }
 
         function positionGroups(padL, m) {
             lastGroupPad = { padL: padL, m: m };
-            var shells = grid.querySelectorAll('.pb-group');
-            if (!shells.length || !lastBoard) { return; }
-            var cellX = m.colW + m.colGap, cellY = m.rowUnit + m.rowGap;
-            var byId = {}, i, c, sh, g, gi, tMin, tMax, rMin, rMax, mm, t;
+            if (!lastBoard) { return; }
+            var byId = {}, i, kk, kc, gi, g;
             for (i = 0; i < lastBoard.cards.length; i++) { byId[lastBoard.cards[i].id] = lastBoard.cards[i]; }
-            var kidsOf = {}, kk, kc;
+            var kidsOf = {};
             for (kk = 0; kk < lastBoard.cards.length; kk++) {
                 kc = lastBoard.cards[kk];
                 if (kc.type === 'interlinear') { (kidsOf[kc.parent] = kidsOf[kc.parent] || []).push(kc.id); }
-            }            
-            var groups = {};
-            for (gi = 0; gi < (lastBoard.groups || []).length; gi++) { groups[lastBoard.groups[gi].id] = lastBoard.groups[gi]; }
-            for (i = 0; i < shells.length; i++) {
-                sh = shells[i];
-                g = groups[sh.getAttribute('data-group')];
-                tMin = Infinity; tMax = -Infinity; rMin = Infinity; rMax = -Infinity;
-                if (g) {
-                    // Members plus DERIVED children (Phase 3): a child's
-                    // cells stretch its parent's box, mirroring the store's
-                    // expelForeigners fold.
-                    var eff = [], em;
-                    for (mm = 0; mm < g.cards.length; mm++) {
-                        eff.push(g.cards[mm]);
-                        if (kidsOf[g.cards[mm]]) { eff = eff.concat(kidsOf[g.cards[mm]]); }
-                    }
-                    for (em = 0; em < eff.length; em++) {
-                        c = byId[eff[em]];
-                        if (!c) { continue; }
-                        t = (currentLayout.map[colOf(c)] || 1) - 1;        // 0-based track
-                        tMin = Math.min(tMin, t);
-                        tMax = Math.max(tMax, t + (c.cw || 1) - 1);
-                        rMin = Math.min(rMin, c.row || 1);
-                        rMax = Math.max(rMax, (c.row || 1) + (c.rh || 1) - 1);
-                    }
-                }
-                var lab = grid.querySelector('.pb-group-label[data-group="' + sh.getAttribute('data-group') + '"]');
-                if (tMin === Infinity) { sh.hidden = true; if (lab) { lab.hidden = true; } continue; }
-                sh.hidden = false;
-                // --pb-top gives every row-1 box enough headroom that the
-                // chip ALWAYS floats above it (the old inside-clamp is gone).
-                var boxL = padL + tMin * cellX - GROUP_HALO;
-                var boxT = m.padT + (rMin - 1) * cellY - GROUP_HALO;
-                sh.style.left   = boxL + 'px';
-                sh.style.top    = boxT + 'px';
-                sh.style.width  = ((tMax - tMin + 1) * cellX - m.colGap + 2 * GROUP_HALO) + 'px';
-                sh.style.height = ((rMax - rMin + 1) * cellY - m.rowGap + 2 * GROUP_HALO) + 'px';
-                // The chip: same offsets it had as a shell child (left+10,
-                // 6px above the box top; its own translateY(-100%) lifts it
-                // clear), now applied here because it's a sibling.
-                if (lab) {
-                    lab.hidden = false;
-                    lab.style.left = (boxL + 10) + 'px';
-                    lab.style.top  = (boxT - 6) + 'px';
-                }
             }
+            var layer = ensureGroupLayer();
+            var groups = lastBoard.groups || [], paths = '', maxX = 0, maxY = 0, cs, tr;
+            for (gi = 0; gi < groups.length; gi++) {
+                g = groups[gi];
+                cs = groupCellSet(g, byId, kidsOf);
+                syncGroupLabels(g, cs, padL, m);   // empty set sheds every chip
+                tr = traceGroupPath(cs, padL, m);
+                if (!tr) { continue; }
+                paths += '<path class="pb-group-shape" data-group="' + esc(g.id) + '"' +
+                         ' style="--gp: var(--tl-' + esc(g.color) + ')" d="' + tr.d + '"/>';
+                maxX = Math.max(maxX, tr.maxX); maxY = Math.max(maxY, tr.maxY);
+            }
+            layer.innerHTML = paths;
+            var W = Math.max(1, Math.ceil(maxX + 8)), H = Math.max(1, Math.ceil(maxY + 8));
+            layer.setAttribute('width', W); layer.setAttribute('height', H);
+            layer.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
         }
 
 // TETHER CURVES (card-edit Phase 3, item 6). One SVG layer behind the
@@ -1276,42 +1367,44 @@
             layer.innerHTML = paths;
         }
 
-        // GROUP-FOLLOW preview (r14): reposition ONE group's shell (and chip)
-        // to an arbitrary set of member cells — the drag module calls this on
-        // every target change while a MEMBER card is held, so the outline
-        // visibly stretches and travels with the hover. Same box maths as
-        // positionGroups; tracks come from plain arithmetic on the contiguous
-        // column line (a hover in a not-yet-rendered column still previews —
-        // the box just reaches into the pad). Truth returns on the next
-        // render's positionGroups.
+        // GROUP-FOLLOW preview (r14, revamp): re-trace ONE group's outline to
+        // an arbitrary set of member cells — the drag module calls this on
+        // every target change while a MEMBER card is held, so the tight shape
+        // stretches and travels with the hover, and the chips follow: pulling
+        // a member clear of the blob SPLITS it live, and the new island grows
+        // its own chip on the spot. Same tracer as positionGroups; it edits
+        // the existing path's `d` in place (the layer was built by the last
+        // render). Truth returns on the next render's positionGroups.
         function previewGroupCells(gid, cells) {
             if (!lastGroupPad || !cells || !cells.length) { return; }
             var padL = lastGroupPad.padL, m = lastGroupPad.m;
-            var cellX = m.colW + m.colGap, cellY = m.rowUnit + m.rowGap;
-            var sh  = grid.querySelector('.pb-group[data-group="' + gid + '"]');
-            var lab = grid.querySelector('.pb-group-label[data-group="' + gid + '"]');
-            if (!sh) { return; }
             var col0 = currentLayout.cols.length ? currentLayout.cols[0] : 1;
-            var tMin = Infinity, tMax = -Infinity, rMin = Infinity, rMax = -Infinity, i, c, t;
+            var cs = {}, i, c, dt, dr, t, r;
             for (i = 0; i < cells.length; i++) {
                 c = cells[i];
-                t = c.col - col0;                                  // 0-based track
-                tMin = Math.min(tMin, t);
-                tMax = Math.max(tMax, t + (c.cw || 1) - 1);
-                rMin = Math.min(rMin, c.row || 1);
-                rMax = Math.max(rMax, (c.row || 1) + (c.rh || 1) - 1);
+                t = c.col - col0; r = c.row || 1;
+                for (dt = 0; dt < (c.cw || 1); dt++) {
+                    for (dr = 0; dr < (c.rh || 1); dr++) { cs[(t + dt) + ',' + (r + dr)] = true; }
+                }
             }
-            var boxL = padL + tMin * cellX - GROUP_HALO;
-            var boxT = m.padT + (rMin - 1) * cellY - GROUP_HALO;
-            sh.hidden = false;
-            sh.style.left   = boxL + 'px';
-            sh.style.top    = boxT + 'px';
-            sh.style.width  = ((tMax - tMin + 1) * cellX - m.colGap + 2 * GROUP_HALO) + 'px';
-            sh.style.height = ((rMax - rMin + 1) * cellY - m.rowGap + 2 * GROUP_HALO) + 'px';
-            if (lab) {
-                lab.hidden = false;
-                lab.style.left = (boxL + 10) + 'px';
-                lab.style.top  = (boxT - 6) + 'px';
+            var tr = traceGroupPath(cs, padL, m);
+            if (!tr) { return; }
+            var sh = grid.querySelector('.pb-group-shape[data-group="' + gid + '"]');
+            if (sh) { sh.setAttribute('d', tr.d); }
+            var g = null, gg;
+            for (gg = 0; gg < (lastBoard && lastBoard.groups || []).length; gg++) {
+                if (lastBoard.groups[gg].id === gid) { g = lastBoard.groups[gg]; break; }
+            }
+            if (g) { syncGroupLabels(g, cs, padL, m); }
+            // Grow the layer if the live outline reached past its current size.
+            var layer = grid.querySelector('.pb-groups');
+            if (layer) {
+                var W = parseFloat(layer.getAttribute('width')) || 0, H = parseFloat(layer.getAttribute('height')) || 0;
+                if (tr.maxX + 8 > W || tr.maxY + 8 > H) {
+                    W = Math.max(W, Math.ceil(tr.maxX + 8)); H = Math.max(H, Math.ceil(tr.maxY + 8));
+                    layer.setAttribute('width', W); layer.setAttribute('height', H);
+                    layer.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+                }
             }
         }
 
@@ -1770,7 +1863,7 @@
         render();           // paints, settles spans, and anchors home under the header
         // Deployment marker: one line so a stale cached script is instantly
         // visible. Bump when the geometry code changes.
-        if (window.console && console.info) { console.info('[pericope] board geometry r20'); }
+        if (window.console && console.info) { console.info('[pericope] board geometry r22'); }
 
         // ---- public surface for the companion scripts ---------------------
         // pericope-drag.js (Phase 3) and pericope-edit.js (Phase 5) attach to

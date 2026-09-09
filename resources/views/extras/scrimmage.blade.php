@@ -109,11 +109,10 @@
         @if ($daily['sabbath'] ?? false)
             {{-- The rest day: no verse, no CTA, no ✓ badge. The builder
                  below still works — scrims may be played, just not scored. --}}
-            <span class="sc-label">The Sabbath &mdash; a day of rest</span>
+            <span class="sc-label">Sabbath</span>
             <div class="sc-daily-ref">No daily verse today</div>
             <div class="sc-daily-sub">
-                The daily and the scrimboards return at midnight. Scrimmages may
-                still be typed today &mdash; nothing is scored, and no name is set.
+                It's Sabbath. No scores are saved this day and no Daily Verse. Take a rest.
             </div>
             <a class="sc-daily-arch" style="margin-left:0"
                href="{{ route('typing.scrimmage.daily.archive') }}">The daily archive &rarr;</a>

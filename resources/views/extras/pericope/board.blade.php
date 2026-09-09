@@ -90,6 +90,22 @@
     @include('bible.partials.present-styles')
     @include('bible.partials.interlinear-styles')
 
+    /* ---- Page-level scroll guards (nav r21) ----------------------------
+       1. scrollbar-gutter — the full-bleed geometry code has always ASSUMED
+          this rule existed globally (see the --pb-vw comment below); it never
+          did. Without it, clientWidth jumps whenever the vertical scrollbar
+          toggles mid-render, and the pre-script 100vw frame overflows by the
+          scrollbar's width. Declared here so it's scoped to the board page.
+       2. overflow-x on body — belt-and-braces: even a sub-pixel full-bleed
+          overshoot grows a PAGE horizontal scrollbar (the "double scrollbar"
+          bug). clip, never hidden: clip only truncates paint — it creates no
+          scroll container, so sticky positioning and vertical page scroll
+          are untouched. The measure-and-correct pass in setViewportVar()
+          fixes the geometry; this rule guarantees the symptom can't render
+          even for the one pre-script frame. */
+    html { scrollbar-gutter: stable; }
+    body { overflow-x: clip; }
+
     /* ---- Board head overrides ------------------------------------------
        --pb-gutter is the distance from the viewport's left edge to the
        container's content edge, in px, set by the script (fallback 1.5rem =
@@ -150,6 +166,17 @@
     }
     .pb-back:hover { color: var(--accent); }
 
+    /* Scroll r4: the VIEW PILL — Grid ⇄ Scroll — rides in the STICKY HEAD
+       under the board name. It is the translation switcher's chrome
+       VERBATIM (app.blade .tx / .tx-pill / .tx-menu / .tx-option —
+       click-away, Escape, grid columns, hover, is-current all come from
+       there): the current view is a plain span (the switcher's link-only
+       hover skips it), the other is a link. Choosing writes
+       mb.pericope.view (the dispatcher at the top of the content section
+       reads it). Only the head placement is ours. Mirrored in
+       scroll-styles for the feed page's pill. */
+    .chapter-head .pb-view { margin-top: .45rem; }
+
     /* THE COORDINATE GRID (Phase 4b).
        Fixed-width columns and a uniform row unit; each card is PLACED by its
        stored col/row/cw/rh (mapped to explicit grid-column / grid-row) rather
@@ -162,7 +189,7 @@
        A card spans ceil((height + gap) / (row + gap)) rows — computed live in
        reflow() and persisted as `rh` — so tall cards claim more rows and the
        store can push neighbours down. */
-    /* Horizontal-pan strip (4c). The wrapper is a positioning context for the
+    /* Horizontal-pan strip. The wrapper is a positioning context for the
        edge fades; the grid inside is the actual scroller. FULL-BLEED: it breaks
        out of the readable .container to span the whole window, so on widescreen
        the canvas reaches the viewport edges and pans beyond them — the header /
@@ -275,26 +302,71 @@
         overflow-x: auto;                   /* horizontal pan; page owns vertical scroll */
         overflow-y: visible;
         -webkit-overflow-scrolling: touch;  /* momentum panning on iOS */
-        padding-bottom: 14px;               /* room for the horizontal scrollbar (no stray v-scroll) */
-        /* grid-template-columns is set per-render from the column count. */
+        /* the 14px scrollbar allowance is gone with the native scrollbar (nav r23) */
     }
 
-    /* Horizontal scrollbar (item 3) — a simple accent pill with an ↔ glyph.
-       Only shows when the strip actually overflows (item 2); the container is
-       sized to content so a board that fits never renders a track. WebKit only;
-       Firefox falls back to a thin accent bar via scrollbar-color. */
-    .pb-grid { scrollbar-width: thin; scrollbar-color: var(--accent) transparent; }
-    .pb-grid::-webkit-scrollbar { height: 12px; }
-    .pb-grid::-webkit-scrollbar-track { background: transparent; }
-    .pb-grid::-webkit-scrollbar-thumb {
-        background-color: var(--accent);
-        border-radius: 999px;
-        background-repeat: no-repeat;
-        background-position: center;
-        /* ↔ arrows, white to match text-on-accent. */
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12' viewBox='0 0 24 12'%3E%3Cg fill='none' stroke='white' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 3 3 6l3 3'/%3E%3Cpath d='M18 3l3 3-3 3'/%3E%3Cpath d='M3 6h18'/%3E%3C/g%3E%3C/svg%3E");
+    /* PAN GIZMO (nav r23) — the strip's native scrollbar is GONE, replaced
+       by the floating pill built in pericope-pan.js: a .fab-chrome bar at
+       bottom-centre holding a track and a proportional accent thumb (the
+       old thumb's arrow glyph rides inside it). It exists only while the
+       strip truly overflows, so a board that fits shows nothing. Wheel,
+       trackpad and native touch panning are untouched — hiding a
+       scrollbar never disables scrolling. */
+    .pb-grid { scrollbar-width: none; }
+    .pb-grid::-webkit-scrollbar { display: none; }
+    /* Empty-background press-and-drag pans the board (mouse; touch pans
+       natively) — the grab cursor is the affordance. While ANY pan gesture
+       is live (background or gizmo, class from pericope-pan.js) the cursor
+       closes and text selection dies; the dot grid strengthens to the same
+       level as card placement, so the canvas structure shows while moving. */
+    .pb-grid { cursor: grab; }
+    body.pbp-panning { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+    body.pbp-panning .pb-grid { cursor: grabbing; }
+    .pb-grid.pb-panning:not(.pb-dots-off) { --pb-dot-a: 60%; }
+
+    .pbp-fab {
+        /* ┌─ GIZMO KNOBS ──────────────────────────────────────────────┐
+           │ --pbp-track-w  track width (the whole pill scales with it) │
+           │ --pbp-h        track and thumb height                      │
+           │ MIN_THUMB / SETTLE live in pericope-pan.js.                │
+           └────────────────────────────────────────────────────────────┘ */
+        --pbp-track-w: min(56vw, 19rem);
+        --pbp-h: 30px;
+        padding: .4rem;
     }
-    .pb-grid::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--accent) 85%, var(--ink)); }
+    .pbp-track {
+        position: relative;
+        width: var(--pbp-track-w);
+        height: var(--pbp-h);
+        border-radius: 999px;
+        background: var(--panel);
+        cursor: pointer;
+        touch-action: none;      /* the gizmo owns its gesture, mouse or finger */
+    }
+    .pbp-track:focus-visible {
+        outline: none;
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+    }
+    .pbp-thumb {
+        position: absolute; left: 0; top: 0; height: 100%;
+        display: flex; align-items: center; justify-content: center;
+        background: var(--accent); color: #fff;
+        border-radius: 999px;
+        cursor: grab;
+    }
+    .pbp-thumb:hover { filter: brightness(1.12); }
+    body.pbp-panning .pbp-thumb { cursor: grabbing; }
+    .pbp-thumb svg { display: block; width: 24px; height: 12px; pointer-events: none; }
+    /* Stand down while the edit FAB owns bottom-centre, and while a card
+       drag is live (the drop indicator stretches scrollWidth mid-drag,
+       which would make the gizmo pop and resize under the ghost). The
+       fab chrome's own transition animates both ways. */
+    #pb-board.is-editing .pbp-fab,
+    body.pb-dragging .pbp-fab {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        transform: translateX(-50%) translateY(160%) !important;
+    }
 
     /* DOT GRID (Phase 2). One dot at every slot corner — the top-left of each
        cell — so a card's own corner sits exactly on a dot. Two layers on a
@@ -384,26 +456,31 @@
     .pb-editing .peri-card-tx,
     .pb-editing .peri-ref { pointer-events: none; }
 
-    /* GROUPS — pure derivations: the box is positioned in px by the script
-       (positionGroups) around its member cells; --gp carries the group's
-       theme colour. Behind the cards at rest (z −1); in edit mode raised to
-       0 so the tint reads over the cards and the chip takes taps. */
+    /* GROUPS — pure derivations (revamp): the outline is a traced SVG path
+       hugging each group's tight cell union, rebuilt every anchor pass.
+       --gp carries the group's theme colour. Behind the cards at rest
+       (z −1); in edit mode the layer raises to 0 so the fill reads over
+       the cards while the chips take taps. */
     /* ┌─ GROUP OUTLINE KNOBS ─────────────────────────────────────────┐
-       │ border width + the two color-mix strengths set how loudly a    │
-       │ group reads; GROUP_HALO (script) sets how far it reaches.      │
+       │ stroke-width + the two color-mix strengths set how loudly a    │
+       │ group reads; CORNER_R (script) sets the corner radius and the  │
+       │ half-gap halo (script) sets how far the outline reaches.       │
        └────────────────────────────────────────────────────────────────┘ */
-    .pb-group {
-        position: absolute; z-index: -1; pointer-events: none;
-        border: 3px solid color-mix(in srgb, var(--gp) 65%, transparent);
-        background: color-mix(in srgb, var(--gp) 7%, transparent);
-        border-radius: 14px;
+    .pb-groups {
+        position: absolute; left: 0; top: 0; z-index: -1;
+        pointer-events: none; overflow: visible;
+    }
+    .pb-group-shape {
+        fill: color-mix(in srgb, var(--gp) 7%, transparent);
+        stroke: color-mix(in srgb, var(--gp) 65%, transparent);
+        stroke-width: 3; stroke-linejoin: round;
     }
     /* Hover-to-adopt (Phase 5b): while a held card is being adopted, the
        courting group brightens, the drop indicator wears its colour, and
        the ghost gains the member ring. */
-    .pb-group.is-adopting {
-        border-color: var(--gp);
-        background: color-mix(in srgb, var(--gp) 14%, transparent);
+    .pb-group-shape.is-adopting {
+        fill: color-mix(in srgb, var(--gp) 14%, transparent);
+        stroke: var(--gp);
     }
     .pb-drop.is-adopting {
         border-style: solid;
@@ -415,7 +492,21 @@
         box-shadow: 0 0 0 3px color-mix(in srgb, var(--gp) 35%, transparent),
                     0 10px 28px rgba(0,0,0,.18);
     }
-    .pb-editing .pb-group { z-index: 0; }
+    /* Drop REJECTED (revamp): the target overlaps a foreign group's cells and
+       no adoption is staged, so the drop won't land — the indicator and ghost
+       go crimson-dashed and muted, and nothing on the board shuffles. Release
+       here snaps the card home. */
+    .pb-drop.is-rejected {
+        border-style: dashed;
+        border-color: color-mix(in srgb, var(--tl-crimson) 70%, var(--rule));
+        background: color-mix(in srgb, var(--tl-crimson) 8%, transparent);
+    }
+    .peri-card.pb-ghost.is-rejected {
+        border-color: color-mix(in srgb, var(--tl-crimson) 55%, var(--rule));
+        box-shadow: 0 10px 28px rgba(0,0,0,.18);
+        opacity: .42;
+    }    
+    .pb-editing .pb-groups { z-index: 0; }
     /* The chip is a SIBLING of its shell (r11), so it escapes the shell's
        z −1 stacking context and paints over the cards — stretched cards fill
        their full rows now, so anything behind them is invisible. left/top are
@@ -847,24 +938,34 @@
     .peri-card.is-expanded .peri-card-snip { display: none; }
     /* On an expanded card the text is the flex child that fills the leftover
        box and SCROLLS (Phase A) — pagination is gone; a run longer than the
-       card's rows scrolls inside it. overscroll-contain stops an inner scroll
-       from dragging the page/strip on touch; the thin scrollbar matches the
-       board's. position:relative anchors the bottom fade. */
+       card's rows scrolls inside it.
+       SCROLL-EATING FIX (nav r21): the box is overflow CLIP at rest, not
+       hidden. hidden makes the element a SCROLL CONTAINER even with nothing
+       to scroll, and overscroll-behavior:contain on a scroll container
+       blocks chaining even when it can't move — which is exactly how a
+       one-verse card was eating the wheel on desktop and the pan on touch.
+       clip truncates paint without creating a scroll container, so wheel
+       and touch chain straight through to the strip and page. auto +
+       contain move to .is-overflowing only: a card that truly scrolls owns
+       its gesture (including at its end stops — deliberate, decision
+       confirmed), a card that doesn't is transparent to it. */
     .peri-card.is-expanded .peri-card-text {
         display: block;
         position: relative;
         flex: 1 1 auto;
         min-height: 0;
-        /* hidden until markScrollCues() flags a REAL overflow (>2px) — so a
+        /* clip until markScrollCues() flags a REAL overflow (>2px) — so a
            pixel of padding slop never draws a scrollbar on a card that fits
            (the r10 single-verse-with-scrollbar bug). */
-        overflow-y: hidden;
-        overscroll-behavior: contain;
+        overflow-y: clip;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: thin;
         scrollbar-color: color-mix(in srgb, var(--muted) 55%, transparent) transparent;
     }
-    .peri-card.is-expanded .peri-card-text.is-overflowing { overflow-y: auto; }
+    .peri-card.is-expanded .peri-card-text.is-overflowing {
+        overflow-y: auto;
+        overscroll-behavior: contain;
+    }
     .peri-card.is-expanded .peri-card-text::-webkit-scrollbar { width: 9px; }
     .peri-card.is-expanded .peri-card-text::-webkit-scrollbar-track { background: transparent; }
     .peri-card.is-expanded .peri-card-text::-webkit-scrollbar-thumb {
@@ -872,18 +973,10 @@
         border-radius: 999px;
         border: 2px solid transparent; background-clip: padding-box;
     }
-    /* BOTTOM FADE — shown only when the text actually overflows its box
-       (JS toggles .is-overflowing after spans settle / after a resize). A
-       gradient sits over the last few pixels so clipped text reads as
-       "there's more, scroll" instead of a hard cut. Individual mask longhands
-       only — the `mask` shorthand silently resets mask-image on higher-
-       specificity rules (documented CSS trap). pointer-events:none so it never
-       eats a scroll. */
-    .peri-card.is-expanded .peri-card-text.is-overflowing::after {
-        content: ""; position: absolute; left: 0; right: 0; bottom: 0;
-        height: 1.6rem; pointer-events: none;
-        background: linear-gradient(to bottom, transparent, var(--bg));
-    }
+    /* BOTTOM FADE — REMOVED (nav r21). The gradient sat over the last lines
+       of an overflowing card and stayed painted while the user scrolled
+       through the text, washing out whatever was under it. The thin
+       scrollbar is the "there's more" cue now. */
 
     .peri-card.is-heading .peri-card-text { font-family: var(--sans); font-weight: 700; font-size: 1.05rem; }
     .peri-card.is-note .peri-card-text { color: var(--muted); font-style: italic; }
@@ -897,8 +990,8 @@
         color: var(--muted); vertical-align: .35em; margin-right: .3em;
         font-variant-numeric: tabular-nums;
     }
-    /* The scroll content clears the bottom fade and the corner collapse button:
-       a little tail padding, extra on the right for the button's column. */
+    /* The scroll content clears the corner collapse button: a little tail
+       padding, extra on the right for the button's column. */
     .peri-card.is-expanded .peri-verses { padding: 0 2rem .4rem 0; }
 
     /* Corner buttons — ALL appear ONLY on an expanded card. A collapsed
@@ -1099,6 +1192,40 @@
 @endsection
 
 @section('content')
+    {{-- Scroll r3: the MODE DISPATCHER. The server can't read the visitor's
+         view preference (localStorage), so the canonical board URL decides
+         client-side, synchronously, before anything paints: a saved Scroll
+         preference — or a phone with no preference at all — goes straight
+         to the feed page via location.replace (no history entry, so Back
+         never bounces through here). Visiting the scroll URL directly
+         never rewrites the preference; only the view pill does, which is
+         the delegated listener below (document-level, so it needs nothing
+         rendered yet). One plain variable via the json directive, per the
+         house rule. --}}
+    <script>
+        window.MBPericopeScrollUrl = @json($scrollUrl);
+        (function () {
+            try {
+                var v = localStorage.getItem('mb.pericope.view');
+                var phone = window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+                if (v === 'scroll' || (!v && phone)) {
+                    window.location.replace(window.MBPericopeScrollUrl);
+                    return;
+                }
+            } catch (e) { /* private mode etc.: the grid is a fine default */ }
+            document.addEventListener('click', function (e) {
+                var t = e.target;
+                while (t && t.getAttribute) {
+                    if (t.getAttribute('data-view')) {
+                        try { localStorage.setItem('mb.pericope.view', t.getAttribute('data-view')); } catch (e2) {}
+                        return;
+                    }
+                    t = t.parentNode;
+                }
+            });
+        })();
+    </script>
+
     {{-- The board (shown when the slug resolves). --}}
     <div id="pb-board" hidden>
         {{-- Sticky head: sentinel first, then the head (markup contract in
@@ -1115,9 +1242,12 @@
                      by id. Home, undo and redo start `disabled` — that's
                      their true initial state (at rest, no history) — and
                      pericope-board.js flips the attribute from then on. --}}
-                <x-head-folder>
+                {{-- persist="reader": the folder's open/closed state joins the
+                     site-wide reader memory, so grid ⇄ scroll (and the
+                     reading pages) all remember one choice. --}}
+                <x-head-folder persist="reader">
                     <button type="button" class="fld-app" id="pb-home" aria-label="Back to the home block" title="Home" disabled>
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9.5V21h14V9.5"/><path d="M10 21v-6h4v6"/></svg>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4.5 20.5 19.5H3.5Z"/></svg>
                     </button>
                     <button type="button" class="fld-app" id="pb-undo" aria-label="Undo" title="Undo" disabled>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7v6h6"/><path d="M21 17a9 9 0 0 0-15-6.7L3 13"/></svg>
@@ -1156,7 +1286,27 @@
                 </div>
             </div>
 
-            <p class="subtitle" id="pb-sub"></p>
+        {{-- Scroll r4: the Grid / Scroll view pill, pinned with the head.
+             The translation switcher's anatomy verbatim: the current view
+             is a span with the check, the other a plain link (the
+             dispatcher's delegated listener writes the preference on
+             choose). --}}
+        <details class="tx pb-view" id="pb-view">
+            <summary class="tx-pill" aria-label="Change view">
+                <span class="pb-view-label">Grid</span>
+                <span class="tx-caret" aria-hidden="true">&#9662;</span>
+            </summary>
+            <div class="tx-menu" role="menu" aria-label="Board view">
+                <a class="tx-option" role="menuitemradio" aria-checked="false" data-view="scroll" href="{{ $scrollUrl }}">
+                    <span class="tx-check" aria-hidden="true"></span>
+                    <span class="tx-name">Scroll</span>
+                </a>
+                <span class="tx-option is-current" role="menuitemradio" aria-checked="true">
+                    <span class="tx-check" aria-hidden="true">&#10003;</span>
+                    <span class="tx-name">Grid</span>
+                </span>
+            </div>
+        </details>
         </div>
 
         <a class="pb-back" href="{{ $hubUrl }}">&larr; All pericopae</a>
@@ -1193,6 +1343,7 @@
      exist on disk before this renders. --}}
 <script src="{{ asset('js/sticky-head.js') }}?v={{ filemtime(public_path('js/sticky-head.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-board.js') }}?v={{ filemtime(public_path('js/pericope-board.js')) }}" defer></script>
+<script src="{{ asset('js/pericope-pan.js') }}?v={{ filemtime(public_path('js/pericope-pan.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-drag.js') }}?v={{ filemtime(public_path('js/pericope-drag.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-resize.js') }}?v={{ filemtime(public_path('js/pericope-resize.js')) }}" defer></script>
 <script src="{{ asset('js/pericope-edit.js') }}?v={{ filemtime(public_path('js/pericope-edit.js')) }}" defer></script>

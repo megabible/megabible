@@ -73,7 +73,7 @@
 
     // Slugs that are real routes under /extras/pericope and so can never be
     // assigned to a board (would shadow the hub's own pages).
-    var RESERVED_SLUGS = ['shared', 'verses'];
+    var RESERVED_SLUGS = ['shared', 'verses', 'like', 'likes'];   // like/likes: the scroll r2 beacon endpoints
 
     // Caps. Card caps are your answer to open-question #3 (150 soft / 300
     // hard); tweakable from here. Text caps stop one note from eating storage.
@@ -714,59 +714,189 @@
         return true;
     }
 
-    // Push cards down until none overlap the anchor (cascading). The anchor
-    // never moves and rows only increase, so this always converges. In-memory.
-    // GROUP TERRITORY (Phase 5): a group's bounding box belongs to its
-    // members. Any non-member sitting inside it is EXPELLED to just below
-    // the box, then the order-preserving sweep settles the fallout. Multi-
-    // pass because expelling from one group can push a card into another's
-    // box. Runs after createGroup and after every committed move, so a
-    // foreign card dropped inside a group bounces out rather than squatting.
-    function expelForeigners(cards, groups) {
-        if (!isArray(groups) || !groups.length) { return; }
-        var pass, changed, gi, g, mem, i, c, cMin, cMax, rMin, rMax, m, cardL, cardR, cardT, cardB;
-        // DERIVED membership (card-edit Phase 2): an interlinear CHILD is
-        // always a member of its parent's group and never listed in any
-        // group.cards. Fold the children in per group below, so a child
-        // sitting in (or stretching) its parent's box is at home there and
-        // is a foreigner everywhere else — the child-can't-leave-the-
-        // parent's-group rule IS this fold plus the expulsion that follows.
-        var par = {}, pi;
-        for (pi = 0; pi < cards.length; pi++) {
-            if (cards[pi].type === 'interlinear') { par[cards[pi].id] = cards[pi].parent; }
+    // GROUP TERRITORY (revamp): a group owns exactly the UNION of its
+    // members' cells — the members listed in group.cards PLUS their DERIVED
+    // interlinear children (a child is always at home in its parent's group,
+    // Phase 2) — never a bounding rectangle. This tight territory is the one
+    // source of truth: the board outline (positionGroups), the hub thumbnail
+    // (footprint) and the drop-rejection test all read from the same cells,
+    // so two groups can sit flush beside and below each other with no dead
+    // rectangle between them.
+    //
+    // Because territory is now cell-exact, a foreign card can NEVER sit on a
+    // member's cell (the coordinate grid forbids two cards sharing a cell),
+    // so there are no squatters to expel: the old expelForeigners cascade is
+    // gone. What replaces it is a DROP GUARD (overlapsForeignGroup, used by
+    // moveCard) that refuses to place a card onto a foreign group's cells —
+    // the drag layer snaps the card home instead (Option A). Dropping into a
+    // group's empty NOTCH (inside its bounding rect but off every member
+    // cell) is allowed, which is exactly how groups nestle together.
+    //
+    // -> { gid: { "col,row": true, ... }, ... }. A group with no placed
+    //    member contributes an empty map. Pure; caller passes a card list.
+    function groupCells(cards, groups) {
+        var out = {}, gi, g, i, c, dc, dr, m, eff, em;
+        if (!isArray(groups)) { return out; }
+        // Children fold into the parent's group (derived membership).
+        var kidsOf = {}, ki, byId = {};
+        for (ki = 0; ki < cards.length; ki++) {
+            byId[cards[ki].id] = cards[ki];
+            if (cards[ki].type === 'interlinear') {
+                (kidsOf[cards[ki].parent] = kidsOf[cards[ki].parent] || []).push(cards[ki].id);
+            }
         }
-        for (pass = 0; pass < 5; pass++) {
-            changed = false;
-            for (gi = 0; gi < groups.length; gi++) {
-                g = groups[gi];
-                mem = {}; cMin = Infinity; cMax = -Infinity; rMin = Infinity; rMax = -Infinity;
-                for (m = 0; m < g.cards.length; m++) { mem[g.cards[m]] = true; }
-                for (pi = 0; pi < cards.length; pi++) {
-                    if (par[cards[pi].id] && mem[par[cards[pi].id]]) { mem[cards[pi].id] = true; }
-                }
-                for (i = 0; i < cards.length; i++) {
-                    c = cards[i];
-                    if (!mem[c.id] || !hasPos(c)) { continue; }
-                    cMin = Math.min(cMin, c.col);
-                    cMax = Math.max(cMax, c.col + cardCw(c) - 1);
-                    rMin = Math.min(rMin, c.row);
-                    rMax = Math.max(rMax, c.row + cardRh(c) - 1);
-                }
-                if (cMin === Infinity) { continue; }
-                for (i = 0; i < cards.length; i++) {
-                    c = cards[i];
-                    if (mem[c.id] || !hasPos(c)) { continue; }
-                    cardL = c.col; cardR = c.col + cardCw(c) - 1;
-                    cardT = c.row; cardB = c.row + cardRh(c) - 1;
-                    if (cardL <= cMax && cardR >= cMin && cardT <= rMax && cardB >= rMin) {
-                        c.row = Math.min(rMax + 1, CAPS.gridRowLimit);
-                        changed = true;
+        for (gi = 0; gi < groups.length; gi++) {
+            g = groups[gi];
+            var cells = {};
+            eff = [];
+            for (m = 0; m < g.cards.length; m++) {
+                eff.push(g.cards[m]);
+                if (kidsOf[g.cards[m]]) { eff = eff.concat(kidsOf[g.cards[m]]); }
+            }
+            for (em = 0; em < eff.length; em++) {
+                c = byId[eff[em]];
+                if (!c || !hasPos(c)) { continue; }
+                for (dc = 0; dc < cardCw(c); dc++) {
+                    for (dr = 0; dr < cardRh(c); dr++) {
+                        cells[(c.col + dc) + ',' + (c.row + dr)] = true;
                     }
                 }
             }
-            if (!changed) { break; }
-            resolveCollisions(cards, null);
+            out[g.id] = cells;
         }
+        return out;
+    }
+
+    // The DROP GUARD (Option A). Would `card`, at its current col/row/cw/rh,
+    // land any cell on a group it is NOT a member of? The card's OWN group
+    // (its parent's group when the card is an interlinear child) is exempt —
+    // adoption runs BEFORE moveCard, so a card joining a group is already a
+    // member here and clears its new home. Returns true when the placement
+    // must be rejected. Pure; reads the board's stored positions.
+    function overlapsForeignGroup(board, card) {
+        if (!isObj(board) || !isArray(board.groups) || !board.groups.length) { return false; }
+        if (!card || !hasPos(card)) { return false; }
+        var own = groupOfCard(board, card.id);
+        var ownGid = own ? own.id : null;
+        var cellsBy = groupCells(board.cards, board.groups);
+        var dc, dr, gid, key, cw = cardCw(card), rh = cardRh(card);
+        for (gid in cellsBy) {
+            if (!cellsBy.hasOwnProperty(gid) || gid === ownGid) { continue; }
+            for (dc = 0; dc < cw; dc++) {
+                for (dr = 0; dr < rh; dr++) {
+                    key = (card.col + dc) + ',' + (card.row + dr);
+                    if (cellsBy[gid][key]) { return true; }
+                }
+            }
+        }
+        return false;
+    }
+
+    /* ---- territory geometry (shared, pure) ------------------------------
+       The outline tracer and its friends live HERE so the board page and the
+       hub thumbnails draw a group's shape from the SAME derivation — each
+       page supplies only its own pixel mapping. All three are pure functions
+       of a cell set; nothing touches storage. ----------------------------- */
+
+    // Trace a set of occupied unit cells into closed rectilinear loops.
+    // Orientation: filled region on the walk's right (screen coords), so
+    // outer boundaries wind one way and holes the other — SVG's nonzero
+    // fill then renders holes automatically. Disconnected cells yield one
+    // loop per island. cellSet is { "col,row": true } (any integer coords).
+    // -> [ [ {x,y} corner, … ], … ] with collinear points dropped.
+    function cellOutlines(cellSet) {
+        function has(c, r) { return !!cellSet[c + ',' + r]; }
+        var starts = {}, key, parts, c, r;
+        function addEdge(x1, y1, x2, y2) {
+            var k = x1 + ',' + y1;
+            (starts[k] = starts[k] || []).push(x2 + ',' + y2);
+        }
+        for (key in cellSet) {
+            if (!cellSet.hasOwnProperty(key)) { continue; }
+            parts = key.split(','); c = +parts[0]; r = +parts[1];
+            if (!has(c, r - 1)) { addEdge(c,     r,     c + 1, r    ); }  // top    →
+            if (!has(c + 1, r)) { addEdge(c + 1, r,     c + 1, r + 1); }  // right  ↓
+            if (!has(c, r + 1)) { addEdge(c + 1, r + 1, c,     r + 1); }  // bottom ←
+            if (!has(c - 1, r)) { addEdge(c,     r + 1, c,     r    ); }  // left   ↑
+        }
+        var loops = [], k, cur, startK, loop, list, next, guard, pp;
+        for (k in starts) {
+            if (!starts.hasOwnProperty(k)) { continue; }
+            while (starts[k] && starts[k].length) {
+                startK = k; cur = k; loop = []; guard = 0;
+                do {
+                    pp = cur.split(','); loop.push({ x: +pp[0], y: +pp[1] });
+                    list = starts[cur];
+                    if (!list || !list.length) { break; }
+                    next = list.shift(); cur = next; guard++;
+                } while (cur !== startK && guard < 100000);
+                loops.push(collapseCollinear(loop));
+            }
+        }
+        return loops;
+    }
+    function collapseCollinear(pts) {
+        if (pts.length < 3) { return pts; }
+        var out = [], n = pts.length, i, a, b, cc, d1x, d1y, d2x, d2y;
+        for (i = 0; i < n; i++) {
+            a = pts[(i - 1 + n) % n]; b = pts[i]; cc = pts[(i + 1) % n];
+            d1x = b.x - a.x; d1y = b.y - a.y; d2x = cc.x - b.x; d2y = cc.y - b.y;
+            if (d1x * d2y - d1y * d2x !== 0) { out.push(b); }   // keep only corners
+        }
+        return out;
+    }
+
+    // The 4-connected ISLANDS of a cell set — a group whose members drift
+    // apart becomes several islands, each its own blob in the traced path,
+    // and each island carries its OWN copy of the group's label chip. The
+    // anchor (t,r) is the island's topmost row, leftmost cell in that row —
+    // always a real card cell, so a chip never floats over empty space.
+    // -> [ { cells: {…}, t, r }, … ]
+    function cellIslands(cellSet) {
+        var seen = {}, islands = [], k, parts, stack, cur, c, r, cs, aT, aR, nb, i, nk;
+        for (k in cellSet) {
+            if (!cellSet.hasOwnProperty(k) || seen[k]) { continue; }
+            stack = [k]; seen[k] = true; cs = {}; aR = Infinity; aT = Infinity;
+            while (stack.length) {
+                cur = stack.pop(); cs[cur] = true;
+                parts = cur.split(','); c = +parts[0]; r = +parts[1];
+                if (r < aR || (r === aR && c < aT)) { aR = r; aT = c; }
+                nb = [(c + 1) + ',' + r, (c - 1) + ',' + r, c + ',' + (r + 1), c + ',' + (r - 1)];
+                for (i = 0; i < 4; i++) {
+                    nk = nb[i];
+                    if (cellSet[nk] && !seen[nk]) { seen[nk] = true; stack.push(nk); }
+                }
+            }
+            islands.push({ cells: cs, t: aT, r: aR });
+        }
+        return islands;
+    }
+
+    // Loops (integer grid-line corners) → a rounded SVG path 'd'. X/Y map a
+    // grid-line integer to the caller's pixel/unit space; `radius` rounds
+    // each corner (clamped to half the shorter adjacent run so tight steps
+    // still round). Quadratic corners: L to the point before the corner, Q
+    // through it to the point after.
+    function roundedPathD(loops, X, Y, radius) {
+        function dd(a, b) { var dx = b.x - a.x, dy = b.y - a.y; return Math.sqrt(dx * dx + dy * dy); }
+        function along(from, to, rr) { var dx = to.x - from.x, dy = to.y - from.y, L = Math.sqrt(dx * dx + dy * dy) || 1; return { x: from.x + dx / L * rr, y: from.y + dy / L * rr }; }
+        function f(v) { return Math.round(v * 10) / 10; }
+        var d = '', li, loop, n, i, pix, prev, cur, nxt, rr, pA, pB;
+        for (li = 0; li < loops.length; li++) {
+            loop = loops[li]; n = loop.length;
+            if (n < 3) { continue; }
+            pix = [];
+            for (i = 0; i < n; i++) { pix.push({ x: X(loop[i].x), y: Y(loop[i].y) }); }
+            for (i = 0; i < n; i++) {
+                prev = pix[(i - 1 + n) % n]; cur = pix[i]; nxt = pix[(i + 1) % n];
+                rr = Math.min(radius, dd(prev, cur) / 2, dd(cur, nxt) / 2);
+                pA = along(cur, prev, rr); pB = along(cur, nxt, rr);
+                d += (i === 0 ? 'M' : ' L') + f(pA.x) + ' ' + f(pA.y);
+                d += ' Q' + f(cur.x) + ' ' + f(cur.y) + ' ' + f(pB.x) + ' ' + f(pB.y);
+            }
+            d += 'Z';
+        }
+        return d;
     }
 
     // Push-down that PRESERVES the cards' original top-to-bottom order.
@@ -999,7 +1129,13 @@
     // Place a card at (col,row), optionally resizing (cw,rh). Free placement:
     // gaps are allowed and nothing is pulled up; any cards the move overlaps are
     // pushed DOWN (decision 2). A deliberate move IS an edit → bumps updated.
-    // -> board | null.
+    //
+    // DROP GUARD (Option A): if the target lands on a FOREIGN group's cells
+    // the move is REJECTED — nothing is written, the card keeps its stored
+    // position, and null comes back. The drag layer reads that (or, more
+    // usually, blocks the drop itself) and snaps the card home. Landing in a
+    // group's empty notch, or in one the card already belongs to (adoption
+    // ran first), is fine. -> board | null (null = bad id OR rejected drop).
     function moveCard(id, cardId, col, row, cw, rh) {
         var board = get(id);
         if (!board) { return null; }
@@ -1012,8 +1148,8 @@
         card.row = clampInt(row, 1, CAPS.gridRowLimit, 1);
         if (cw != null) { card.cw = clampInt(cw, 1, CAPS.gridColSpanMax, cardCw(card)); }
         if (rh != null) { card.rh = clampInt(rh, 1, CAPS.gridRowSpanMax, cardRh(card)); }
+        if (overlapsForeignGroup(board, card)) { return null; }   // rejected — snap home
         resolveCollisions(board.cards, cardId);
-        expelForeigners(board.cards, board.groups);
         board.updated = now();
         if (!writeBoard(board)) { return null; }
         syncIndexEntry(board);
@@ -1087,7 +1223,6 @@
         card.cw = newCw; card.rh = newRh;
         card.ew = newCw; card.eh = newRh;
         resolveCollisions(board.cards, cardId);
-        expelForeigners(board.cards, board.groups);
         board.updated = now();
         if (!writeBoard(board)) { return null; }
         syncIndexEntry(board);
@@ -1176,7 +1311,6 @@
         if (!v.card) { return null; }
         board.cards.splice(at + 1, 0, v.card);
         resolveCollisions(board.cards, v.card.id);
-        expelForeigners(board.cards, board.groups);
         board.updated = now();
         if (!writeBoard(board)) { return null; }
         syncIndexEntry(board);
@@ -1219,7 +1353,6 @@
         }
 
         resolveCollisions(board.cards, v.card.id);
-        expelForeigners(board.cards, board.groups);
         board.updated = now();
         if (!writeBoard(board)) { return null; }
         syncIndexEntry(board);
@@ -1685,7 +1818,6 @@
             color: GROUP_COLORS.indexOf(color) !== -1 ? color : GROUP_COLORS[0],
             cards: members
         });
-        expelForeigners(board.cards, board.groups);   // the new territory evicts squatters
         board.updated = now();
         if (!writeBoard(board)) { return null; }
         syncIndexEntry(board);
@@ -1722,7 +1854,6 @@
         for (i = 0; i < joining.length; i++) {
             if (g.cards.indexOf(joining[i]) === -1) { g.cards.push(joining[i]); }
         }
-        expelForeigners(board.cards, board.groups);   // the box may have grown over a bystander
         board.updated = now();
         if (!writeBoard(board)) { return null; }
         syncIndexEntry(board);
@@ -1918,10 +2049,10 @@
     //   - every card is placed (ensureGridPlacement, same as get());
     //   - a COLLAPSED verse card is always ONE row tall — the board renders
     //     it as exactly one slot whatever rh it remembers from expansion;
-    //   - a group's box is the bounding rectangle of its members' cells
+    //   - a group's shape is the CELL UNION of its members' footprints
     //     (membership, not stored geometry — mirrors positionGroups()).
     // -> { cards:  [ {id, type, osis, exp, col, row, cw, rh} ],
-    //      groups: [ {id, color, c0, c1, r0, r1} ],   inclusive cell bounds
+    //      groups: [ {id, color, cells: {"col,row": true}} ],
     //      colMin, colMax, rowMax }                    occupied extent, seeded
     //                                                   with the home block
     function footprint(board) {
@@ -1956,11 +2087,12 @@
         for (gi = 0; gi < groups.length; gi++) {
             g = groups[gi];
             if (!isObj(g) || !isArray(g.cards)) { continue; }
-            var c0 = Infinity, c1 = -Infinity, r0 = Infinity, r1 = -Infinity;
             // Members plus DERIVED children (card-edit Phase 2): a child's
-            // cells stretch its parent's box on the thumbnail exactly as
-            // they do on the board.
-            var mset = {}, fold = [], fi;
+            // cells stretch its parent's shape on the thumbnail exactly as
+            // they do on the board. CELL UNION, not a bounding rect (revamp)
+            // — the hub traces the same tight outline the board draws, from
+            // the collapse-adjusted footprints above.
+            var mset = {}, fold = [], fi, cells = {}, hasCell = false, dc, dr;
             for (m = 0; m < g.cards.length; m++) { mset[g.cards[m]] = true; fold.push(g.cards[m]); }
             for (fi = 0; fi < board.cards.length; fi++) {
                 c = board.cards[fi];
@@ -1969,13 +2101,15 @@
             for (m = 0; m < fold.length; m++) {
                 f = byId[fold[m]];
                 if (!f) { continue; }
-                c0 = Math.min(c0, f.col);
-                c1 = Math.max(c1, f.col + f.cw - 1);
-                r0 = Math.min(r0, f.row);
-                r1 = Math.max(r1, f.row + f.rh - 1);
+                for (dc = 0; dc < f.cw; dc++) {
+                    for (dr = 0; dr < f.rh; dr++) {
+                        cells[(f.col + dc) + ',' + (f.row + dr)] = true;
+                        hasCell = true;
+                    }
+                }
             }
-            if (c0 === Infinity) { continue; }   // no placed members → nothing to draw
-            out.groups.push({ id: g.id, color: g.color, c0: c0, c1: c1, r0: r0, r1: r1 });
+            if (!hasCell) { continue; }   // no placed members → nothing to draw
+            out.groups.push({ id: g.id, color: g.color, cells: cells });
         }
         return out;
     }
@@ -2016,6 +2150,17 @@
             { kind:'verse'|'group', label, color, cont,
               parts:[ { card, verses:[[n,text]…]|null, text, il?:true } ] } ] */
     var SLIDE = { chars: 1600 };   // one slide first; the presenter fits type and goes two-column
+
+    /* SCROLL FEED knobs (scroll r1). A post's content box is a phone-width
+       square-ish card, not a wall, so its page budget is a fraction of a
+       slide's; past it the post continues over CAROUSEL pages (the slide
+       deck's cont slides, renamed). The ratio table picks the box shape
+       from the first page's weight: a one-liner sits in a wide 16:9 box, a
+       typical verse in a square, a long run in Instagram's tallest 4:5. */
+    var FEED = {
+        chars:  600,                       // page budget (SLIDE.chars is 1600)
+        ratios: [ [120, '16:9'], [320, '1:1'], [Infinity, '4:5'] ]   // [maxWeight, ratio], ascending
+    };
 
     function cardVerseRows(card) {
         if (isArray(card.vv) && card.vv.length) { return card.vv; }
@@ -2073,8 +2218,10 @@
         return out;
     }
 
-    // Pack a slide's parts into as many slides as the budget needs.
-    function packSlide(base, parts) {
+    // Pack a slide's parts into as many slides as the budget needs. The
+    // budget defaults to SLIDE.chars; the feed passes FEED.chars.
+    function packSlide(base, parts, budget) {
+        budget = isNum(budget) ? budget : SLIDE.chars;
         var out = [], cur = [], len = 0, i, j, p, pieces, pl;
         function flush() {
             if (!cur.length) { return; }
@@ -2083,23 +2230,30 @@
         }
         for (i = 0; i < parts.length; i++) {
             p = parts[i]; pl = partWeight(p);
-            if (pl > SLIDE.chars) {
-                pieces = splitPart(p, Math.floor(SLIDE.chars / (p.il ? IL_WEIGHT : 1)));
+            if (pl > budget) {
+                pieces = splitPart(p, Math.floor(budget / (p.il ? IL_WEIGHT : 1)));
                 for (j = 0; j < pieces.length; j++) {
                     var l2 = partWeight(pieces[j]);
-                    if (cur.length && len + l2 > SLIDE.chars) { flush(); }
+                    if (cur.length && len + l2 > budget) { flush(); }
                     cur.push(pieces[j]); len += l2;
                 }
                 continue;
             }
-            if (cur.length && len + pl > SLIDE.chars) { flush(); }
+            if (cur.length && len + pl > budget) { flush(); }
             cur.push(p); len += pl;
         }
         flush();
         return out;
     }
 
-    function slides(board) {
+    /* THE WALK — the board's reading order as a list of ENTRIES, shared by
+       slides() and feed() so the two views can never disagree about order
+       or grouping. Pure. Each entry is one of:
+         { kind:'heading', id, text }        id = the heading card's id
+         { kind:'verse',   label:null, color:null, parts:[part] }
+         { kind:'group',   label, color, parts:[part…] }
+       Parts are unsplit here — packSlide() budgets them per view. */
+    function walkBoard(board) {
         var out = [];
         if (!isObj(board) || !isArray(board.cards)) { return out; }
         ensureGridPlacement(board);
@@ -2135,13 +2289,13 @@
         for (i = 0; i < placed.length; i++) {
             c = placed[i];
             if (c.type === 'heading') {
-                if (isStr(c.text) && c.text.replace(/\s/g, '')) { out.push({ kind: 'heading', text: c.text }); }
+                if (isStr(c.text) && c.text.replace(/\s/g, '')) { out.push({ kind: 'heading', id: c.id, text: c.text }); }
                 continue;
             }
             if (c.type !== 'verse') { continue; }   // notes: not in the deck (yet)
             g = groupOf[c.id];
             if (!g) {
-                out.push.apply(out, packSlide({ kind: 'verse', label: null, color: null }, [pf(c)]));
+                out.push({ kind: 'verse', label: null, color: null, parts: [pf(c)] });
                 continue;
             }
             if (emitted[g.id]) { continue; }
@@ -2150,12 +2304,122 @@
             for (k = i; k < placed.length; k++) {
                 if (placed[k].type === 'verse' && groupOf[placed[k].id] === g) { members.push(pf(placed[k])); }
             }
-            out.push.apply(out, packSlide({ kind: 'group', label: g.label || '', color: g.color || null }, members));
+            out.push({ kind: 'group', label: g.label || '', color: g.color || null, parts: members });
+        }
+        return out;
+    }
+
+    function slides(board) {
+        var out = [], entries = walkBoard(board), i, e;
+        for (i = 0; i < entries.length; i++) {
+            e = entries[i];
+            // A heading slide is {kind, text} exactly as before — the walk's
+            // id is the feed's business, not the deck's.
+            if (e.kind === 'heading') { out.push({ kind: 'heading', text: e.text }); continue; }
+            out.push.apply(out, packSlide({ kind: e.kind, label: e.label, color: e.color }, e.parts));
         }
         if (out.length) {
             out.unshift({ kind: 'title', text: isStr(board.name) && board.name ? board.name : 'Pericope', sub: summarize(board.cards).label });
         }
         return out;
+    }
+
+    /* ---- scroll feed (scroll r1) ----------------------------------------
+       The board as an Instagram-style feed for Scroll mode. Same walk as
+       the deck (walkBoard), so grid order and grouping decide everything;
+       what differs is the packaging. Pure: touches nothing, needs no
+       bookMeta — the renderer labels refs and sections from the page's
+       config, exactly as the presenter does.
+
+         -> { name, sub, posts: [
+                { kind:'heading', id, text },
+                { kind:'verse'|'group', id, label, color,
+                  refs:   [ {osis, ch, v1, v2} … ]   one per card, board order
+                  verses: n                          Σ (v2 − v1 + 1)
+                  osis:   [ 'Rom', 'Jn' … ]          distinct, first-seen order
+                  weight: n                          first page's char weight
+                  ratio:  '16:9' | '1:1' | '4:5'     from FEED.ratios
+                  seed:   n                          stable per post (hashStr)
+                  pages:  [ { cont, parts:[…] } … ]  ≥ 1; packSlide at FEED.chars
+                } ] }
+
+       id — the first card's id for a single or group post (a group's first
+       member in reading order), the heading card's id for a heading; the
+       renderer keys DOM and lazy windows on it. seed is hashStr(id) so a
+       post's font and backdrop stay put across reloads — variety that
+       doesn't reshuffle every visit.
+
+       likeKey(post) — the anonymous like counter's identity: the post's
+       refs, sorted and joined, with NO translation: two editions of the
+       same verse share one count, and a grouped post has its own key
+       distinct from any of its members standing alone. */
+
+    // djb2 over a string → non-negative 31-bit int. Deterministic, cheap,
+    // spread well enough to pick fonts and hues from a small pool.
+    function hashStr(str) {
+        var h = 5381, i;
+        str = String(str == null ? '' : str);
+        for (i = 0; i < str.length; i++) { h = ((h << 5) + h + str.charCodeAt(i)) | 0; }
+        return h < 0 ? -h : h;
+    }
+
+    function feedRatio(weight) {
+        var i;
+        for (i = 0; i < FEED.ratios.length; i++) {
+            if (weight <= FEED.ratios[i][0]) { return FEED.ratios[i][1]; }
+        }
+        return FEED.ratios[FEED.ratios.length - 1][1];
+    }
+
+    function feed(board) {
+        var out = { name: '', sub: '', posts: [] };
+        if (!isObj(board) || !isArray(board.cards)) { return out; }
+        out.name = isStr(board.name) && board.name ? board.name : 'Pericope';
+        out.sub  = summarize(board.cards).label;
+
+        var entries = walkBoard(board), i, j, e, post, pages, card, seen, w;
+        for (i = 0; i < entries.length; i++) {
+            e = entries[i];
+            if (e.kind === 'heading') {
+                out.posts.push({ kind: 'heading', id: e.id, text: e.text });
+                continue;
+            }
+            pages = packSlide({ kind: e.kind, label: e.label, color: e.color }, e.parts, FEED.chars);
+            post = { kind: e.kind, id: e.parts[0].card.id, label: e.label, color: e.color,
+                     refs: [], verses: 0, osis: [], weight: 0, ratio: '1:1', seed: 0, pages: [] };
+            seen = {};
+            for (j = 0; j < e.parts.length; j++) {
+                card = e.parts[j].card;
+                // tx rides along so the renderer can LINK a ref into the
+                // reader; likeKey ignores it (refToken reads only the ref).
+                post.refs.push({ osis: card.osis, ch: card.ch, v1: card.v1, v2: card.v2, tx: card.tx });
+                post.verses += Math.max(1, (card.v2 - card.v1 + 1) || 1);
+                if (card.osis && !seen[card.osis]) { seen[card.osis] = true; post.osis.push(card.osis); }
+            }
+            w = 0;
+            for (j = 0; j < pages[0].parts.length; j++) { w += partWeight(pages[0].parts[j]); }
+            post.weight = w;
+            post.ratio  = feedRatio(w);
+            post.seed   = hashStr(post.id);
+            for (j = 0; j < pages.length; j++) { post.pages.push({ cont: pages[j].cont, parts: pages[j].parts }); }
+            out.posts.push(post);
+        }
+        return out;
+    }
+    // "Jn.3.16+Rom.8.28-30" — sorted by osis, chapter, verse; translation-
+    // free; a single verse prints without a range. The server hashes this
+    // for its index and keeps the string for legibility.
+    function refToken(r) {
+        return r.osis + '.' + r.ch + '.' + (r.v1 === r.v2 ? r.v1 : r.v1 + '-' + r.v2);
+    }
+    function likeKey(post) {
+        if (!isObj(post) || !isArray(post.refs) || !post.refs.length) { return ''; }
+        var refs = post.refs.slice().sort(function (a, b) {
+            return (a.osis < b.osis ? -1 : a.osis > b.osis ? 1 : 0) || (a.ch - b.ch) || (a.v1 - b.v1) || (a.v2 - b.v2);
+        });
+        var toks = [], i;
+        for (i = 0; i < refs.length; i++) { toks.push(refToken(refs[i])); }
+        return toks.join('+');
     }
 
     /* ---- assemble & export ---------------------------------------------- */
@@ -2207,8 +2471,17 @@
         // derived summaries (board subtitle, hub thumbnails)
         summarize:  summarize,
         footprint:  footprint,
+        groupCells: groupCells,   // per-group cell union (outline + drop guard)
+        cellOutlines: cellOutlines,   // cell set → rectilinear boundary loops
+        cellIslands:  cellIslands,    // cell set → 4-connected islands + chip anchors
+        roundedPathD: roundedPathD,   // loops + pixel mapping → rounded SVG 'd'
         slides:     slides,
         SLIDE:      SLIDE,
+        walkBoard:  walkBoard,    // the shared reading-order walk (scroll r1)
+        feed:       feed,         // the board as scroll-mode posts (scroll r1)
+        likeKey:    likeKey,      //   a post's anonymous like identity
+        hashStr:    hashStr,      //   the seed hash (renderer picks fonts/hues with it)
+        FEED:       FEED,
 
         // history (session-only undo / redo; see recordHistory)
         undo:       undo,
