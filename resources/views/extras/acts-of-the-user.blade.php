@@ -38,6 +38,14 @@
     SCRIM   the timed competitive mode. Read from mbActs.v1, the
             append-only event log written by window.MBActs
             (layouts/app). Carries a marks score.
+    PERICOPE board deeds, also from mbActs.v1 — but COLLAPSED at read
+            time the way vigil sittings are: verse adds to one board
+            within the pericope gap merge into a single row ("Psalms
+            82:1 Added to El's Council" / "Added 12 verses to El's
+            Council"), and presentation openings merge into "Presented"
+            rows counting DISTINCT boards. Scroll views were never
+            deeds; retired pericope.scroll events are dropped on read.
+            A deleted board unlinks every earlier row that names it.
 
   Verse and scrim rows show NO leading verb: the badge already says
   which mode it was, so the reference does the rest of the talking.
@@ -451,6 +459,10 @@
         const ACTS_KEY  = 'mbActs.v1';
         const PAGE_SIZE = 20;
 
+        // Deployment tripwire (the pericope files' rN convention): if
+        // DevTools doesn't print this line, the served blade is stale.
+        if (window.console && console.info) { console.info('[acts] feed pericope-collapse r1'); }
+
         /* ---- Server constants (single-variable json only) ---------------
            COUNTS   osis => { txSlug: { chapter: verseCount } }  denominators
            META     osis => { name, slug, off, single }          display rules
@@ -460,11 +472,17 @@
         const VIGIL_URL  = @json($vigilUrlPattern);
         const BOOK_URL   = @json($vigilBookUrlPattern);
         const SCRIM_URL  = @json($scrimUrlPattern);
+        const READER_URL = @json($readerUrlPattern);
 
         // Two vigil verse first-typings within this many ms count as the same
         // sitting and collapse into one range row; a larger pause splits them.
         // Server-authoritative (config/typing.php → vigil.session_gap_minutes).
         const SESSION_GAP_MS = @json($vigilSessionGapMs);
+
+        // Pericope events (adds per board, presentation openings) within this
+        // gap collapse into one feed row. Server-authoritative
+        // (config/typing.php → pericope.session_gap_minutes).
+        const PERICOPE_GAP_MS = @json($pericopeSessionGapMs);
 
         // Every scrim/daily round runs this many seconds on the clock
         // (config/typing.php → challenge.scrimmage_duration). The Bible-Time
@@ -564,6 +582,95 @@
         }
 
         /* =================================================================
+           PERICOPE COLLAPSING — the sessionize() treatment, applied to the
+           mbActs.v1 pericope events. Raw facts stay raw in the log; the
+           feed derives one row per sitting, exactly as vigil ranges do.
+           ================================================================= */
+
+        // Boards deleted anywhere in the log. Filled by buildEvents() before
+        // the first render; any pericope row naming one of these renders its
+        // board UNLINKED — the destination is gone. Ids are store-generated
+        // and never reused, so membership alone decides (no timestamps).
+        const PERICOPE_DELETED = {};
+
+        // pericope.present events → one 'pericope.presented' row per sitting.
+        // Boards are DISTINCT within the sitting (the same deck opened three
+        // times is still ONE pericope); `shows` keeps the raw opening count.
+        // The row's moment is the sitting's last opening, like vigil ranges.
+        function collapsePresents(presents) {
+            const out = [];
+            sessionize(presents, PERICOPE_GAP_MS).forEach(function (session) {
+                let ts = 0;
+                const seen = {}, boards = [];
+                session.forEach(function (p) {
+                    if (p.ts > ts) ts = p.ts;
+                    const key = p.id || ('~' + boards.length);
+                    if (!seen[key]) {
+                        seen[key] = { id: p.id || null, slug: p.slug || null, name: p.name || 'a pericope' };
+                        boards.push(seen[key]);
+                    } else {
+                        // A later opening carries the freshest snapshot —
+                        // and legacy events logged before slugs existed are
+                        // healed by any newer sibling that has one.
+                        if (p.slug) seen[key].slug = p.slug;
+                        if (p.name) seen[key].name = p.name;
+                    }
+                });
+                out.push({ t: 'pericope.presented', ts: ts, boards: boards, shows: session.length });
+            });
+            return out;
+        }
+
+        // pericope.add events → one 'pericope.added' row per board per
+        // sitting. Refs merge through the same mergeRuns() the vigil uses,
+        // grouped by chapter AND translation (links must point at the
+        // edition the card holds), so 82:1 then 82:2–4 reads "82:1–4" and a
+        // re-added verse counts once. `verses` is the distinct-verse total
+        // across groups; `cards` keeps the raw landed-card count for legacy
+        // events that logged no refs. Latest event's name/slug wins, so a
+        // mid-sitting rename shows the new name.
+        function collapseAdds(adds) {
+            const out = [];
+            const byBoard = {};
+            adds.forEach(function (a) {
+                const k = a.id || '~';
+                (byBoard[k] = byBoard[k] || []).push(a);
+            });
+            for (const bk in byBoard) {
+                sessionize(byBoard[bk], PERICOPE_GAP_MS).forEach(function (session) {
+                    let ts = 0, id = null, slug = null, name = 'a pericope', cards = 0;
+                    const chGroups = {};
+                    session.forEach(function (a) {
+                        if (a.ts >= ts) {
+                            ts = a.ts;
+                            id = a.id || id; slug = a.slug || slug; name = a.name || name;
+                        }
+                        cards += (a.count || 0);
+                        (a.refs || []).forEach(function (r) {
+                            if (!r || r.v1 == null) return;
+                            const key = r.osis + '|' + r.ch + '|' + (r.tx || '');
+                            const g = chGroups[key] = chGroups[key] ||
+                                { osis: r.osis, ch: r.ch, tx: r.tx || null, nums: [] };
+                            const hi = r.v2 != null ? r.v2 : r.v1;
+                            for (let v = r.v1; v <= hi; v++) g.nums.push(v);
+                        });
+                    });
+                    const groups = [];
+                    let verses = 0;
+                    for (const gk in chGroups) {
+                        const g = chGroups[gk];
+                        const ranges = mergeRuns(g.nums);
+                        verses += ranges.reduce(function (s, r) { return s + (r[1] - r[0] + 1); }, 0);
+                        groups.push({ osis: g.osis, ch: g.ch, tx: g.tx, ranges: ranges });
+                    }
+                    out.push({ t: 'pericope.added', ts: ts, id: id, slug: slug, name: name,
+                               groups: groups, verses: verses, cards: cards });
+                });
+            }
+            return out;
+        }
+
+        /* =================================================================
            BUILD THE EVENT LIST — the whole record, once, in memory.
 
            Vigil events are DERIVED from mbVigil.v1:
@@ -657,12 +764,27 @@
             let log = [];
             try { log = JSON.parse(localStorage.getItem(ACTS_KEY)) || []; } catch (e) {}
             if (Array.isArray(log)) {
+                // Pericope presents and adds are pulled aside and COLLAPSED
+                // (one row per sitting) instead of passing through raw.
+                // pericope.scroll — a retired event; viewing modified nothing
+                // — is dropped entirely, so legacy entries neither render
+                // nor inflate the counts. Deletes still render as rows AND
+                // feed PERICOPE_DELETED so earlier rows for a gone board
+                // lose their links. Timestamps are already ms today, but
+                // normalising costs nothing and keeps the feed correct if a
+                // future writer logs seconds.
+                const presents = [], adds = [];
                 log.forEach(function (e) {
                     if (!e || !e.t || !e.ts) return;
-                    // Already ms today, but normalising costs nothing and keeps
-                    // the feed correct if a future writer logs seconds.
-                    evs.push(Object.assign({}, e, { ts: msOf(e.ts) }));
+                    const ev = Object.assign({}, e, { ts: msOf(e.ts) });
+                    if (ev.t === 'pericope.scroll')  { return; }
+                    if (ev.t === 'pericope.present') { presents.push(ev); return; }
+                    if (ev.t === 'pericope.add')     { adds.push(ev); return; }
+                    if (ev.t === 'pericope.delete' && ev.id) { PERICOPE_DELETED[ev.id] = true; }
+                    evs.push(ev);
                 });
+                collapsePresents(presents).forEach(function (ev) { evs.push(ev); });
+                collapseAdds(adds).forEach(function (ev) { evs.push(ev); });
             }
 
             // Newest first. On identical timestamps — a chapter/book finishes on
@@ -742,12 +864,68 @@
             return esc(e.ref || fallback);
         }
 
-        /* Pericope rows. The event logs the board's id/slug/name and, for an
-           add, the RAW refs. We prefer the LIVE board (in case it was renamed)
-           when window.MBPericope is loaded; since this script runs inline, that
-           usually isn't the case yet, so we fall back to the logged slug/name —
-           correct unless a board was renamed after the fact. Delete rows never
-           link (the board is gone). Returns safe HTML. */
+        /* Pericope rows. Events log the board's id/slug/name snapshot; the
+           feed renders from that snapshot (this script runs inline, before
+           MBPericope loads), so a later rename shows the old name — accepted.
+           A board in PERICOPE_DELETED never links, whatever the row age:
+           the destination is gone. All helpers return safe HTML. */
+
+        // The board name, linked to the board page when it still exists.
+        function pericopeBoardHtml(id, slug, name) {
+            const base = window.MB_PERICOPE_BASE;
+            const link = (slug && base && !(id && PERICOPE_DELETED[id]))
+                ? (base + '/' + encodeURIComponent(slug)) : null;
+            return link ? ('<a href="' + link + '">' + esc(name) + '</a>') : esc(name);
+        }
+
+        // One merged run as a reader link: the refRangeOf() reference text
+        // wrapped in the reader chapter URL plus the same ?v= / ?v=N-M
+        // convention the pericope board's own card links use.
+        function readerRunLink(g, run) {
+            const m   = META[g.osis] || {};
+            const ref = refRangeOf(g.osis, g.ch, [run]);           // safe HTML
+            if (!m.slug || !g.tx) return ref;
+            const v   = run[0] === run[1] ? String(run[0]) : (run[0] + '-' + run[1]);
+            const url = fill(READER_URL, { t: g.tx, b: m.slug, c: g.ch, v: '' }) +
+                        '?v=' + encodeURIComponent(v);
+            return '<a href="' + url + '">' + ref + '</a>';
+        }
+
+        // "Presented Monsters in the Bible" (one distinct board — linked,
+        // with a showings tally when it was opened more than once) or
+        // "Presented 3 Pericopae" (distinct-board count; the tally appears
+        // when openings outnumber boards).
+        function presentedDeed(e) {
+            const shows = e.shows || 1;
+            if (e.boards.length === 1) {
+                const b = e.boards[0];
+                let deed = 'Presented ' + pericopeBoardHtml(b.id, b.slug, b.name);
+                if (shows > 1) deed += suffix('<span class="tally">' + shows + ' showings</span>');
+                return deed;
+            }
+            let deed = 'Presented ' + e.boards.length + ' Pericopae';
+            if (shows > e.boards.length) deed += suffix('<span class="tally">' + shows + ' showings</span>');
+            return deed;
+        }
+
+        // "Psalms 82:1 Added to El's Council" when the sitting merges to a
+        // single run in one chapter (linked into the reader); otherwise
+        // "Added 12 verses to El's Council". Legacy events that logged only
+        // a count fall back to cards.
+        function addedDeed(e) {
+            const board = pericopeBoardHtml(e.id, e.slug, e.name);
+            if (e.groups.length === 1 && e.groups[0].ranges.length === 1) {
+                return readerRunLink(e.groups[0], e.groups[0].ranges[0]) + ' Added to ' + board;
+            }
+            if (e.verses > 0) {
+                return 'Added ' + e.verses + (e.verses === 1 ? ' verse' : ' verses') + ' to ' + board;
+            }
+            const n = e.cards || 0;
+            return 'Added ' + n + (n === 1 ? ' card' : ' cards') + ' to ' + board;
+        }
+
+        // Legacy create/delete rows (and the retired uncollapsed add shape,
+        // kept the way the old single-verse vigil branch is kept).
         function pericopeRefsHtml(e) {
             const refs = e.refs || [];
             if (refs.length === 1) {
@@ -758,17 +936,11 @@
             return esc(n + (n === 1 ? ' card' : ' cards'));
         }
         function pericopeDeed(e) {
-            const live = (window.MBPericope && e.id) ? window.MBPericope.get(e.id) : null;
-            const name = live ? live.name : (e.name || 'a pericope');
-            const slug = live ? live.slug : (e.slug || null);
-            const base = window.MB_PERICOPE_BASE;
-            const link = (slug && base && e.t !== 'pericope.delete')
-                ? (base + '/' + encodeURIComponent(slug)) : null;
-            const named = link ? ('<a href="' + link + '">' + esc(name) + '</a>') : esc(name);
+            const named = pericopeBoardHtml(e.id, e.slug || null, e.name || 'a pericope');
 
             if (e.t === 'pericope.create') return 'Started ' + named;
-            if (e.t === 'pericope.delete') return 'Removed ' + esc(name);
-            return 'Added ' + pericopeRefsHtml(e) + ' to ' + named;   // add
+            if (e.t === 'pericope.delete') return 'Removed ' + esc(e.name || 'a pericope');
+            return 'Added ' + pericopeRefsHtml(e) + ' to ' + named;   // legacy add
         }
 
         function fill(pattern, parts) {
@@ -880,6 +1052,12 @@
                     deed += suffix('<span class="marks">' + esc(e.score) + ' marks</span>');
                 }
 
+            } else if (e.t === 'pericope.presented') {
+                deed = presentedDeed(e);
+
+            } else if (e.t === 'pericope.added') {
+                deed = addedDeed(e);
+
             } else if (e.t === 'pericope.create' || e.t === 'pericope.add' || e.t === 'pericope.delete') {
                 deed = pericopeDeed(e);
 
@@ -967,12 +1145,13 @@
                     { year: 'numeric', month: 'short', day: 'numeric' })
                 : '\u2014';
 
-            // ---- Fav book: most interactions — each typed verse and each scrim
-            //      worth one, counted per translation. Milestones (chapter/book
-            //      completions) are skipped so they don't double-count the range
-            //      that earned them. Ties break to the most recent. The link
-            //      points at the vigil book hub in the translation the book was
-            //      most recently touched in. -----------------------------------
+            // ---- Fav book: most interactions — each typed verse, each scrim,
+            //      and each verse gathered into a pericope worth one, counted
+            //      per translation. Milestones (chapter/book completions) are
+            //      skipped so they don't double-count the range that earned
+            //      them. Ties break to the most recent. The link points at the
+            //      vigil book hub in the translation the book was most
+            //      recently touched in. ----------------------------------------
             const count = {}, lastTs = {}, lastTx = {};
             function bump(osis, by, ts, tx) {
                 if (!osis) return;
@@ -987,6 +1166,13 @@
                     bump(e.osis, 1, e.ts, e.tx);
                 } else if (e.t === 'scrim' || e.t === 'daily') {
                     bump(SLUG_TO_OSIS[e.b], 1, e.ts, e.tx);
+                } else if (e.t === 'pericope.added') {
+                    // One per distinct verse, per chapter/translation group —
+                    // the same dedup the feed row itself shows.
+                    e.groups.forEach(function (g) {
+                        const n = g.ranges.reduce(function (s, r) { return s + (r[1] - r[0] + 1); }, 0);
+                        bump(g.osis, n, e.ts, g.tx);
+                    });
                 }
             });
             let favOsis = null, favN = -1, favTs = -1;

@@ -73,6 +73,19 @@
    it lands. Losses in either direction are acceptable — it's a counter,
    not a ledger. Counts print coarse past 999 ("1.2k").
 
+   INTERLINEAR (scroll r7): a post whose card carries an interlinear
+   child on the board (part.il, set by the store's walk) grows one extra
+   carousel page PER VERSE of that card, after the text pages — the
+   original-language trio, one verse to a page: token stacks of surface /
+   transliteration / gloss, wrapping as a row, RTL-aware, painted straight
+   over the backdrop (no panel). The page's heading names the source
+   language ("Original Hebrew"). Tokens are fetched once per card from the
+   interlinear endpoint (CFG.interlinearUrlPattern + ?v=) the first time
+   the post's box paints, cached for the page's life, then each verse's
+   page is filled from that one response. Trio pages SCROLL vertically
+   instead of shrinking — a dense verse is a wall no fit() should cram
+   into a square.
+
    THE RECENT RAIL (scroll r4, desktop): the visitor's other boards
    beside the feed as "accounts" — a dot in each board's DOMINANT section
    colour (its most common book colour), the name, "N cards · 3d ago" —
@@ -99,19 +112,40 @@
     var POP_MS      = 900;                      // heart overlay life
     var TOAST_MS    = 1800;
 
-    // The seed picks a face; the decorative faces only get short posts.
-    // A face PINNED in scroll settings overrides the seed (and the weight
-    // guard — the pin is the person's own call). Keys are the settings
-    // panel's values; families must exist in present-styles' font-faces.
-    // Families are SINGLE-quoted: they land inside a double-quoted HTML
-    // style attribute (postHtml), where a double-quoted family truncates
-    // the attribute at its first inner quote — the post silently loses its
-    // font (and looked like "not much variety" rather than an error).
-    var FONTS = [
-        { key: 'tinos',  label: 'Tinos',          family: 'Tinos',             maxWeight: Infinity },
-        { key: 'cal',    label: 'Cal Sans',       family: "'Cal Sans'",        maxWeight: Infinity },
-        { key: 'night',  label: 'Jim Nightshade', family: "'Jim Nightshade'",  maxWeight: 200 },
-        { key: 'rocker', label: 'New Rocker',     family: "'New Rocker'",      maxWeight: 160 }
+    // THE FONT POOL (fonts r1): config/fonts.php, shipped in the page
+    // config — one manifest feeds the rotation, the settings panel, and
+    // the font-face rules. The built-in list below is only the fallback
+    // for a config that didn't arrive. The seed picks a face per post;
+    // a face's maxWeight keeps the decorative ones on short posts; a face
+    // PINNED in settings overrides both (the pin is the person's call).
+    // cssFamily() SINGLE-quotes names that need quoting: these land inside
+    // a double-quoted HTML style attribute (postHtml), where a
+    // double-quoted family truncates the attribute at its first inner
+    // quote — the post silently loses its font.
+    function cssFamily(name) {
+        name = String(name || '');
+        return /^[A-Za-z0-9-]+$/.test(name) ? name : "'" + name.replace(/'/g, '') + "'";
+    }
+    function buildFonts(pool) {
+        if (!pool || !pool.length) { return null; }
+        var out = [], i, f;
+        for (i = 0; i < pool.length; i++) {
+            f = pool[i];
+            if (!f || !f.key || !f.family) { continue; }
+            out.push({
+                key:       String(f.key),
+                label:     String(f.label || f.key),
+                family:    cssFamily(f.family),
+                maxWeight: (f.maxWeight == null) ? Infinity : f.maxWeight
+            });
+        }
+        return out.length ? out : null;
+    }
+    var FONTS = buildFonts((window.MBPericopeBoardConfig || {}).fonts) || [
+        { key: 'tinos',   label: 'Tinos',          family: 'Tinos',             maxWeight: Infinity },
+        { key: 'calsans', label: 'Cal Sans',       family: "'Cal Sans'",        maxWeight: Infinity },
+        { key: 'jim',     label: 'Jim Nightshade', family: "'Jim Nightshade'",  maxWeight: 200 },
+        { key: 'rocker',  label: 'New Rocker',     family: "'New Rocker'",      maxWeight: 160 }
     ];
     // The theme palette (app.blade --tl-*), for the gradient's second stop.
     var PALETTE = ['clay', 'slate', 'gold', 'plum', 'terracotta', 'teal',
@@ -125,6 +159,9 @@
     var root = null, feedEl = null;
     var posts = [], io = null, toastEl = null, toastTimer = null;
     var qrLibState = 0, qrPending = null;   // 0 none · 1 loading · 2 ready · 3 failed
+    // Interlinear token cache, keyed by card id (scroll r6):
+    //   { state: 'pending'|'ready'|'none'|'error', verses: [{n, rtl, tokens}] }
+    var ilCache = {};
     // Server like counts, keyed by like key. Filled by fetchCounts() after
     // each build; moved optimistically by setLiked() between fetches.
     var counts = {};
@@ -286,26 +323,64 @@
         return h + '</div>';
     }
 
-    // The box's pages, painted on demand (see fill).
+    // The interlinear VERSES behind a post: for every il-flagged card, one
+    // entry per verse it covers — { card, v } — in reading order, each its
+    // own trio page (item 3). A card split across text pages contributes
+    // its verse set once.
+    function ilVersesOf(post) {
+        var out = [], seen = {}, i, j, p, c, v;
+        for (i = 0; i < post.pages.length; i++) {
+            for (j = 0; j < post.pages[i].parts.length; j++) {
+                p = post.pages[i].parts[j];
+                if (!p.il || !p.card || seen[p.card.id]) { continue; }
+                seen[p.card.id] = true;
+                c = p.card;
+                for (v = c.v1; v <= c.v2; v++) { out.push({ card: c, v: v }); }
+            }
+        }
+        return out;
+    }
+    // Distinct il cards (for kicking off the one-per-card fetch).
+    function ilCardsOf(post) {
+        var out = [], seen = {}, i, items = ilVersesOf(post);
+        for (i = 0; i < items.length; i++) {
+            if (!seen[items[i].card.id]) { seen[items[i].card.id] = true; out.push(items[i].card); }
+        }
+        return out;
+    }
+
+    // The box's pages, painted on demand (see fill). Text pages first,
+    // then one TRIO page per interlinear card (scroll r6); the dots count
+    // the lot.
     function pagesHtml(post) {
         var h = '<div class="pbf-pages" tabindex="0" aria-label="Verse text">', i, j, pg, many;
+        var ilVerses = ilVersesOf(post), total = post.pages.length + ilVerses.length;
         for (i = 0; i < post.pages.length; i++) {
             pg = post.pages[i];
             // A group shows each member's own reference; a lone card's
             // reference is already in the head, so its pages stay clean —
             // unless the card continues, when the range on THIS page matters.
-            many = post.kind === 'group' || post.pages.length > 1;
+            many = post.kind === 'group' || total > 1;
             h += '<div class="pbf-page" data-page="' + i + '"><div class="pbf-page-in">';
             if (pg.cont) { h += '<span class="pbf-cont">continued</span>'; }
             for (j = 0; j < pg.parts.length; j++) { h += textHtml(pg.parts[j], many); }
             h += '</div></div>';
         }
+        for (i = 0; i < ilVerses.length; i++) {
+            h += '<div class="pbf-page is-il" data-page="' + (post.pages.length + i) + '"' +
+                     ' data-il-card="' + esc(ilVerses[i].card.id) + '" data-il-v="' + ilVerses[i].v + '">' +
+                     '<div class="pbf-il-in">' +
+                         '<span class="pbf-cont pbf-il-lang">Original text</span>' +
+                         '<div class="pbf-il" data-state="pending"><p class="pbf-il-note">Loading original text\u2026</p></div>' +
+                     '</div>' +
+                 '</div>';
+        }
         h += '</div>';
-        if (post.pages.length > 1) {
+        if (total > 1) {
             h += '<button type="button" class="pbf-arrow is-prev" aria-label="Previous page" hidden>' + ICON_LEFT + '</button>' +
                  '<button type="button" class="pbf-arrow is-next" aria-label="Next page">' + ICON_RIGHT + '</button>' +
                  '<div class="pbf-dots" aria-hidden="true">';
-            for (i = 0; i < post.pages.length; i++) { h += '<i class="pbf-dot-i' + (i ? '' : ' is-on') + '"></i>'; }
+            for (i = 0; i < total; i++) { h += '<i class="pbf-dot-i' + (i ? '' : ' is-on') + '"></i>'; }
             h += '</div>';
         }
         h += '<div class="pbf-pop" aria-hidden="true">' + ICON_HEART + '</div>';
@@ -342,11 +417,14 @@
         box.innerHTML = pagesHtml(post);
         wireCarousel(box);
         fit(box);
+        var ilCards = ilCardsOf(post), i;
+        for (i = 0; i < ilCards.length; i++) { ilFetch(ilCards[i]); }
     }
 
     // Step --pbf-scale down on each page until its text fits the box.
+    // Trio pages are exempt: they scroll vertically instead (scroll r6).
     function fit(box) {
-        var pages = box.querySelectorAll('.pbf-page'), i, page, inner, scale, guard;
+        var pages = box.querySelectorAll('.pbf-page:not(.is-il)'), i, page, inner, scale, guard;
         var h = box.clientHeight;
         if (!h) { return; }
         for (i = 0; i < pages.length; i++) {
@@ -632,8 +710,111 @@
 
         observe();
         fetchCounts();
-        if (window.MBActs) {
-            window.MBActs.log('pericope.scroll', { id: board.id, name: board.name, posts: count });
+        // No act is logged here: viewing a scroll modifies nothing, and the
+        // Acts feed only records deeds. (Legacy pericope.scroll events still
+        // in mbActs.v1 are dropped at read time by the feed.)
+    }
+
+    /* ---- interlinear tokens (scroll r6) -----------------------------------
+       One endpoint call per card, cached for the page's life; the browser
+       caches the JSON an hour besides (the endpoint's own Cache-Control).
+       Every trio page waiting on that card repaints when it settles. */
+    function ilUrl(card) {
+        var meta = BOOK_META[card.osis];
+        if (!CFG.interlinearUrlPattern || !meta) { return ''; }
+        return CFG.interlinearUrlPattern
+                   .replace('__TX__', encodeURIComponent(card.tx || ''))
+                   .replace('__BOOK__', encodeURIComponent(meta.slug))
+                   .replace('__CH__', String(card.ch)) +
+               '?v=' + (card.v1 === card.v2 ? card.v1 : card.v1 + '-' + card.v2);
+    }
+
+    function ilFetch(card) {
+        var c = ilCache[card.id];
+        if (c && c.state !== 'error') { if (c.state !== 'pending') { ilPaintAll(card.id); } return; }
+        ilCache[card.id] = { state: 'pending' };
+        var url = ilUrl(card);
+        if (!url || !window.fetch) { ilCache[card.id] = { state: 'error' }; ilPaintAll(card.id); return; }
+        fetch(url, { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (!data || !data.verses) { ilCache[card.id] = { state: 'error' }; ilPaintAll(card.id); return; }
+                var langs = data.langs || {}, verses = [], n, key, meta;
+                for (n in data.verses) {
+                    if (!data.verses.hasOwnProperty(n)) { continue; }
+                    key  = data.verses[n].lang;
+                    meta = langs[key] || {};
+                    verses.push({
+                        n:       parseInt(n, 10),
+                        rtl:     !!meta.rtl,
+                        langKey: key,
+                        langMeta: meta,
+                        tokens:  data.verses[n].tokens || []
+                    });
+                }
+                verses.sort(function (a, b) { return a.n - b.n; });
+                ilCache[card.id] = verses.length ? { state: 'ready', verses: verses } : { state: 'none' };
+                ilPaintAll(card.id);
+            })
+            .catch(function () { ilCache[card.id] = { state: 'error' }; ilPaintAll(card.id); });
+    }
+
+    function ilTranslitHtml(val) {
+        return esc(val).split('.').join('<span class="pbf-syl">\u00b7</span>');
+    }
+
+    // The verse object for one number within a card's cached response.
+    function ilVerseOf(entry, n) {
+        var i;
+        if (!entry || entry.state !== 'ready') { return null; }
+        for (i = 0; i < entry.verses.length; i++) { if (entry.verses[i].n === n) { return entry.verses[i]; } }
+        return null;
+    }
+    // "Original Hebrew" — the source language named from the endpoint's
+    // langs map (name/label), falling back to a code map, then "text".
+    var IL_LANG_NAMES = { hbo: 'Hebrew', heb: 'Hebrew', arc: 'Aramaic', grc: 'Greek', gre: 'Greek', lat: 'Latin' };
+    function ilLangName(v) {
+        var meta = v && v.langMeta;
+        var name = meta && (meta.name || meta.label || meta.english);
+        if (!name && v && v.langKey) { name = IL_LANG_NAMES[String(v.langKey).toLowerCase()]; }
+        return name || null;
+    }
+
+    // Paint ONE verse's trio (item 3: a page is a single verse).
+    function ilVerseHtml(v) {
+        var h = '<div class="pbf-il-words"' + (v.rtl ? ' dir="rtl"' : '') + '>', t, tok;
+        for (t = 0; t < v.tokens.length; t++) {
+            tok = v.tokens[t];
+            h += '<div class="pbf-il-word">' +
+                     '<span class="pbf-il-original">' + esc(tok[0] || '\u00b7') + '</span>' +
+                     '<span class="pbf-il-translit">' +
+                         (String(tok[1] || '').indexOf('.') !== -1 ? ilTranslitHtml(tok[1]) : esc(tok[1] || '\u00b7')) +
+                     '</span>' +
+                     '<span class="pbf-il-gloss">' + esc(tok[2] || '\u00b7') + '</span>' +
+                 '</div>';
+        }
+        return h + '</div>';
+    }
+
+    // Fill every trio page waiting on this card, each with its own verse.
+    function ilPaintAll(cardId) {
+        if (!feedEl) { return; }
+        var entry = ilCache[cardId];
+        if (!entry) { return; }
+        var pages = feedEl.querySelectorAll('.pbf-page.is-il[data-il-card]'), i, page, n, v, pane, head;
+        for (i = 0; i < pages.length; i++) {
+            page = pages[i];
+            if (page.getAttribute('data-il-card') !== cardId) { continue; }
+            pane = page.querySelector('.pbf-il');
+            head = page.querySelector('.pbf-il-lang');
+            n = parseInt(page.getAttribute('data-il-v'), 10);
+            pane.setAttribute('data-state', entry.state);
+            if (entry.state === 'none')  { pane.innerHTML = '<p class="pbf-il-note">No original-language text for this verse yet.</p>'; continue; }
+            if (entry.state !== 'ready') { pane.innerHTML = '<p class="pbf-il-note">Original text unavailable right now.</p>'; continue; }
+            v = ilVerseOf(entry, n);
+            if (!v) { pane.setAttribute('data-state', 'none'); pane.innerHTML = '<p class="pbf-il-note">No original-language text for this verse yet.</p>'; continue; }
+            if (head) { var nm = ilLangName(v); head.textContent = nm ? 'Original ' + nm : 'Original text'; }
+            pane.innerHTML = ilVerseHtml(v);
         }
     }
 
@@ -864,7 +1045,7 @@
 
     function init() {
         if (!window.MBPericope || !window.MBPericope.get) { return; }
-        if (window.console && console.info) { console.info('[pericope] scroll r4'); }
+        if (window.console && console.info) { console.info('[pericope] scroll r8'); }
 
         root   = document.getElementById('pb-feed');
         feedEl = root && root.querySelector('.pbf-feed');

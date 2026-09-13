@@ -506,7 +506,7 @@
         paint();
         wake();
         try { el.querySelector('#pbp-close').focus(); } catch (_) {}
-        if (window.MBActs) { window.MBActs.log('pericope.present', { id: board.id, name: board.name, slides: deck.length }); }
+        if (window.MBActs) { window.MBActs.log('pericope.present', { id: board.id, slug: board.slug, name: board.name, slides: deck.length }); }
     }
 
     function close() {
@@ -527,7 +527,7 @@
         if (!B) { return; }
         // Deployment tripwire (same convention as the board's geometry rN):
         // if DevTools doesn't print this line, the served file is stale.
-        if (window.console && console.info) { console.info('[pericope] presenter il-panes r2'); }
+        if (window.console && console.info) { console.info('[pericope] presenter il-panes r3'); }
         BOOK_META = (window.MBPericopeBoardConfig && window.MBPericopeBoardConfig.bookMeta) || BOOK_META;
     }
 

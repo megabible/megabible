@@ -1013,11 +1013,14 @@
     }
 
     // Append cards from the reader. Enforces the hard cap.
-    // -> { board: doc|null, added: int, rejected: int }
+    // -> { board: doc|null, added: int, rejected: int, landed: card[] }
     //    rejected > 0 means the cap was hit; the caller surfaces the message.
+    //    `landed` is the normalized cards actually appended, in board order —
+    //    the sheet logs its act refs from this, never from its own input,
+    //    because validateCard may drop entries mid-batch.
     function addCards(id, cards) {
         var board = get(id);
-        if (!board) { return { board: null, added: 0, rejected: isArray(cards) ? cards.length : 0 }; }
+        if (!board) { return { board: null, added: 0, rejected: isArray(cards) ? cards.length : 0, landed: [] }; }
         if (!isArray(cards)) { cards = []; }
 
         var existing = {};
@@ -1036,10 +1039,10 @@
         board.updated = now();
 
         if (!writeBoard(board)) {
-            return { board: null, added: 0, rejected: incoming.length };
+            return { board: null, added: 0, rejected: incoming.length, landed: [] };
         }
         syncIndexEntry(board);
-        return { board: board, added: toAdd.length, rejected: rejected };
+        return { board: board, added: toAdd.length, rejected: rejected, landed: toAdd };
     }
 
     // Patch one card's whitelisted fields, re-validating the result.

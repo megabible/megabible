@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\VerseLike;
 use App\Support\BookMetadata;
+use App\Support\Fonts;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -124,6 +125,10 @@ class PericopeController extends Controller
             ], false),
             'gridUrl'          => route('extras.pericope.board', ['slug' => $slug]),
             'scrollUrl'        => route('extras.pericope.scroll', ['slug' => $slug]),
+            // Fonts r1: the display pool from config/fonts.php — the feed's
+            // per-post rotation and its settings panel both read this, so a
+            // face added to the manifest appears everywhere at once.
+            'fonts'            => Fonts::clientPool('pericope'),
             // Scroll r2: the anonymous like counters. likeUrl takes one
             // {key, op} beacon; likeCountsUrl takes {keys:[…]} and returns
             // the batch.

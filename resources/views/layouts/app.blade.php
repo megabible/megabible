@@ -274,6 +274,14 @@
         .wordmark .tag{display:block;margin-top:.4rem;font-family:var(--sans);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);}
         .wordmark .tag a{margin-top:.4rem;font-family:var(--sans);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-decoration:none;}
 
+        /* ---- Inline brand wordmark (<x-brand/>) ------------------------------
+        The header wordmark, reusable inline at any text size. Unlike the fixed
+        1.8rem header .wordmark, this sets no font-size, so it inherits the size
+        of whatever it sits in. The .net uses em (not rem) so its 0.83 size ratio
+        to the name holds at every scale. */
+        .mb-brand{font-family:var(--wordmark-font);font-weight:600;letter-spacing:.01em;}
+        .mb-brand .mb-tld{font-size:.83em;color:var(--accent);}
+
         /* Search — pinned right. */
         .site-search{margin-left:auto;display:flex;align-items:center;gap:.45rem;width:340px;max-width:42%;}
         .site-search-input{
@@ -771,7 +779,7 @@
                 @hasSection('footer-colophon')
                     <div class="footer-colophon">@yield('footer-colophon')</div>
                 @endif
-                MEGABIBLE.net &mdash; free, ad-free, donation-supported<br>
+                MEGABIBLE.net // free, ad-free, reader-supported<br>
                 <a href="{{ route('about') }}">About</a> &middot; <a href="{{ route('support') }}">Support</a> &middot; <a href="{{ route('privacy') }}">Privacy &amp; Terms</a>
             </div>
 

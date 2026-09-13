@@ -213,9 +213,15 @@
         // log stays lean (it's FIFO-capped). Only the cards that actually
         // landed (result.added) are logged.
         if (window.MBActs) {
+            // Refs come from the cards the store actually APPENDED (landed),
+            // not the first N of the hand — a card dropped by validation
+            // mid-batch used to shift the old slice onto refs that never
+            // landed. The slice stays only as a fallback for an older
+            // cached store build that doesn't return `landed` yet.
+            var landed = result.landed || cards.slice(0, result.added);
             var refs = [];
-            for (var ri = 0; ri < result.added && ri < cards.length; ri++) {
-                var rc = cards[ri];
+            for (var ri = 0; ri < landed.length; ri++) {
+                var rc = landed[ri];
                 if (rc && rc.type === 'verse') {
                     refs.push({ osis: rc.osis, ch: rc.ch, v1: rc.v1, v2: rc.v2, tx: rc.tx });
                 }

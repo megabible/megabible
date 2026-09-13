@@ -87,6 +87,7 @@
 
     @include('bible.partials.sticky-head')
     @include('bible.partials.fab-styles')
+    @include('bible.partials.font-faces', ['fontSet' => 'pericope'])
     @include('bible.partials.present-styles')
     @include('bible.partials.interlinear-styles')
 

@@ -25,6 +25,20 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Pericope acts (the Acts-of-the-User feed's collapse window)
+    |--------------------------------------------------------------------------
+    | Pericope events logged within this gap collapse into one feed row:
+    | verse adds to the same board merge into a single "Added N verses"
+    | line, and presentation openings merge into one "Presented …" line.
+    | Lives here (not a pericope config) because it's an Acts-feed knob,
+    | beside its vigil cousin above.
+    */
+    'pericope' => [
+        'session_gap_minutes' => 20,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Length tiers (RANKED — legacy prototype, retired in a later phase)
     |--------------------------------------------------------------------------
     | Target WORD counts per tier. The selector walks consecutive verses until

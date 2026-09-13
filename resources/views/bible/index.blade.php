@@ -5,7 +5,7 @@
 @section('title', 'MEGABIBLE.net')
 
 {{-- HOME-PAGE-ONLY CSS. This gets injected into the layout's <head> wherever
-     @yield('styles') sits, so it loads after (and can override) the base styles. --}}
+     the styles yield sits, so it loads after (and can override) the base styles. --}}
 @section('styles')
 <style>
     /* Homepage First Testament/Second Testament titles and blurb styles */
@@ -14,10 +14,15 @@
     .testament:first-of-type .testament-title{margin-top:0;}
     .testament-blurb{font-family:var(--sans);font-size:.82rem;color:var(--muted);margin:0 0 .65rem;letter-spacing:.02em;line-height:1.5;}
     .testament-blurb:last-of-type{margin-bottom:1.4rem;}
-    
+
 
     .section-head{color:var(--accent);font-size:1.3rem;font-weight:600;margin:2.3rem 0 .8rem;letter-spacing:.01em;}
     .section-head .sub{font-style:italic;font-weight:400;color:var(--muted);font-size:1rem;margin-left:.45rem;}
+
+    /* Anchor landing: when a section is reached via a deep link (e.g. the
+       About page's canon tiles at /#torah), keep a little air above the
+       heading instead of pinning it to the very top of the viewport. */
+    .section-head[id]{scroll-margin-top:.9rem;}
 
     /* Subgroup label — sits below a section-head, above its own book grid. */
     .subgroup-head{font-family:var(--sans);font-size:.74rem;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin:.9rem 0 .65rem;}
@@ -44,8 +49,8 @@
 </style>
 @endsection
 
-{{-- THE PAGE BODY. This gets injected into the layout wherever @yield('content')
-     sits — i.e. between the shared header and the shared footer. --}}
+{{-- THE PAGE BODY. This gets injected into the layout between the shared
+     header and the shared footer. --}}
 @section('content')
     @php
         // Per-book short labels for narrow buttons (config/canon.php).
@@ -74,7 +79,10 @@
                 @php $section = $sections[$sectionKey] ?? null; @endphp
                 @continue (! $section)
 
-                <h3 class="section-head">
+                {{-- The id makes every section a deep-link target: /#torah,
+                     /#pauline_epistles, etc. The About page's canon tiles
+                     link here by the same config key. --}}
+                <h3 class="section-head" id="{{ $sectionKey }}">
                     {{ $section['label'] }}
                     @if (!empty($section['subtitle']))
                         <span class="sub">{{ $section['subtitle'] }}</span>
@@ -101,7 +109,8 @@
                                 @php
                                     // If a short name is defined for this book, render BOTH
                                     // labels and let CSS choose by width; otherwise just the
-                                    // full name. e() escapes the text exactly like {{ }} does.
+                                    // full name. e() escapes the text exactly like the echo
+                                    // braces do.
                                     $full  = $homeNames[$book->slug] ?? $book->name;
                                     $short = $homeShortNames[$book->slug] ?? null;
                                     $label = $short

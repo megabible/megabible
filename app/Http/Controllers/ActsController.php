@@ -26,7 +26,10 @@ use Illuminate\Contracts\View\View;
  * values and the sentinel-token URL patterns the feed's JS fills in.
  *
  * Scrimmage events need none of this — they arrive self-contained in the
- * mbActs.v1 log (written by window.MBActs at round completion).
+ * mbActs.v1 log (written by window.MBActs at round completion). Pericope
+ * events arrive the same way, but the feed COLLAPSES them at read time
+ * (adds per board, presentation openings) using pericopeSessionGapMs, and
+ * links single-verse add rows into the reader via readerUrlPattern.
  */
 class ActsController extends Controller
 {
@@ -39,8 +42,9 @@ class ActsController extends Controller
             'chapterCounts' => BookMetadata::chapterCounts(),
             'bookMeta'      => BookMetadata::displayMeta(),
 
-            'vigilSessionGapMs' => (int) config('typing.vigil.session_gap_minutes', 25) * 60 * 1000,
-            'scrimSeconds'      => (int) config('typing.challenge.scrimmage_duration', 20),
+            'vigilSessionGapMs'    => (int) config('typing.vigil.session_gap_minutes', 25) * 60 * 1000,
+            'pericopeSessionGapMs' => (int) config('typing.pericope.session_gap_minutes', 20) * 60 * 1000,
+            'scrimSeconds'         => (int) config('typing.challenge.scrimmage_duration', 20),
 
             // URL shapes from the router, sentinel-token style (the same trick
             // scrimUrlPattern uses) so JS never hardcodes a path.
@@ -52,6 +56,12 @@ class ActsController extends Controller
             ], false),
             'scrimUrlPattern' => route('typing.scrimmage.verse', [
                 't' => '__T__', 'b' => '__B__', 'c' => '__C__', 'v' => '__V__',
+            ], false),
+            // The reader chapter page — the same route the pericope board's
+            // card links use. The feed appends ?v=N (or ?v=N-M) itself, the
+            // convention the reader already honours from board card links.
+            'readerUrlPattern' => route('bible.chapter', [
+                'translation' => '__T__', 'book' => '__B__', 'chapter' => '__C__',
             ], false),
         ]);
     }

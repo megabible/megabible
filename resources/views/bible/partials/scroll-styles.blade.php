@@ -25,7 +25,7 @@
       --pbf-pad    inner padding of a page, also in cqw
 --}}
     /* Revision tripwire (pairs with console '[pericope] scroll r2'). */
-    #pb-feed { --pbf-rev: 4; }
+    #pb-feed { --pbf-rev: 6; }
 
     /* ---- page shell (scroll r3) ---------------------------------------
        The grid page's chrome, mirrored: back link, the view pill in the
@@ -235,6 +235,35 @@
         text-transform: uppercase; opacity: .7;
     }
     .pbf-empty { font-family: var(--sans); font-size: .6em; opacity: .8; }
+
+    /* ---- interlinear trio pages (scroll r6) ---------------------------
+       One page per interlinear card: token stacks (original / translit /
+       gloss) wrapping as a row inside a scrim panel, scrolling vertically
+       when the tokens outrun the box — never shrunk by fit(). Sizes in
+       cqw so the trio scales with the box like everything else. */
+    .pbf-page.is-il { align-items: stretch; padding: 6cqw; }
+    .pbf-il-in {
+        width: 100%; display: flex; flex-direction: column; min-height: 0;
+        font-size: var(--pbf-type);
+    }
+    /* The language heading ("Original Hebrew") — the .pbf-cont kicker's
+       small-caps voice, centred over the tokens. */
+    .pbf-il-lang { flex: 0 0 auto; text-align: center; }
+    /* Item 1: no panel — the trio sits straight on the backdrop, just
+       scrolling when it outruns the box. */
+    .pbf-il {
+        flex: 1 1 auto; min-height: 0; overflow-y: auto;
+        padding: 1cqw 0 0; -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+    .pbf-il-note { margin: 0; font-family: var(--sans); font-size: 3.6cqw; opacity: .85; text-align: center; }
+    .pbf-il-words { display: flex; flex-wrap: wrap; gap: 2.6cqw 3.4cqw; align-items: flex-start; justify-content: center; }
+    .pbf-il-word { display: inline-flex; flex-direction: column; align-items: center; text-align: center; max-width: 40cqw; }
+    .pbf-il-original { font-family: var(--serif); font-size: 5cqw; line-height: 1.25; direction: ltr; unicode-bidi: isolate; }
+    .pbf-il-words[dir="rtl"] .pbf-il-original { direction: rtl; }
+    .pbf-il-translit { font-family: var(--sans); font-size: 2.8cqw; opacity: .85; margin-top: .6cqw; direction: ltr; }
+    .pbf-syl { opacity: .55; padding: 0 .1em; }
+    .pbf-il-gloss { font-family: var(--sans); font-size: 2.9cqw; font-style: italic; opacity: .95; margin-top: .5cqw; direction: ltr; }
 
     /* Carousel dots + desktop arrows (touch swipes natively). */
     .pbf-dots {

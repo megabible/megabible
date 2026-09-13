@@ -16,9 +16,9 @@
     view preference the grid shell's dispatcher reads.
 
     Style partials are BARE CSS included inside this page's one open
-    style block (the present-styles convention). present-styles rides
-    along for its font-faces — the four faces the feed picks from — until
-    the font manager extracts a fonts partial.
+    style block (the present-styles convention). font-faces supplies the
+    pool from config/fonts.php (fonts r1) — this page carries no
+    presenter CSS at all.
 --}}
 
 @section('title', 'Pericope — MEGABIBLE.net')
@@ -26,7 +26,7 @@
 @section('styles')
 <style>
     @include('bible.partials.sticky-head')
-    @include('bible.partials.present-styles')
+    @include('bible.partials.font-faces', ['fontSet' => 'pericope'])
     @include('bible.partials.scroll-styles')
 </style>
 @endsection
