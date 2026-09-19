@@ -236,18 +236,17 @@
     <section class="page-hero">
         <h1 class="page-title">The #1 Bible Site in the World.</h1>
         <p class="lead">
-            <x-brand/> is a free, ad-free place to read, study, and type all 91 Hebrew and Christian books of the Bible.
+            <x-brand/> is a free, ad-free place to read, study, and type all <strong>91</strong> Hebrew and Christian books of the Bible.
         </p>
     </section>
 
-    {{-- Framed hero screenshot — click opens the full-resolution lightbox.
-         The href is the full image, so the link still works without JS. --}}
+    {{-- hero screenshot --}}
     <figure class="hero-shot">
         <a class="hero-zoom" id="hero-zoom"
            href="{{ asset('images/about_hero_pericope.png') }}"
            aria-label="View the full-size screenshot">
             <img src="{{ asset('images/about_hero_pericope.png') }}"
-                 alt="A Pericope study board titled Paul's 6 Core Beliefs, with verse cards arranged in a grid">
+                 alt="A Pericope study board with verse cards arranged in a grid">
         </a>
         <figcaption>A Pericope study board in Grid mode.</figcaption>
     </figure>
@@ -255,22 +254,35 @@
     {{-- The full-resolution lightbox. Renders nothing until opened. --}}
     <dialog class="lightbox" id="hero-lightbox">
         <img src="{{ asset('images/about_hero_pericope.png') }}"
-             alt="A Pericope study board titled Paul's 6 Core Beliefs, full size">
+             alt="A Pericope study board">
     </dialog>
 
     {{-- ============ ETHOS ============ --}}
     <section class="page-section prose">
         <h2 class="section-head">The <x-brand/> Ethos</h2>
         <p>
-            The books of the Hebrew Bible have been in circulation for over two thousand
-            years, and the books of the Christian Bible for almost as long. The sacred works were a luxury for the rich
-            until the advent of the printing press, which fueled the spread of the Bible and the Protestant Reformation.
+            The books of the Hebrew Bible have been in circulation for over two thousand years, and the 
+            books of the Christian Bible for almost as long. These sacred works were a luxury for the rich
+            until the advent of the printing press in the 15th century, which fueled the spread of the Bible and the Protestant Reformation.
+            This boon of free information made Jewish and Christian theology accessible to the common man and woman.
         </p>
+
+        <blockquote class="ethos-verse">
+            <p>
+                If there be among you a poor man of one of thy brethren within any of thy gates in thy land which the 
+                Lord thy God giveth thee, thou shalt not harden thy heart, nor shut thine hand from thy poor brother:
+                but thou shalt open thine hand wide unto him, and shalt surely lend him sufficient for his need, in that which he wanteth.
+            </p>
+            <footer class="ethos-verse-ref">
+                <a href="{{ route('bible.verse', ['translation' => 'kjv', 'book' => 'deuteronomy', 'chapter' => 15, 'verse' => 7, 'v' => 7]) }}">Deuteronomy 15:7-8 &middot; KJV</a>
+            </footer>
+        </blockquote>        
+
         <p>            
             In the last century, there has been a gold rush to create copyrighted translations of these Bible books,
-            resulting in a translation catalog that has become daunting to the lay reader. Additionally, the dawn of the world wide web
-            saw the rise of Bible websites, the most popular of which are happy to host advertisements right next to the words considered sacred,
-            while other popular Bible software puts valuable scholarly information behind paywalls.
+            resulting in an ever-growing translation catalog that has become daunting to the lay reader. Additionally, the dawn of the world wide web
+            saw the rise of numerous Bible websites, the most popular of which host multiple advertisements right next to the verses themselves,
+            our modern illuminated Bible, while popular Bible software services place valuable tools and scholarly information behind paywalls and subscriptions.
         </p>
         <p>
             <strong>Not so at <x-brand/></strong>
@@ -289,10 +301,9 @@
         </blockquote>
 
         <p>
-            Here, we host the extended 91 book Bible canon entirely in the public domain. The core Bible books which are accepted by most
-            Protestant, Catholic, and Orthodox Christians are covered in two simple translations: King James and the World English Bible,
-            which was completed in 2020. Extended Apocryphal works are hosted in a single translation each, with as much attention to detail taken
-            as the main canonical body.
+            Here, we host the extended 91 book Bible canon entirely in the public domain. The majority of the corpus is covered by two 
+            English translations, one traditional (KJV) and one modern (World English Bible, completed in 2020). Extended Apocryphal works are hosted
+            with the same level of detail, with cross-references to the main canonical body.
         </p>
         <p>  
             These books are divided further into the following subgroups:
@@ -312,7 +323,7 @@
             </ul>
         @endforeach
         <p>
-            This corpus is hosted on <x-brand/> ad-free and sponsor-free, forever, allowing readers to copy as much
+            This library of books is hosted on <x-brand/> sponsor-free and ad-free, allowing readers to copy as much
             of the text for their own purposes as they need. Every text shows its provenance
             and original source.
         </p>
@@ -399,7 +410,7 @@
             </figure>
             <p>
                 Whenever people start talking about Bible websites, they inevitably end up at the same question: Where can I type the Bible?
-                <x-brand/> has finally solved this issue with a new robust typing engine built in an incredible computer language called JavaScript.
+                <x-brand/> has finally solved this issue with a new robust typing engine built in a revolutionary computer language called JavaScript.
                 This engine is used in two applications: <strong>Vigil</strong> and <strong>Scrimmage</strong>.
             </p>
             <dl class="apps">
@@ -416,12 +427,13 @@
 
     {{-- ============ CLOSING ============ --}}
     <section class="page-section prose">
-        <h2 class="section-head">Read some Bible</h2>
+        <h2 class="section-head">Get into the Bible</h2>
         <p>
-            If you've never read the Hebrew or Christian Bible, the best time to start is now.
+            If you've never read or studied the Hebrew or Christian Bible, the best time to start is now.
         </p>
         <div class="cta-row">
             <a class="btn" href="{{ url('/') }}">Read the Bible</a>
+            <a class="btn" href="{{ route('typing.vigil.home') }}"">Type the Bible</a>
             <a class="btn btn-ghost" href="{{ route('support') }}">Support <x-brand/></a>
         </div>
     </section>

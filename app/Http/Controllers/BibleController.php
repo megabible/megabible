@@ -10,8 +10,10 @@ use App\Models\Footnote;
 use App\Models\SharedHeading;
 use App\Models\OriginalToken;
 use App\Support\ChapterLayout;
+use App\Support\BookMetadata;
 use Illuminate\View\View;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -312,6 +314,11 @@ class BibleController extends Controller
             'headingCredits' => $headingCredits,
             'chapterFootnotes' => $chapterFootnotes,
             'footnoteCredits'  => $footnoteCredits,
+            // Pericope marks (marks r1): the book's canon-section palette
+            // name for the underline color. colorFor() is config-only — it
+            // deliberately avoids displayMeta(), whose verse-count query
+            // has no business running on every chapter load.
+            'sectionColor'     => BookMetadata::colorFor($b),
             'nav'         => $this->chapterNav($t, $b, $chapter, $maxChapter),
         ]);
     }
@@ -429,9 +436,38 @@ class BibleController extends Controller
         ]);
     }
 
-    public function showVerse(string $translation, string $book, int $chapter, int $verse): View
+    /**
+     * VERSE PERMALINK  ·  /bible/{t}/{b}/{c}/{v}  →  301 → chapter ?v={v}
+     *
+     * The path form is the URL people guess and old backlinks carry; the
+     * reader's real deep-link grammar is ?v=, which Focus mode parses,
+     * highlights, scrolls to, and normalises (focus-synthesis.js init()).
+     * Every internal producer already builds ?v= — this route exists only
+     * to hand the guessers and the backlinks to the canonical form.
+     *
+     * {verse} accepts the whole selection grammar ("16", "16-18", "1-3,8")
+     * — the route constraint owns the shape. NO existence check, by
+     * design: John 3:99 redirects anyway, the client filters it out and
+     * cleans the URL — a graceful landing on the chapter with no per-hit
+     * query spent validating. showChapter stays the single 404 authority
+     * for bad translation/book/chapter, one hop later.
+     *
+     * 301, not 302: ?v= has always been the canonical here (every internal
+     * link, the chapter's rel=canonical), so caches and crawlers should
+     * consolidate on it permanently.
+     */
+    public function showVerse(Request $request, string $translation, string $book, int $chapter, string $verse): RedirectResponse
     {
-        return $this->showChapter($translation, $book, $chapter);
+        // The incoming query rides along (…&view=synthesis survives), with
+        // the path verse overriding any stray ?v= — the path is the more
+        // specific intent. route() folds keys that aren't route parameters
+        // into the query string on its own.
+        return redirect()->route('bible.chapter', array_merge($request->query(), [
+            'translation' => $translation,
+            'book'        => $book,
+            'chapter'     => $chapter,
+            'v'           => $verse,
+        ]), 301);
     }
 
     /**

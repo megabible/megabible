@@ -90,7 +90,6 @@ class BookMetadata
         $books  = $c['books'];
 
         $short  = config('canon.home_short_names', []);    // slug => short label
-        $colors = config('canon.section_colors', []);      // section => --tl- name
         $bySlug = self::sectionBySlug();                   // slug => canon section key
 
         $meta = [];
@@ -123,7 +122,7 @@ class BookMetadata
                 // every ST lookup against section_colors missed and fell to
                 // clay. canon.php is the display source of truth; the DB
                 // column is only a fallback for a book canon.php doesn't list.
-                'color'  => $colors[$bySlug[$bk->slug] ?? $bk->section] ?? 'clay',
+                'color'  => self::colorFor($bk),
                 // Scroll r1: the canon SECTION key itself ('neviim',
                 // 'johannine' …), from the same lookup as the colour, so the
                 // feed's summary line can say "from the Nevi’im and Johannine
@@ -133,6 +132,22 @@ class BookMetadata
         }
 
         return $meta;
+    }
+
+    /**
+     * The canon-section palette name ('gold', 'navy', …) for ONE book — the
+     * same lookup displayMeta() bakes into every entry, exposed on its own
+     * so a page that needs a single book's color (the reader's pericope
+     * underline) never pays for the verse-count query displayMeta() runs.
+     * Config-only: canon.php sections → section_colors, with the DB section
+     * column as fallback for a book canon.php doesn't list, 'clay' when
+     * both miss.
+     */
+    public static function colorFor(Book $bk): string
+    {
+        $colors = config('canon.section_colors', []);
+        $bySlug = self::sectionBySlug();
+        return $colors[$bySlug[$bk->slug] ?? $bk->section] ?? 'clay';
     }
 
     /**

@@ -103,6 +103,101 @@
         background: var(--rule);
     }
 
+    /* ======================================================================
+       PERICOPE MARKS (marks r1)
+       ----------------------------------------------------------------------
+       Verses already collected into a pericope wear an underline in the
+       book's canon-section color; each RUN (consecutive verses sharing the
+       same set of pericopes) ends with a small dot that opens the list of
+       pericopes holding it. pericope-marks.js paints the classes and dots;
+       every visual lives here.
+
+       --peri-underline resolves through the theme's --tl-* palette, so the
+       marks repaint with Parchment / Midnight / Pure / Terminal for free.
+       The underline rides the SAME text-hugging carriers as the Focus
+       highlight (prose .verse span / poetry .vt): highlight is background,
+       mark is text-decoration — they never fight.
+       ====================================================================== */
+    .reading { --peri-underline: var(--tl-{{ $sectionColor }}); }
+
+    .reading p:not(.poetry) .verse.in-pericope,
+    .reading p.poetry.verse.in-pericope .vt {
+        text-decoration-line: underline;
+        text-decoration-color: var(--peri-underline);
+        text-decoration-thickness: 2px;
+        text-underline-offset: 3px;
+    }
+
+    /* The run signifier: a generous invisible hit box (touch-friendly)
+       around a small colored dot. It carries NO text content, ever —
+       verseText() and the clipboard read textContent off the verse spans,
+       and this must add nothing to a copy or a card capture. */
+    .pm-dot {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 1.2em; height: 1em;
+        vertical-align: baseline;
+        margin-left: .05em;
+        cursor: pointer;
+        user-select: none;
+        -webkit-user-select: none;
+    }
+    .pm-dot::before {
+        content: "";
+        width: .45em; height: .45em; border-radius: 50%;
+        background: var(--peri-underline);
+        transition: transform .12s ease;
+    }
+    .pm-dot:hover::before,
+    .pm-dot.is-open::before { transform: scale(1.4); }
+
+    /* The pericope-list popover — the fn-pop pattern, list-flavored. */
+    .pm-pop {
+        position: absolute; z-index: 90;
+        min-width: 160px; max-width: 260px;
+        padding: .45rem;
+        background: var(--bg);
+        border: 1px solid var(--rule); border-radius: 8px;
+        box-shadow: 0 8px 24px rgba(0,0,0,.16);
+        font-family: var(--sans); font-size: .85rem; line-height: 1.4;
+    }
+    .pm-pop-title {
+        font-size: .68rem; font-weight: 600; color: var(--muted);
+        text-transform: uppercase; letter-spacing: .08em;
+        padding: .1rem .35rem .25rem;
+    }
+    .pm-pop a {
+        display: block;
+        padding: .3rem .35rem;
+        border-radius: 6px;
+        color: var(--ink); text-decoration: none;
+        transition: color .12s, background .12s;
+    }
+    .pm-pop a:hover { color: var(--bg); background: var(--accent); }
+    .pm-pop::after {
+        content: "";
+        position: absolute;
+        left: var(--chev-x, 50%); bottom: -5.5px;
+        width: 10px; height: 10px;
+        transform: translateX(-50%) rotate(45deg);
+        background: var(--bg);
+        border-right: 1px solid var(--rule);
+        border-bottom: 1px solid var(--rule);
+    }
+    .pm-pop.is-below::after {
+        bottom: auto; top: -5.5px;
+        border: none;
+        border-left: 1px solid var(--rule);
+        border-top: 1px solid var(--rule);
+    }
+
+    /* The Text Settings kill switch. The :root[attr] selectors out-rank the
+       on-rules above (5 classes vs 4), so off always wins. */
+    :root[data-pericope-marks="off"] .reading .verse.in-pericope,
+    :root[data-pericope-marks="off"] .reading p.poetry.verse.in-pericope .vt {
+        text-decoration-line: none;
+    }
+    :root[data-pericope-marks="off"] .reading .pm-dot { display: none; }
+
 @include('bible.partials.fab-styles')
 
     /* ---- Synthesis view (the study board) ---- */
@@ -458,7 +553,7 @@
 
   Cache busting: the filemtime query string makes the asset URL change on
   every deploy of the file, so Cloudflare's edge cache (which DOES cache
-  /js/*, unlike the cookie-carrying page routes) can never serve a stale
+  /js/, unlike the cookie-carrying page routes) can never serve a stale
   engine against a newer page.
 --}}
 <script>
@@ -489,6 +584,13 @@
     };
 </script>
 <script src="{{ asset('js/focus-synthesis.js') }}?v={{ filemtime(public_path('js/focus-synthesis.js')) }}" defer></script>
+
+{{-- Pericope marks (marks r1): underline + dot signifiers on verses already
+     collected into a pericope. Needs MBPericope (layout script, earlier in
+     document order — deferred scripts run in order) and MBFocusContext (the
+     inline bridge above). Chapter reader ONLY — deliberately absent from
+     the vigil, where it would be typing noise. --}}
+<script src="{{ asset('js/pericope-marks.js') }}?v={{ filemtime(public_path('js/pericope-marks.js')) }}" defer></script>
 
 {{-- bk-seen r1: count this device into the book's weekly readers pill
      (shown on the book hub). Context first, engine deferred. --}}

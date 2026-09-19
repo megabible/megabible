@@ -15,7 +15,14 @@
 
     Gated on hover-capable fine pointers, so touch devices never build any
     of it — a tap on the letter just jumps to the bibliography, same as the
-    reader. Include once, inside @section('scripts').
+    reader. Include once, inside the scripts section.
+
+    hub-xref r3 — COORDINATION: this popover now speaks the same
+    "mb:pop-open" CustomEvent as xref-popover.js. Opening a panel here
+    announces it (source: 'src'); hearing anyone ELSE's announcement closes
+    this one. Three popover kinds share the hub — source citations, verse
+    previews, definitions — and the event is what guarantees only one can
+    ever be up at a time.
 --}}
 <script>
     (function () {
@@ -27,6 +34,12 @@
             clearTimeout(showTimer);
             if (pop) { pop.remove(); pop = null; popMarker = null; }
         };
+
+        // hub-xref r3: someone else's panel opened → ours yields. The
+        // source guard keeps our own announcement from closing us.
+        document.addEventListener('mb:pop-open', (e) => {
+            if (!e.detail || e.detail.source !== 'src') hidePop();
+        });
 
         // Keep the panel while the pointer travels marker → panel.
         const scheduleHide = () => {
@@ -74,6 +87,11 @@
             // Chevron tracks the marker even when the panel is clamped.
             pop.style.setProperty('--chev-x',
                 (r.left + r.width / 2 + window.scrollX - left) + 'px');
+
+            // hub-xref r3: announce, so the xref module's panel yields.
+            document.dispatchEvent(new CustomEvent('mb:pop-open', {
+                detail: { source: 'src' },
+            }));
 
             pop.addEventListener('mouseenter', cancelHide);
             pop.addEventListener('mouseleave', scheduleHide);

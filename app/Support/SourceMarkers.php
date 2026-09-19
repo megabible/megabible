@@ -25,6 +25,12 @@ use Illuminate\Support\Str;
  * That is safe because inline() escapes the whole string FIRST and only
  * then injects marker markup built from e()'d slugs; markdown() feeds the
  * text through the same Str::markdown the hub already trusts.
+ *
+ * hub-xref r1: the markdown prose fields now render through HubProse,
+ * which composes markdown + THIS class's token pass + ref links + lang
+ * tokens; tokens() below is the exposure that makes that possible.
+ * inline() still serves the one-line infobox fields directly, and
+ * markdown() is kept for any field that wants letters without the rest.
  */
 class SourceMarkers
 {
@@ -48,6 +54,15 @@ class SourceMarkers
         // Markdown first: "(a)" is plain text to the parser, so tokens
         // survive into the HTML, where the replacement finds them.
         return self::replaceTokens(Str::markdown($text), $letters);
+    }
+
+    /**
+     * hub-xref r1: the bare token pass over already-rendered HTML, so
+     * HubProse can run markdown ONCE and compose this with its own passes.
+     */
+    public static function tokens(string $html, array $letters): string
+    {
+        return self::replaceTokens($html, $letters);
     }
 
     /**

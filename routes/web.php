@@ -36,7 +36,8 @@ Route::prefix('bible')->name('bible.')
         // Interlinear tokens for selected verses (Synthesis card backs).
         // JSON only; the ?v= param uses the same "3,8" / "1-3" syntax as
         // the reader's Focus selection. Registered alongside the verse
-        // permalink — no clash, because {verse} is constrained to digits.
+        // permalink — no clash: {verse} is digits-FIRST, so the literal
+        // "interlinear" segment can never match it.
         Route::get('/{translation}/{book}/{chapter}/interlinear', [BibleController::class, 'interlinear'])
             ->where('chapter', '[0-9]+')
             ->name('interlinear');
@@ -63,9 +64,15 @@ Route::prefix('bible')->name('bible.')
             ->where('chapter', '[0-9]+')
             ->name('chapter');
 
-        // Single-verse permalink (redirects to chapter view with anchor)
+        // Verse permalink — 301s to the chapter's ?v= deep link, which
+        // Focus mode parses, highlights, and scrolls to. {verse} accepts
+        // the reader's whole selection grammar ("16", "16-18", "1-3,8"):
+        // digits-first (so /interlinear above stays unreachable by it)
+        // and length-capped (so a comma bomb 404s instead of riding the
+        // redirect). Shape only — existence is the client's problem, by
+        // design; see showVerse().
         Route::get('/{translation}/{book}/{chapter}/{verse}', [BibleController::class, 'showVerse'])
-            ->where(['chapter' => '[0-9]+', 'verse' => '[0-9]+'])
+            ->where(['chapter' => '[0-9]+', 'verse' => '[0-9][0-9,\-]{0,31}'])
             ->name('verse');
     });
 

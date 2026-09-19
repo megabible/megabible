@@ -206,11 +206,80 @@ class ImportHubs extends Command
                 }
             }
 
+            // hub-xref r1: lint the markdown prose for ref: links and
+            // original-language tokens. The page-side guards render an
+            // unresolvable ref as plain unlinked text and leave a bad
+            // token literally visible — THIS is where the shouting happens.
+            $this->lintProse($book, $intro);
+
             $this->line("Imported hub: {$book->name}");
             $done++;
         }
 
         $this->info("Done. Imported {$done} book hub(s).");
         return self::SUCCESS;
+    }
+
+    /**
+     * hub-xref r1 — prose lint for the three markdown fields.
+     *
+     * Ref targets are judged by HubProse::lintTarget — the very same
+     * parse/resolve path the page renders with, so import warnings and
+     * rendered output can never drift apart. Lang tokens are re-matched
+     * with the page's own field grammar; every "{{" that doesn't open a
+     * complete, known-language token gets called out with its context.
+     */
+    private function lintProse(Book $book, array $intro): void
+    {
+        $fields = [
+            'summary'         => $intro['summary'] ?? null,
+            'excerpt'         => $intro['excerpt'] ?? null,
+            'authorship_note' => $intro['authorship_note'] ?? null,
+        ];
+        $langs = array_keys(config('interlinear.languages', []));
+
+        foreach ($fields as $field => $text) {
+            if (! is_string($text) || $text === '') {
+                continue;
+            }
+
+            // ---- ref: link targets ------------------------------------
+            // A space inside the target is the likeliest authoring slip —
+            // markdown won't even emit a link for it — so it gets its own
+            // message, ahead of the general resolver.
+            if (preg_match_all('/\]\(ref:([^)]*)\)/u', $text, $mm)) {
+                foreach ($mm[1] as $target) {
+                    if (preg_match('/\s/u', $target)) {
+                        $this->warn("  {$book->name}: {$field} ref '{$target}' contains a space — write Book.C:V (e.g. ref:Acts.18:25); markdown will not link this.");
+                        continue;
+                    }
+                    $problem = \App\Support\HubProse::lintTarget($target);
+                    if ($problem !== null) {
+                        $this->warn("  {$book->name}: {$field} ref '{$target}' — {$problem}.");
+                    }
+                }
+            }
+
+            // ---- original-language tokens -----------------------------
+            // Walk every "{{" and demand a full {{lang|word|translit|def}}
+            // token at that spot. The mb_* walk (not one big regex) is what
+            // lets the warning show the exact broken context.
+            $off = 0;
+            while (($pos = mb_strpos($text, '{{', $off)) !== false) {
+                $rest = mb_substr($text, $pos);
+
+                if (preg_match('/^\{\{([a-z]{2,3})\|([^|{}<>]+)\|([^|{}<>]*)\|([^|{}<>]+)\}\}/u', $rest, $p)) {
+                    if (! in_array($p[1], $langs, true)) {
+                        $this->warn("  {$book->name}: {$field} lang token uses unknown language '{$p[1]}' (configured: " . implode(', ', $langs) . ").");
+                    }
+                    $off = $pos + mb_strlen($p[0]);
+                    continue;
+                }
+
+                $ctx = mb_substr($text, $pos, 48);
+                $this->warn("  {$book->name}: {$field} malformed lang token near '{$ctx}…' — expected {{lang|word|translit|definition}}.");
+                $off = $pos + 2;
+            }
+        }
     }
 }

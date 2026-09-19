@@ -277,10 +277,12 @@
     </p>
 @else
     <div class="search-empty">
-        <p>Nothing matched your search in <strong>{{ $translation->abbreviation }}</strong>.</p>
+        <p>No matches for “{{ $q }}” in <strong>{{ $translation->abbreviation }}</strong>.</p>
         <p style="margin-top:.6rem">
-            Try a reference like <em>John 1</em> or <em>Romans 8:28</em>,
-            or <a href="{{ route('home') }}">browse all books</a>.
+            Try a phrase like
+            <a href="{{ route('search', ['q' => 'cast lots']) }}"><em>cast lots</em></a>
+            or use a search operator like
+            <a href="{{ route('search', ['q' => 'book:Romans faith']) }}"><em>book:Romans faith</em></a>.
         </p>
     </div>
 @endif

@@ -32,6 +32,13 @@ use App\Models\Verse;
  * Everything that isn't a resolvable reference — parentheses, semicolons, an
  * unknown book name, a book no edition on the site carries — is passed through
  * as escaped plain text, so the heading never renders worse than before.
+ *
+ * hub-xref r1: the book map and the edition-fallback brain are now also the
+ * engine behind the hub's hand-authored ref: tokens — see the four public
+ * resolver methods (bookSlug / editionSlug / editionName / editionShort)
+ * below linkify(). HubProse and the importer's lint pass both call them, so
+ * headings, hub links, and import warnings can never disagree about what a
+ * reference resolves to.
  */
 class ReferenceLinker
 {
@@ -141,6 +148,50 @@ class ReferenceLinker
         return $out;
     }
 
+    /* ====================================================================
+       hub-xref r1 — the public resolver surface.
+       Thin doors into the private machinery, so the hub's ref: tokens (and
+       the importer's lint) reuse THIS class's book map and edition fallback
+       instead of growing a second, subtly different copy.
+       ==================================================================== */
+
+    /** Resolve any book spelling — OSIS id, slug, name, short — to its slug. */
+    public static function bookSlug(string $name): ?string
+    {
+        self::boot();
+
+        return self::$bookMap[self::normalize($name)] ?? null;
+    }
+
+    /**
+     * The edition slug a link to this book+chapter should use, via the same
+     * priority chain linkify() trusts (current edition → remembered cookie →
+     * globals → sort order), or null when nothing on the site carries it.
+     * $from may be '' when there is no "current" edition (the importer).
+     */
+    public static function editionSlug(string $bookSlug, int $chapter, string $from): ?string
+    {
+        self::boot();
+
+        return self::editionFor($bookSlug, $chapter, strtolower($from));
+    }
+
+    /** Display name for an edition slug ("World English Bible"), or null. */
+    public static function editionName(string $slug): ?string
+    {
+        $editions = self::editions();
+
+        return isset($editions[$slug]) ? $editions[$slug]->name : null;
+    }
+
+    /** Short badge form for an edition slug ("WEB"), or null. */
+    public static function editionShort(string $slug): ?string
+    {
+        $editions = self::editions();
+
+        return isset($editions[$slug]) ? strtoupper($editions[$slug]->abbreviation) : null;
+    }
+
     /**
      * Pick the edition a single cross-reference link should point at, in
      * priority order:
@@ -240,7 +291,11 @@ class ReferenceLinker
 
             // short_name is the seeded column (short is kept in case a model
             // accessor exposes it under that name); nulls are skipped below.
-            foreach ([$b->name, $b->short_name, $b->short, $b->slug] as $key) {
+            // hub-xref r1: osis_id joins the list — the hub JSON writes OSIS
+            // forms (1John, Matt, Rev) whose glued digits normalize() would
+            // never match against "1 John". First in the list, so on any
+            // collision the human-facing spellings win.
+            foreach ([$b->osis_id, $b->name, $b->short_name, $b->short, $b->slug] as $key) {
                 if (! empty($key)) {
                     $map[self::normalize($key)] = $b->slug;
                 }

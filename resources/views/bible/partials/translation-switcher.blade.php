@@ -19,12 +19,15 @@
   translation, so picking one keeps you in place and only swaps the translation.
 --}}
 @php
-    // One ordered list of every translation on offer, current one included,
-    // sorted by the same sort_order the controller uses. concat() returns a
-    // NEW collection — it does not mutate $otherTranslations.
+    // One ordered list of every translation on offer, current one included.
+    // Sorted chronologically by publication year — NOT by sort_order — so the
+    // menu reads the same on every page regardless of which edition is active.
+    // Editions with no year sink to the bottom; same-year editions tie-break
+    // on name so the order is fully deterministic. concat() returns a NEW
+    // collection — it does not mutate $otherTranslations.
     $allTranslations = $otherTranslations
         ->concat([$translation])
-        ->sortBy('sort_order')
+        ->sortBy(fn ($tx) => [$tx->year_published ?? PHP_INT_MAX, $tx->name])
         ->values();
 @endphp
 

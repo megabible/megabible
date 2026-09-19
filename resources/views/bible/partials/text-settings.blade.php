@@ -144,6 +144,15 @@
                 </span>
                 Footnotes
             </button>
+            <button type="button" class="ts-check ts-check-pericope" role="switch">
+                <span class="ts-box" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"
+                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                </span>
+                Pericope marks
+            </button>
         </div>
         @endif
 
@@ -298,12 +307,14 @@
     .ts-box svg{width:13px;height:13px;}
     :root[data-verse-numbers="off"] .ts-check-verses .ts-box,
     :root[data-headings="off"]      .ts-check-headings .ts-box,
-    :root[data-footnotes="off"]     .ts-check-footnotes .ts-box{
+    :root[data-footnotes="off"]     .ts-check-footnotes .ts-box,
+    :root[data-pericope-marks="off"] .ts-check-pericope .ts-box{
         background:var(--bg);border-color:var(--rule);
     }
     :root[data-verse-numbers="off"] .ts-check-verses .ts-box svg,
     :root[data-headings="off"]      .ts-check-headings .ts-box svg,
-    :root[data-footnotes="off"]     .ts-check-footnotes .ts-box svg{visibility:hidden;}
+    :root[data-footnotes="off"]     .ts-check-footnotes .ts-box svg,
+    :root[data-pericope-marks="off"] .ts-check-pericope .ts-box svg{visibility:hidden;}
 
     /* ─── Row 5: page links ────────────────────────────────────────── */
     .ts-links{
@@ -366,6 +377,7 @@
         on('.ts-check-headings',  () => R.toggleHeadings());
         on('.ts-check-verses',    () => R.toggleVerseNumbers());
         on('.ts-check-footnotes', () => R.toggleFootnotes());
+        on('.ts-check-pericope',  () => R.togglePericopeMarks());
 
         // Close on outside click or Escape (panel itself stays open while
         // the reader plays with settings — that's the ESV behaviour too).

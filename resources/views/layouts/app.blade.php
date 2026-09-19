@@ -30,6 +30,7 @@
                 verseNumbers:     true,
                 headings:         true,
                 footnotes:        true,
+                pericopeMarks:    true,         // canon-color underlines on collected verses
                 terminalUnlocked: false,        // set true once the easter egg is found
             };
             const SIZE_MIN = 0, SIZE_MAX = 4, SPACING_STEPS = 3;
@@ -56,6 +57,7 @@
                 ROOT.dataset.verseNumbers = state.verseNumbers ? 'on' : 'off';
                 ROOT.dataset.headings     = state.headings ? 'on' : 'off';
                 ROOT.dataset.footnotes    = state.footnotes ? 'on' : 'off';
+                ROOT.dataset.pericopeMarks = state.pericopeMarks ? 'on' : 'off';
                 ROOT.dataset.terminalUnlocked = state.terminalUnlocked ? 'yes' : 'no';
             }
 
@@ -91,6 +93,7 @@
                 toggleVerseNumbers() { set({ verseNumbers: !state.verseNumbers }); },
                 toggleHeadings()     { set({ headings: !state.headings }); },
                 toggleFootnotes()    { set({ footnotes: !state.footnotes }); },
+                togglePericopeMarks() { set({ pericopeMarks: !state.pericopeMarks }); },
 
                 // Easter egg: unlock + drop straight into Terminal.
                 unlockTerminal() { set({ terminalUnlocked: true, theme: 'terminal' }); },

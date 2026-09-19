@@ -309,11 +309,26 @@
         if (!raw) { return null; }
         try { var o = JSON.parse(raw); return isObj(o) ? o : null; } catch (e) { return null; }
     }
+    // store-emit r1: every successful write announces itself as an
+    // 'mb:pericope-change' document event, so page decorators (the reader's
+    // pericope marks) can repaint. Same guard as the prefs/history emits —
+    // a silent no-op in the Node harness, which has no document. Listeners
+    // RE-SCAN on this signal; detail.id is a hint, never a diff. Quiet
+    // writes emit too, on purpose: setCardVerses can change which verses a
+    // card holds, and repaints are idempotent.
+    function emitChange(id) {
+        if (typeof document !== 'undefined' && document.dispatchEvent && typeof CustomEvent === 'function') {
+            try { document.dispatchEvent(new CustomEvent('mb:pericope-change', { detail: { id: id } })); } catch (_) {}
+        }
+    }
+
     // `quiet` — a view-derived write (span, expand flag, self-healing
     // verse data, tx fallback) that is NOT an edit: invisible to history.
     function writeBoard(board, quiet) {
         if (!quiet) { recordHistory(board); }
-        return writeRaw(boardKey(board.id), JSON.stringify(board));
+        var ok = writeRaw(boardKey(board.id), JSON.stringify(board));
+        if (ok) { emitChange(board.id); }
+        return ok;
     }
 
     /* ---- history (undo / redo) ------------------------------------------
@@ -367,6 +382,7 @@
         if (typeof document !== 'undefined' && document.dispatchEvent && typeof CustomEvent === 'function') {
             try { document.dispatchEvent(new CustomEvent('mb:pericope-history', { detail: { id: id } })); } catch (_) {}
         }
+        emitChange(id);                          // store-emit r1: restores bypass writeBoard
         return board;
     }
 
@@ -1009,6 +1025,7 @@
         writeIndex(index);
         removeRaw(boardKey(realId));
         clearHistory(realId);
+        emitChange(realId);                      // store-emit r1: deletes bypass writeBoard
         return true;
     }
 

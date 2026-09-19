@@ -249,6 +249,76 @@
     .ex-src-title  { color: var(--accent); font-style: italic; }
     .ex-src-year   { color: var(--muted); font-size: .8rem; }
 
+    /* =========================================================
+       hub-xref r1 — CROSS-REFERENCE LINKS + ORIGINAL-LANGUAGE WORDS
+       Phase 1 is markup + styling only; the verse popover (phase 2)
+       hangs off data-xref-*, the definition popover off data-orig-*.
+       Link chrome echoes the reader's r/mr/sr heading links (see
+       reading-styles), so refs read identically across the site.
+       ========================================================= */
+    .prose a.xref-link {
+        color: var(--accent);
+        text-decoration-line: underline;
+        text-decoration-style: dotted;
+        text-decoration-thickness: 1px;
+        text-underline-offset: 2px;
+        transition: text-decoration-style .12s ease;
+    }
+    .prose a.xref-link:hover { text-decoration-style: solid; }
+
+    /* Original-language words. font-style: normal wins the fight with
+       the excerpt blockquote's italic — faux-oblique Greek/Hebrew is
+       illegible (same move as the blockquote em flip above). Inert
+       until phase 2; the cursor and dotted rule already promise the tap. */
+    .prose .orig-word {
+        font-style: normal;
+        cursor: pointer;
+        border-bottom: 1px dotted var(--muted);
+        padding-bottom: 1px;
+        transition: color .12s, border-color .12s;
+    }
+    .prose .orig-word:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* hub-xref r2.2 — popover interiors. The shell (.fn-pop chrome,
+       chevron, lift-on-hover) is defined above and BOTH panel kinds keep
+       it whole — verse previews and definitions grow identically on
+       hover. Only the cursor differs: the definition panel navigates
+       nowhere, so it doesn't wear the pointer's promise. */
+    .fn-pop.orig-pop { cursor: default; }
+
+    /* r2.2: the click acknowledgement. A one-shot squash toward the
+       chevron (transform-origin is already the chevron point, so the
+       bubble presses onto its anchor and springs back). The endpoint
+       keyframes are OMITTED on purpose: an animation with no 0%/100%
+       frames interpolates from and to the element's current transform —
+       so a hovered bubble pulses 1.04 → .955 → 1.04 with no snap, and a
+       tapped one on mobile pulses 1 → .955 → 1, from the same keyframes. */
+    .fn-pop.is-poked { animation: pop-poke .28s ease; }
+    @keyframes pop-poke {
+        35% { transform: scale(.955); }
+    }  
+
+    .xp-head { display: flex; justify-content: space-between; gap: .6rem; margin-bottom: .35rem; }
+    .xp-ref  { font-weight: 600; color: var(--accent); }
+    .xp-tx   {
+        color: var(--muted); font-size: .7rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .05em; align-self: center;
+    }
+    /* Verse text in the serif reading voice — it's scripture, even in a
+       preview; the sans panel head keeps the UI voice. */
+    .xp-verse { margin: 0 0 .3rem; font-family: var(--serif); }
+    .xp-verse sup { color: var(--muted); font-size: .7em; margin-right: .1rem; }
+    .xp-more { color: var(--muted); font-style: italic; font-size: .78rem; }
+
+    .op-word { font-family: var(--serif); font-size: 1.15rem; line-height: 1.35; }
+    .op-translit { font-style: italic; color: var(--muted); margin-left: .4rem; }
+    .op-lang {
+        display: block; margin: .2rem 0 .3rem;
+        color: var(--muted); font-size: .68rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .06em;
+    }
+    .op-def { margin: 0; }    
+
     /* hub-src r2.1: Placeholder — shown when a book has neither overview nor
        excerpt. flex does double duty here: it vertically centres the two
        blurbs AND establishes a block formatting context, which is what stops
@@ -469,11 +539,11 @@
              three renders. --}}
         @if ($intro->summary)
             <h2 class="no-clear">Overview</h2>
-            <div class="prose reader-text">{!! \App\Support\SourceMarkers::markdown($intro->summary, $sourceLetters) !!}</div>
+            <div class="prose reader-text">{!! \App\Support\HubProse::render($intro->summary, $sourceLetters, $txSlug) !!}</div>
         @elseif ($intro->excerpt)
             <h2 class="no-clear">Excerpt</h2>
             <figure class="excerpt">
-                <blockquote class="prose reader-text">{!! \App\Support\SourceMarkers::markdown($intro->excerpt, $sourceLetters) !!}</blockquote>
+                <blockquote class="prose reader-text">{!! \App\Support\HubProse::render($intro->excerpt, $sourceLetters, $txSlug) !!}</blockquote>
                 {{-- hub-src r2.1: author / title / year as a left-justified
                      stack, each from its own sources-table column. A source
                      entered only as a citation string still renders (the
@@ -537,7 +607,7 @@
 
         @if ($intro->authorship_note)
             <h2>Authorship</h2>
-            <div class="prose reader-text">{!! \App\Support\SourceMarkers::markdown($intro->authorship_note, $sourceLetters) !!}</div>
+            <div class="prose reader-text">{!! \App\Support\HubProse::render($intro->authorship_note, $sourceLetters, $txSlug) !!}</div>
         @endif
     @endif
 
@@ -700,5 +770,18 @@
     };
 </script>
 <script src="{{ asset('js/book-seen.js') }}?v={{ filemtime(public_path('js/book-seen.js')) }}" defer></script>
+{{-- hub-xref r2: verse + definition popovers. Context first (parse-time),
+     engine deferred — the focus-synthesis ordering guarantee. Single
+     variables only inside the json directive. --}}
+@php
+    $xrefUrl = route('bible.verse-translations');
+@endphp
+<script>
+    window.MBXrefContext = {
+        url: @json($xrefUrl),
+        tx:  @json($txSlug),
+    };
+</script>
+<script src="{{ asset('js/xref-popover.js') }}?v={{ filemtime(public_path('js/xref-popover.js')) }}" defer></script>
 @include('bible.partials.source-popover')
 @endsection
