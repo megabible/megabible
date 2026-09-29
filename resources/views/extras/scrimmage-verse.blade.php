@@ -34,8 +34,8 @@
   via /challenge and resubmits once. (Retype-free — the round's raw
   counts are unchanged; only the envelope was old.)
 
-  TOP-RIGHT CORNER: the share button (phase 1 = link + copy) beside
-  the Aa text-settings trigger.
+  TOP-RIGHT CORNER: the apps folder (shared reader memory) holding 
+  share + Aa; on the daily, share hands out the evergreen daily door.
 
   DIAL NAMES. A name is exactly FOUR characters, A–Z / 0–9, picked on
   four dials in the claim row — a carat above and below each, click
@@ -97,18 +97,6 @@
        otherwise outranks the browser's built-in [hidden]{display:none}. */
     .sc-page [hidden] { display: none !important; }
 
-    /* ---- Corner slot: share + Aa ------------------------------------------
-       Absolutely anchored to .sc-head's top-right — the reader's .head-actions
-       pattern — instead of floating at the top of the page. A wrapping
-       reference can never shove the buttons around, and the .55rem offset is
-       the same number the reader and the vigil use, so all three pages agree.
-       POSITION KNOBS: top / right. right:0 = the container content edge (this
-       head is not full-bleed, so no -1.5rem compensation is needed). */
-    .sc-head .sc-settings-slot {
-        position: absolute; top: .55rem; right: 0; z-index: 60;
-        display: flex; gap: .5rem; align-items: center;
-    }
-
     .sc-card {
         border: 1px solid var(--rule); border-radius: 8px;
         padding: 1.1rem 1.2rem 1.2rem;
@@ -128,26 +116,34 @@
     }
     .sc-input:focus { outline: none; border-color: var(--accent); }
 
-    /* ---- Header: verse H1 on top, mustache + switcher below ---------------
-       position:relative makes this the anchor for the corner slot above.
-       RESERVE KNOB: padding-right ≈ corner cluster width (2 buttons here). */
-    .sc-head { position: relative; margin: 0 0 .7rem; padding-right: 6.5rem; }
-    .sc-head h1 {
-        font-family: var(--serif); font-size: 2.1rem; font-weight: 400;
-        margin: 0 0 .2rem; letter-spacing: -.01em;
+    /* ---- Header (scrim-p5): the vigil's head, unpinned ---------------------
+       The shared sticky-head partial supplies the vigil's exact title size,
+       reserve, corner-cluster placement and spacing, so this head matches
+       the vigil by construction rather than by copied numbers. What it does
+       NOT get is the pin: no sentinel, no sticky-head.js, and the two
+       overrides below. A scrim is short, and the typebox wants the room.
+       will-change is dropped with the pin: it exists to keep a PINNED head's
+       layer clean, and a head that never pins doesn't need the extra layer. */
+    @include('bible.partials.sticky-head')
+
+    .chapter-head.sc-head {
+        position: relative;
+        will-change: auto;
+        /* RESERVE KNOB: the OPEN pill (share + Aa + folder circle), so a long
+           reference wraps beside the pill rather than under it. The vigil's
+           number; its pill holds one more app, so this one has a little air. */
+        --mb-head-reserve: 10.5rem;
     }
-    /* MUSTACHE — under the title, so the title starts flush with the top of
-       the head and the corner buttons line up with it. */
+
+    /* MUSTACHE — the vigil's .vg-eyebrow, verbatim: under the title, so the
+       title sits flush with the head's top and level with the folder. */
     .sc-mode {
         display: block;
         color: var(--accent); font-family: var(--sans);
         font-size: .76rem; font-weight: 700;
         letter-spacing: .12em; text-transform: uppercase;
-        margin: 0;
+        margin: .12rem 0 0;
     }
-    /* The H1 IS a link into the reader — quiet until hovered. */
-    .sc-title-link { color: inherit; text-decoration: none; transition: color .12s; }
-    .sc-title-link:hover { color: var(--accent); }
 
     #sc-txswitch { margin-top: .35rem; min-height: 1.6rem; }
     /* Single-edition verse: the pill renders but isn't a dropdown. */
@@ -159,22 +155,49 @@
     }
     .sc-back:hover { color: var(--accent); }
 
-    /* Stat line: live face (clock + counters + combo) ⇄ done face (results) */
-    .sc-statline { font-family: var(--sans); margin-bottom: .8rem; }
+    /* ---- Stat line (scrim-p4) ----------------------------------------------
+       ONE permanent layout — nothing swaps faces. Line one: the clock, the
+       marks to its right (once any round has scored), the PERFECT badge.
+       Line two: every pill, always present, values ticking in place; only
+       the bonus pill arrives at the end.
 
-    .sc-stat-live { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
+       Exactly one big number is "live" at a time:
+         round over   → clock .is-spent (muted at 0.0), marks in accent
+         rerun ready  → clock in accent, marks .is-last (muted, "last marks")
+       SIZE KNOB: --sc-big (both numbers; steps down on phones below). */
+    .sc-statline { --sc-big: 3rem; font-family: var(--sans); margin-bottom: .8rem; }
+    @media (max-width: 520px) { .sc-statline { --sc-big: 2.3rem; } }
+
+    .sc-stat-top {
+        display: flex; align-items: baseline; flex-wrap: wrap;
+        gap: .4rem 1.4rem; margin-bottom: .55rem;
+    }
+    .sc-bignum { display: inline-flex; align-items: baseline; white-space: nowrap; }
+
     .sc-clock {
-        font-size: 3rem; font-weight: 700; color: var(--accent);
+        font-size: var(--sc-big); font-weight: 700; color: var(--accent);
         font-variant-numeric: tabular-nums; line-height: 1;
+        transition: color .3s ease;
     }
     .sc-clock.is-ending { animation: sc-pulse .5s ease-in-out infinite; }
+    .sc-clock.is-spent  { color: var(--muted); }
     @keyframes sc-pulse { 50% { opacity: .45; } }
-    .sc-clock-unit { font-size: .82rem; color: var(--muted); }
-    .sc-live { color: var(--muted); font-size: .82rem; font-variant-numeric: tabular-nums; }
-    .sc-live b { color: var(--ink); }
+
+    .sc-final {
+        font-size: var(--sc-big); font-weight: 700; color: var(--accent);
+        line-height: 1; font-variant-numeric: tabular-nums;
+        transition: color .3s ease;
+    }
+    .sc-bignum-unit {
+        font-size: .85rem; font-weight: 600; color: var(--muted);
+        margin-left: .35rem; letter-spacing: .04em;
+    }
+    /* Last round's marks, held beside a fresh clock. */
+    .sc-marks.is-last .sc-final { color: var(--muted); opacity: .6; }
 
     /* Combo badge: PERFECT ×n while clean, breaks on the first error. */
     .sc-combo {
+        align-self: center;
         font-size: .74rem; font-weight: 700; letter-spacing: .06em;
         color: var(--accent); border: 1px solid var(--accent);
         border-radius: 999px; padding: .2rem .7rem;
@@ -182,15 +205,6 @@
     }
     .sc-combo.is-broken { color: var(--muted); border-color: var(--rule); }
 
-    /* Done face: marks on the first line, the stat chips on their own line. */
-    .sc-stat-done { display: flex; flex-direction: column; align-items: flex-start; gap: .55rem; }
-    .sc-final-line { display: inline-flex; align-items: baseline; }
-    .sc-final { font-size: 3rem; font-weight: 700; color: var(--accent); line-height: 1; font-variant-numeric: tabular-nums; }
-    .sc-final-unit {
-        font-family: var(--sans); font-size: .85rem; font-weight: 600;
-        color: var(--muted); margin-left: .35rem;
-        letter-spacing: .04em;
-    }
     .sc-chips { display: flex; gap: .45rem; flex-wrap: wrap; }
     .sc-chip {
         font-size: .74rem; color: var(--muted);
@@ -539,21 +553,35 @@
 
 @section('content')
 <div class="sc-page">
-    <div class="sc-head">
-        {{-- Corner cluster: share (this page has something to share) beside
-             the Aa trigger, pinned to the head's top-right so it sits level
-             with the H1 the way the reader's does. Visibility checks
-             suppressed — no verse numbers, headings, or footnotes here. --}}
-        <div class="sc-settings-slot">
-            @include('bible.partials.scrimmage-share')
-            @include('bible.partials.text-settings', ['tsChecks' => false])
+    {{-- scrim-p5: the vigil's head markup, unpinned (no sentinel above it).
+         The apps folder shares the reader's open/shut memory. It holds only
+         share + Aa: no candle, no pericopes. Visibility checks suppressed:
+         no verse numbers, headings, or footnotes here. --}}
+    <div class="chapter-head sc-head">
+        <div class="head-actions">
+            <x-head-folder persist="reader">
+                @if ($daily)
+                    @include('bible.partials.scrimmage-share', [
+                        'ssTitle' => 'Share the Daily Scrimmage',
+                        'ssLabel' => 'Link to the Daily Scrimmage',
+                        'ssNote'  => 'Always opens that day’s daily verse.',
+                    ])
+                @else
+                    @include('bible.partials.scrimmage-share')
+                @endif
+                @include('bible.partials.text-settings', ['tsChecks' => false])
+            </x-head-folder>
         </div>
 
         {{-- Verse-reference H1 (a live link into the reader), mode mustache
-             beneath it, switcher below that. All server-rendered: no JS is
-             needed for the header to exist. --}}
-        <h1><a class="sc-title-link" id="sc-title" href="{{ $readerUrl }}">{{ $scrim['reference'] }}</a></h1>
-        <span class="sc-mode">{{ $daily ? 'Daily Scrimmage — ' . $daily['label'] : 'Typing Scrimmage' }}</span>
+             beneath it. All server-rendered: no JS is needed for the header
+             to exist. --}}
+        <div class="chapter-head-top">
+            <h1><a class="book-link" id="sc-title" href="{{ $readerUrl }}">{{ $scrim['reference'] }}</a></h1>
+            <span class="sc-mode">{{ $daily ? 'Daily Scrimmage — ' . $daily['label'] : 'Typing Scrimmage' }}</span>
+        </div>
+
+        {{-- Client-rendered switcher: unchanged, below the title block. --}}
         <div id="sc-txswitch"></div>
     </div>
 
@@ -607,21 +635,28 @@
     </div>
     @endif
 
+    {{-- scrim-p4: one permanent stat line. Values change; positions never do. --}}
     <div class="sc-statline">
-        {{-- Live face: the clock, counters, and the combo badge. --}}
-        <div class="sc-stat-live" id="sc-stat-live">
-            <span><span class="sc-clock" id="sc-clock">{{ $scrim['duration'] }}</span>
-            <span class="sc-clock-unit">seconds</span></span>
-            <span class="sc-live">chars <b id="sc-live-chars">0</b> &middot; errors <b id="sc-live-errors">0</b></span>
+        <div class="sc-stat-top">
+            <span class="sc-bignum">
+                <span class="sc-clock" id="sc-clock">{{ $scrim['duration'] }}</span>
+                <span class="sc-bignum-unit">seconds</span>
+            </span>
+            {{-- Absent until the first round on this page scores. --}}
+            <span class="sc-bignum sc-marks" id="sc-marks" hidden>
+                <span class="sc-final" id="sc-final">&mdash;</span>
+                <span class="sc-bignum-unit" id="sc-marks-unit">marks</span>
+            </span>
             <span class="sc-combo" id="sc-combo" hidden></span>
         </div>
-        {{-- Done face: marks line, then the chips on their own line. --}}
-        <div class="sc-stat-done" id="sc-stat-done" hidden>
-            <span class="sc-final-line">
-                <span class="sc-final" id="sc-final">&mdash;</span>
-                <span class="sc-final-unit">marks</span>
-            </span>
-            <span class="sc-chips" id="sc-chips"></span>
+        <div class="sc-chips">
+            <span class="sc-chip">net wpm <b id="sc-st-net">&mdash;</b></span>
+            <span class="sc-chip">accuracy <b id="sc-st-acc">&mdash;</b></span>
+            <span class="sc-chip">chars <b id="sc-st-chars">0</b></span>
+            <span class="sc-chip">errors <b id="sc-st-errors">0</b></span>
+            <span class="sc-chip">combo <b id="sc-st-combo">0</b></span>
+            <span class="sc-chip">wraps <b id="sc-st-wraps">0</b></span>
+            <span class="sc-chip bonus" id="sc-st-bonus" hidden>bonus <b></b></span>
         </div>
     </div>
 
@@ -674,6 +709,9 @@
 @endsection
 
 @section('scripts')
+{{-- shortcuts r2: this page's keyboard belongs to the scrim. Only the site
+     search key and Escape survive; no letter ever triggers site chrome. --}}
+<script>window.MBShortcutsMode = 'search-only';</script>
 <script>
     (function () {
         'use strict';
@@ -717,6 +755,9 @@
            is epoch, so Date.now() comparisons need no timezone maths. */
         const DAILY         = @json($daily);
         const ROLLOVER_MS   = DAILY ? DAILY.rolloverAtMs : 0;
+        /* scrim-p5: the daily's share link — the evergreen door, not this
+           date's verse URL. Whoever opens it plays whatever daily is live. */
+        const DAILY_SHARE_URL = @json(route('typing.scrimmage.daily'));
 
         /* The dial alphabet — the ONLY characters a name can hold. Order is
            the spin order: A..Z then 0..9, wrapping. */
@@ -834,7 +875,12 @@
          * copyable link; phase 2 will hang the PNG card off the same hook).
          */
         function syncShare(score) {
-            if (DAILY) return;               // no share panel on the daily
+            // scrim-p5: the daily shares its evergreen door — and never a
+            // score (the board is sealed; a marks link would leak it).
+            if (DAILY) {
+                if (window.MBScrimShare) MBScrimShare.setUrl(DAILY_SHARE_URL);
+                return;
+            }
             let url = location.origin + scrimHref(params());
             if (score) url += '?score=' + score;
             if (round) round.shareUrl = url;
@@ -962,19 +1008,19 @@
             };
             claimChars = startingName();
 
-            $('sc-stat-live').hidden = true;
-            $('sc-stat-done').hidden = false;
-            $('sc-final').textContent = p.est.toFixed(2);
-            $('sc-chips').innerHTML =
-                chip('net wpm', p.net.toFixed(1)) +
-                chip('accuracy', p.acc.toFixed(1) + '%') +
-                chip('chars', p.chars) +
-                chip('errors', p.errors);
+            spendClock();
+            showMarks(p.est.toFixed(2));
+            paintPills({
+                net: p.net, acc: p.acc,
+                chars: p.chars, errors: p.errors,
+                combo: p.bestStreak, wraps: p.wraps,     // older stashes: dashes
+            });
+            if (p.wraps != null && p.errors != null) showBonus(p.wraps, p.errors);
 
             showDailyPlayed(p.est);
             const el = $('sc-daily-mymarks');
             if (el) el.textContent = p.est.toFixed(2) +
-                ' marks \u2014 unclaimed. Dial your name below.';
+                ' marks still unclaimed! Dial your name below';
 
             $('sc-boardcard').hidden = false;
             loadBoard({ est: p.est });
@@ -1017,6 +1063,9 @@
             if (p) { restorePending(p); return true; }
 
             dailyLock();
+            spendClock();
+            paintPills(null);                    // the stats are gone; dashes, not zeros
+            if (gate.marks != null) showMarks(Number(gate.marks).toFixed(2));
             showDailyPlayed(gate.marks);
             return true;
         }
@@ -1154,12 +1203,13 @@
             };
             renderPass();
 
-            $('sc-stat-live').hidden = false;
-            $('sc-stat-done').hidden = true;
+            // scrim-p4: same layout, fresh values. Last round's marks (if
+            // any) stay beside the new clock, greyed.
             $('sc-clock').textContent = data.duration;
-            $('sc-clock').classList.remove('is-ending');
-            $('sc-live-chars').textContent = '0';
-            $('sc-live-errors').textContent = '0';
+            $('sc-clock').classList.remove('is-ending', 'is-spent');
+            paintPills({ net: null, acc: null, chars: 0, errors: 0, combo: 0, wraps: 0 });
+            $('sc-st-bonus').hidden = true;
+            greyMarks();
             $('sc-combo').hidden = true;
             $('sc-combo').classList.remove('is-broken');
 
@@ -1254,13 +1304,15 @@
             } else {
                 round.keystrokes--;                  // stray space: forgiven entirely
             }
-            $('sc-live-chars').textContent = round.chars;
-            $('sc-live-errors').textContent = round.errors;
+            $('sc-st-chars').textContent  = round.chars;
+            $('sc-st-errors').textContent = round.errors;
+            $('sc-st-combo').textContent  = round.bestStreak;
         }
 
         /* ---- Wrap: the escalating-bonus moment --------------------------- */
         function wrapPass() {
             round.wraps++;
+            $('sc-st-wraps').textContent = round.wraps;
             spawnToast('+wrap \u00D7' + round.wraps);
             if (round.comboAlive) {
                 const badge = $('sc-combo');
@@ -1304,6 +1356,16 @@
             const left    = Math.max(0, total - elapsed);
             $('sc-clock').textContent = (left / 1000).toFixed(1);
             if (left <= 3000) $('sc-clock').classList.add('is-ending');
+
+            // Rates only from HALF the clock on — before that they're wild
+            // (two fast keys read as 600 wpm). Half, not a fixed 10s, so a
+            // duration change in config/typing.php carries through.
+            if (elapsed >= total / 2) {
+                const r = liveRates(elapsed);
+                $('sc-st-net').textContent = r.net.toFixed(1);
+                $('sc-st-acc').textContent = r.acc.toFixed(1) + '%';
+            }
+
             if (left <= 0) finishRound(elapsed);
         }
 
@@ -1312,9 +1374,10 @@
             phase = 'done';
             $('sc-capture').blur();
 
-            // The round is over: no clock (the results replace the stat line),
-            // no cursor, no coaching line, and the "⟳ SCRIM" stamp over the
+            // The round is over: the clock rests at 0.0 (muted — spent), no
+            // cursor, no coaching line, and the "⟳ SCRIM" stamp over the
             // dimmed text.
+            spendClock();
             round.spans.forEach(function (s) { s.classList.remove('cur'); });
             $('sc-typewrap').classList.add('is-done');
             $('sc-done').hidden = !!DAILY;   // one shot: the ⟳ rerun stamp never shows
@@ -1374,17 +1437,58 @@
             if (e.key === 'Enter')  { e.preventDefault(); step(' '); }
         });
 
+        /* =================================================================
+           RERUN GUARD (scrim-p3) — the one road back to a fresh round from
+           a finished one. Both the ⟳ SCRIM stamp and a click on the dimmed
+           verse come through here, and both ASK first: a stray click on a
+           finished scrim used to wipe it instantly.
+
+           The question matches the stakes. Dials still up = marks not yet
+           claimed, and restarting throws them away — say so, with the
+           number. Claimed (or sabbath, where nothing claims): a plain
+           fresh-round prompt.
+
+           Never on the daily (its shot is spent; no rerun exists there).
+           `rerunAsking` stops a double-click from stacking two dialogs, and
+           phase is re-checked on the answer so a late "yes" can't restart
+           a round that's no longer the finished one.
+           ================================================================= */
+        let rerunAsking = false;
+
+        function requestRerun() {
+            if (phase !== 'done' || DAILY || rerunAsking) return;
+            rerunAsking = true;
+
+            const unclaimed = !!$('sc-dials');
+            const lines = unclaimed
+                ? ['Restart this scrim?',
+                   'Your ' + (round.est || 0).toFixed(2) + ' marks haven\u2019t been ' +
+                   'claimed yet. Restarting throws them away.']
+                : ['Restart this scrim?',
+                   'Set the clock back to 20 and try again.'];
+
+            const ask = window.mbConfirm
+                ? mbConfirm(lines, {
+                      confirmLabel: 'Restart',
+                      cancelLabel:  unclaimed ? 'Remain' : 'Remain',
+                  })
+                : Promise.resolve(window.confirm(lines.join('\n\n')));
+
+            ask.then(function (ok) {
+                rerunAsking = false;
+                if (ok && phase === 'done') newRound();
+            });
+        }
+
         // The typebox is always the way back in: ready → focus; done → rerun.
         // Except the daily: done is DONE — the shot is spent, and every
         // road back to a fresh round is closed on this page. (Escape mid-
         // round still abandons cleanly: an unfinished attempt is unspent.)
         $('sc-typebox').addEventListener('click', function () {
-            if (phase === 'done') { if (!DAILY) newRound(); }
+            if (phase === 'done') requestRerun();
             else capture.focus();
         });
-        $('sc-done').addEventListener('click', function () {
-            if (phase === 'done' && !DAILY) newRound();
-        });
+        $('sc-done').addEventListener('click', requestRerun);
 
         /* =================================================================
            RESULTS — swap into the stat line, reveal the SCRIMBOARD
@@ -1430,19 +1534,15 @@
                 MBActs.log(DAILY ? 'daily' : 'scrim', act);
             }
 
-            $('sc-stat-live').hidden = true;
-            $('sc-stat-done').hidden = false;
-            $('sc-final').textContent = est.toFixed(2);
-            $('sc-chips').innerHTML =
-                chip('net wpm', net.toFixed(1)) +
-                chip('accuracy', acc.toFixed(1) + '%') +
-                chip('chars', round.chars) +
-                chip('errors', round.errors) +
-                chip('combo', round.bestStreak) +
-                (round.wraps >= 1 ? chip('wraps', round.wraps) : '') +
-                '<span class="sc-chip bonus" title="wraps \u00D7' + round.wraps +
-                    ' \u00B7 wrap \u00D7' + wm.toFixed(2) + ' \u00B7 perfect \u00D7' + pm.toFixed(2) + '">' +
-                    'bonus <b>\u00D7' + (wm * pm).toFixed(2) + '</b></span>';
+            // scrim-p4: final numbers into the same pills, marks beside the
+            // spent clock, and the bonus pill — the one late arrival.
+            showMarks(est.toFixed(2));
+            paintPills({
+                net: net, acc: acc,
+                chars: round.chars, errors: round.errors,
+                combo: round.bestStreak, wraps: round.wraps,
+            });
+            showBonus(round.wraps, round.errors);
 
             syncShare(Math.round(est));
 
@@ -1472,8 +1572,77 @@
             if (DAILY) showDailyPlayed(est);
         }
 
-        function chip(label, value) {
-            return '<span class="sc-chip">' + label + ' <b>' + value + '</b></span>';
+        /* =================================================================
+           STAT LINE PAINTERS (scrim-p4) — the only code that writes to the
+           permanent stat line. Nothing hides or re-orders; these set values
+           and the two "which number is live" states.
+           ================================================================= */
+
+        /* Mid-round rates, for the live net-wpm / accuracy pills. The SAME
+           formula showResults scores with — kept separate on purpose so the
+           scoring path stays untouched; change one, change both. */
+        function liveRates(ms) {
+            const mins  = ms / 60000;
+            const gross = (round.keystrokes / 5) / mins;
+            const err   = (round.errors * ERROR_CHARS / 5) / mins;
+            return {
+                net: Math.max(0, gross - err),
+                acc: round.keystrokes ? ((round.keystrokes - round.errors) / round.keystrokes) * 100 : 0,
+            };
+        }
+
+        /* Every pill at once. s = null blanks them all (a spent daily with
+           no stash — the stats are gone, and zeros would be a lie). Any
+           single field left null/undefined shows a dash. */
+        function paintPills(s) {
+            const d = '\u2014';
+            function val(x) { return (s && x != null) ? x : d; }
+            $('sc-st-net').textContent    = s && s.net != null ? s.net.toFixed(1) : d;
+            $('sc-st-acc').textContent    = s && s.acc != null ? s.acc.toFixed(1) + '%' : d;
+            $('sc-st-chars').textContent  = val(s && s.chars);
+            $('sc-st-errors').textContent = val(s && s.errors);
+            $('sc-st-combo').textContent  = val(s && s.combo);
+            $('sc-st-wraps').textContent  = val(s && s.wraps);
+        }
+
+        /* The end-of-round bonus pill — the one pill that comes and goes. */
+        function showBonus(wraps, errors) {
+            const wm = wrapMult(wraps);
+            const pm = perfectMult(wraps, errors);
+            const el = $('sc-st-bonus');
+            el.title = 'wraps \u00D7' + wraps + ' \u00B7 wrap \u00D7' + wm.toFixed(2) +
+                       ' \u00B7 perfect \u00D7' + pm.toFixed(2);
+            el.querySelector('b').textContent = '\u00D7' + (wm * pm).toFixed(2);
+            el.hidden = false;
+        }
+
+        /* This round's marks: shown, live (accent), labelled plainly. */
+        function showMarks(text) {
+            $('sc-final').textContent = text;
+            $('sc-marks-unit').textContent = 'marks';
+            $('sc-marks').classList.remove('is-last');
+            $('sc-marks').removeAttribute('title');
+            $('sc-marks').hidden = false;
+        }
+
+        /* A fresh round is ready: whatever marks are up become LAST round's,
+           greyed in place. Never rewrites the number — if the server's
+           authoritative score replaced the estimate, that's what stays.
+           No-op before the first scored round (nothing is up yet). */
+        function greyMarks() {
+            const m = $('sc-marks');
+            if (m.hidden) return;
+            m.classList.add('is-last');
+            m.title = 'Last round\u2019s marks';
+            $('sc-marks-unit').textContent = 'last marks';
+        }
+
+        /* The round is over: the clock stays put at 0.0, muted — spent. */
+        function spendClock() {
+            const c = $('sc-clock');
+            c.textContent = (0).toFixed(1);
+            c.classList.remove('is-ending');
+            c.classList.add('is-spent');
         }
 
         /* =================================================================
@@ -1519,11 +1688,11 @@
                     if (j.sealed) {
                         const n = j.players || 0;
                         const who = n === 0
-                            ? 'No names sealed yet \u2014 yours would be the first.'
-                            : (n === 1 ? 'One name is' : n + ' names are') +
-                              ' sealed on today\u2019s board.';
+                            ? 'YOU ARE THE FIRST RACER.'
+                            : (n === 1 ? 'One name has' : n + ' names have') +
+                              ' been entered on today\u2019s board.';
                         const note = '<div class="sc-sealed-note">' + who +
-                            ' Ranks are revealed at the midnight freeze.</div>';
+                            ' Today\u2019s ranks are revealed tomorrow.</div>';
                         if (entry && typeof entry.est === 'number') {
                             renderBoard([], entry, {});
                             host.insertAdjacentHTML('beforeend', note);
@@ -1652,19 +1821,20 @@
                 '<table><thead><tr>' + head + '</tr></thead>' +
                 '<tbody>' + body + '</tbody></table>';
 
-            // The rest of the field lives on the full-board page. Never on
-            // the daily (its board is sealed and this branch never runs for
-            // it — but a guard is cheaper than a certainty).
-            if (full && !DAILY && rows.length > BOARD_SHOW) {
+            // scrim-p3: ALWAYS offered once the full board shows — even one
+            // name deserves its own page (and a link to share). Label
+            // singularizes at one.
+            if (full && !DAILY && rows.length > 0) {
                 const p = params();
                 const href = BOARD_PAGE
                     .replace('__B__', encodeURIComponent(p.b))
                     .replace('__C__', p.c)
                     .replace('__V__', p.v)
                     .replace('__L__', encodeURIComponent(resolved.lang || 'en'));
+                const count = rows.length === 1 ? '1 name' : rows.length + ' names';
                 host.insertAdjacentHTML('beforeend',
                     '<div class="sc-fullboard-link"><a href="' + href + '">' +
-                    'View the full board \u2014 ' + rows.length + ' names \u2192</a></div>');
+                    'View the full board \u2192</a></div>');
             }
 
             if ($('sc-dials')) {
@@ -1714,7 +1884,7 @@
                    '<div class="sc-dials" id="sc-dials" role="group" ' +
                        'aria-label="Dial your four-character name">' + dials + '</div>' +
                    '<button type="button" class="sc-claim" id="sc-submit" ' +
-                   'aria-label="Claim your marks" title="Claim your marks">' +
+                   'aria-label="Enter a Name" title="Enter a Name">' +
                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" ' +
                    'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
                    '<polyline points="20 6 9 17 4 12"></polyline></svg>' +
@@ -1815,8 +1985,8 @@
             host.innerHTML =
                 '<span>' + shownName + ' defends this name with <b>' +
                 Number(h.final_score).toFixed(2) + '</b> marks</span></div>' +
-                '<div class="sc-duel-sub">Your ' + Number(j.score.final_score).toFixed(2) +
-                ' doesn\u2019t unseat it \u2014 beat the score to take the name, or dial a different one.';
+                '<div class="sc-duel-sub">Your score of ' + Number(j.score.final_score).toFixed(2) +
+                ' doesn\u2019t knock it.';
             host.hidden = false;
         }
         function hideDuel() {
@@ -1935,7 +2105,7 @@
 
                     if (j.takeover) {
                         rankHtml('You took ' + nameHtml(name, j.censored) +
-                                 ' \u2014 holder \u2116' + j.claims + '.');
+                                 ': holder \u2116' + j.claims + '.');
                     } else {
                         rankText('');
                     }
@@ -2003,7 +2173,7 @@
         // The switcher's option list is client-built (it needs the variants),
         // but the header, clock, and verse text are already on screen.
         renderTxSwitch();
-        if (!DAILY && window.MBScrimShare) MBScrimShare.show();
+        if (window.MBScrimShare) MBScrimShare.show();
         syncShare(null);
         // bootDaily arbitrates the daily's three states; true means it owns
         // the page (played or stale — no live round is armed). Ordinary

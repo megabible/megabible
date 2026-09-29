@@ -9,6 +9,7 @@ use App\Models\Heading;
 use App\Models\Footnote;
 use App\Models\SharedHeading;
 use App\Models\OriginalToken;
+use App\Models\ChapterAnimation;
 use App\Support\ChapterLayout;
 use App\Support\BookMetadata;
 use Illuminate\View\View;
@@ -274,6 +275,17 @@ class BibleController extends Controller
             ->where('id', '!=', $t->id)
             ->orderBy('sort_order')->get();
 
+        // Watch mode (watch r1): the default (lowest sort_order) live video
+        // for this chapter, in ANY edition — the eyeball shows wherever an
+        // animation exists, and its link lands in the video's own script
+        // edition, exactly like the homepage's fallback links. One indexed
+        // query + one row; null keeps the eyeball out of the folder.
+        $watchDefault = ChapterAnimation::live()
+            ->where('book_id', $b->id)
+            ->where('chapter', $chapter)
+            ->orderBy('sort_order')->orderBy('id')
+            ->first();
+
         return view('bible.chapter', [
             'translation' => $t,
             'book'        => $b,
@@ -319,7 +331,137 @@ class BibleController extends Controller
             // deliberately avoids displayMeta(), whose verse-count query
             // has no business running on every chapter load.
             'sectionColor'     => BookMetadata::colorFor($b),
+            // Watch URL for the head folder's eyeball; null = no app drawn.
+            // Built here, not in Blade — route() args carry commas, and a
+            // comma-bearing expression must never sit inside a directive.
+            'watchUrl'         => $watchDefault ? route('bible.watch', [
+                'translation' => strtolower($watchDefault->translation->abbreviation),
+                'book'        => $b->slug,
+                'chapter'     => $chapter,
+            ]) : null,            
             'nav'         => $this->chapterNav($t, $b, $chapter, $maxChapter),
+        ]);
+    }
+
+    /**
+     * WATCH MODE  ·  /bible/{t}/{b}/{c}/watch  ·  watch r1
+     *
+     * The chapter's animation above the chapter's text. The text is ALWAYS
+     * the video's own script edition — the program's first rule is that the
+     * voiceover follows one translation exactly, so page and player can
+     * never disagree. If the URL names a different edition, this redirects
+     * to the canonical one rather than showing mismatched text.
+     *
+     * Video choice, in order:
+     *   1. ?video={id}  an explicit alternate picked from the page's list;
+     *   2. the first live video whose script matches the URL's edition;
+     *   3. the chapter's default (lowest sort_order, then id).
+     *
+     * Step 3 (cue sync) builds on this page without touching this method:
+     * the cues ride the model, and the flow partial already renders every
+     * verse with data-verse + id anchors.
+     */
+    public function watchChapter(Request $request, string $translation, string $book, int $chapter)
+    {
+        $t = Translation::findBySlug($translation);
+        abort_if(! $t, 404, 'Translation not found');
+
+        $b = Book::findBySlug($book);
+        abort_if(! $b, 404, 'Book not found');
+
+        // Every live video for this chapter, default-first, any edition.
+        $videos = ChapterAnimation::liveFor($b->id, $chapter);
+        abort_if($videos->isEmpty(), 404, 'No animation for this chapter yet');
+        $videos->load('translation');
+
+        // Explicit pick beats edition match beats default.
+        $video = null;
+        if (($vid = (int) $request->query('video')) > 0) {
+            $video = $videos->firstWhere('id', $vid);
+        }
+        $video = $video
+            ?? $videos->first(fn ($v) => $v->translation_id === $t->id)
+            ?? $videos->first();
+
+        // Canonical URL carries the video's own edition. ?video= survives
+        // the hop only when the visitor asked for that alternate by id.
+        if ($video->translation_id !== $t->id) {
+            $params = [
+                'translation' => strtolower($video->translation->abbreviation),
+                'book'        => $b->slug,
+                'chapter'     => $chapter,
+            ];
+            if ((int) $request->query('video') === $video->id) {
+                $params['video'] = $video->id;
+            }
+            return redirect()->route('bible.watch', $params);
+        }
+
+        // From here the URL edition IS the script edition; assemble the
+        // text exactly as the reader does, minus footnotes (the empty map
+        // keeps markers out of the follow-along flow).
+        $verses = Verse::where('translation_id', $t->id)
+            ->where('book_id', $b->id)
+            ->where('chapter', $chapter)
+            ->orderBy('verse_number')->get();
+
+        // Only reachable by a data-entry slip (a video pinned to an edition
+        // that lacks its own chapter) — fail loudly rather than render an
+        // empty page under a working video.
+        abort_if($verses->isEmpty(), 404, 'Video is pinned to an edition without this chapter');
+
+        $headings = $this->headingsFor($t, $b, $chapter);
+        $layout   = ChapterLayout::build($verses, $headings, []);
+
+        $maxChapter = (int) Verse::where('translation_id', $t->id)
+            ->where('book_id', $b->id)
+            ->max('chapter');
+
+        [$refBook, $refChapter] = $this->readerRef($b, $chapter, $maxChapter);
+
+        // Alternates: every other live video, as ready-made links — URL and
+        // label built here so the Blade only prints. Label prefers the
+        // video's title, then its creator, then its edition.
+        $alternates = $videos
+            ->reject(fn ($v) => $v->id === $video->id)
+            ->map(fn ($v) => [
+                'url'   => route('bible.watch', [
+                    'translation' => strtolower($v->translation->abbreviation),
+                    'book'        => $b->slug,
+                    'chapter'     => $chapter,
+                    'video'       => $v->id,
+                ]),
+                'label' => $v->title
+                    ?? ($v->creator_name ? 'by ' . $v->creator_name : $v->translation->abbreviation),
+            ])
+            ->values()->all();
+
+        return view('bible.watch', [
+            'translation' => $t,
+            'book'        => $b,
+            'chapter'     => $chapter,
+            'video'       => $video,
+            'isCrowd'     => $video->origin === ChapterAnimation::ORIGIN_CROWD,
+            'alternates'  => $alternates,
+            'layout'      => $layout,
+            'refBook'     => $refBook,
+            'refChapter'  => $refChapter,
+            // Cues for watch-sync.js, client-shaped here: only verse-start
+            // cues (kind 'v') — later kinds ship to the client only once a
+            // script exists that understands them — as bare {v, t} pairs,
+            // sorted by t so the client's binary search needs no defenses.
+            // [] when uncued: the sync script stands down on its own.
+            'cues'        => collect($video->cues ?? [])
+                ->filter(fn ($c) => ($c['k'] ?? null) === 'v' && isset($c['v'], $c['t']))
+                ->map(fn ($c) => ['v' => (int) $c['v'], 't' => (float) $c['t']])
+                ->sortBy('t')
+                ->values()
+                ->all(),
+            'readUrl'     => route('bible.chapter', [
+                'translation' => strtolower($t->abbreviation),
+                'book'        => $b->slug,
+                'chapter'     => $chapter,
+            ]),
         ]);
     }
 
@@ -754,6 +896,11 @@ class BibleController extends Controller
         $usedGroupColors = [];   // group colours actually drawn → group legend
         $usedEras        = [];   // era label => colour actually drawn → era legend
 
+        // tl-fix r7: canon.php's homepage short names double as the desktop
+        // "mid" label — swapped in by the fit pass only when a full name
+        // measurably overflows the label column. Null = no mid exists.
+        $midNames = config('canon.home_short_names', []);
+
         foreach ($osisToPlot as $osis) {
             $b  = ($osis === $book->osis_id)
                 ? $book
@@ -784,25 +931,30 @@ class BibleController extends Controller
                         'end'     => $e,
                         'color'   => $era['color'] ?? 'clay',
                         'label'   => $ly['label'] ?? '',
-                        'tooltip' => $b->name . ' — ' . ($ly['full'] ?? $ly['label'] ?? '')
-                                     . ' · ' . $this->layerDateLabel($s, $e),
+                        // tl-fix r10: the popover's pieces, kept separate —
+                        // the partial stamps them as data attributes and the
+                        // panel lays them out. (Replaces the old title string.)
+                        'full'    => $ly['full'] ?? '',
+                        'range'   => $this->layerDateLabel($s, $e),
                     ];
                 }
                 if (empty($segments)) {
                     continue;
                 }
+                // tl-fix r6: date_display/date_pos are gone chart-wide —
+                // ranges live in the segment popover (phase 6), not
+                // printed beside bars.
                 $bars[] = [
-                    'label'        => $b->name,
-                    'short'        => $b->short_name ?: $b->name,   // tl-fix r4: mobile label
-                    'slug'         => $b->slug,
-                    'book_id'      => $b->id,
-                    'current'      => $isCurrent,
-                    'layered'      => true,
-                    'segments'     => $segments,
-                    'start'        => min(array_column($segments, 'start')),
-                    'end'          => max(array_column($segments, 'end')),
-                    'date_display' => null,
-                    'date_pos'     => null,
+                    'label'    => $b->name,
+                    'short'    => $b->short_name ?: $b->name,   // tl-fix r4: mobile label
+                    'mid'      => $midNames[$b->slug] ?? null,  // tl-fix r7: desktop fallback
+                    'slug'     => $b->slug,
+                    'book_id'  => $b->id,
+                    'current'  => $isCurrent,
+                    'layered'  => false,
+                    'segments' => $segments,
+                    'start'    => min(array_column($segments, 'start')),
+                    'end'      => max(array_column($segments, 'end')),
                 ];
             } else {
                 // UNLAYERED — single group-coloured bar (unchanged behaviour).
@@ -817,23 +969,23 @@ class BibleController extends Controller
                 $usedGroupColors[$color] = true;
 
                 $bars[] = [
-                    'label'        => $b->name,
-                    'short'        => $b->short_name ?: $b->name,   // tl-fix r4: mobile label
-                    'slug'         => $b->slug,
-                    'book_id'      => $b->id,
-                    'current'      => $isCurrent,
-                    'layered'      => false,
-                    'segments'     => [[
+                    'label'    => $b->name,
+                    'short'    => $b->short_name ?: $b->name,   // tl-fix r4: mobile label
+                    'mid'      => $midNames[$b->slug] ?? null,  // tl-fix r7: desktop fallback
+                    'slug'     => $b->slug,
+                    'book_id'  => $b->id,
+                    'current'  => $isCurrent,
+                    'layered'  => false,
+                    'segments' => [[
                         'start'   => $s,
                         'end'     => $e,
                         'color'   => $color,
                         'label'   => '',
-                        'tooltip' => $b->name . ' · ' . $this->layerDateLabel($s, $e),
+                        'full'    => '',                               // tl-fix r10
+                        'range'   => $this->layerDateLabel($s, $e),
                     ]],
-                    'start'        => $s,
-                    'end'          => $e,
-                    'date_display' => $this->timelineRangeLabel($s, $e),
-                    'date_pos'     => null,   // set once $pct is known
+                    'start'    => $s,
+                    'end'      => $e,
                 ];
             }
         }
@@ -931,6 +1083,11 @@ class BibleController extends Controller
                 ? ([$a['start'], $a['end']] <=> [$b['start'], $b['end']])
                 : $ai <=> $bi;
         });
+        // tl-fix r5: the current row's highlight ends at its own bar, not
+        // the chart edge. Hand the view the bar's end as a 0–1 fraction of
+        // the track width; timeline-styles turns it into a calc() width.
+        $hlEnd = null;
+
         foreach ($bars as &$bar) {
             foreach ($bar['segments'] as &$seg) {
                 $left        = $pct($seg['start']);
@@ -938,8 +1095,8 @@ class BibleController extends Controller
                 $seg['width'] = max(0.0, $pct($seg['end']) - $left);
             }
             unset($seg);
-            if (! $bar['layered']) {
-                $bar['date_pos'] = $pct($bar['end']);
+            if ($bar['current']) {
+                $hlEnd = round($pct($bar['end']) / 100, 4);
             }
         }
         unset($bar);
@@ -969,6 +1126,9 @@ class BibleController extends Controller
             'legend' => array_merge($eraLegend, $groupLegend),
             'books'  => $bars,
             'text'   => $intro->timeline_text,
+            // tl-fix r5: current bar's end, 0–1 of track width (null when
+            // the current book didn't plot). Drives the row highlight.
+            'hl_end' => $hlEnd,
         ];
     }
 
@@ -1087,11 +1247,18 @@ class BibleController extends Controller
         return $eras[count($eras) - 1] ?? null;   // beyond the last boundary → last era
     }
 
-    /** Range label with a single era suffix, e.g. "950–850 BC". Single-era only. */
+    /**
+     * Range label with its era, e.g. "950–850 BC" or "54–55 AD".
+     * tl-fix r10: a range that crosses the era line now labels both ends
+     * ("50 BC – 20 AD") — before, it printed a bare "50–20".
+     */
     private function layerDateLabel(int $start, int $end): string
     {
-        $suffix = ($start < 0 && $end <= 0) ? ' BC'
-                : (($start >= 0 && $end >= 0) ? ' AD' : '');
+        if ($start < 0 && $end > 0) {
+            return abs($start) . ' BC – ' . $end . ' AD';
+        }
+
+        $suffix = ($end <= 0) ? ' BC' : ' AD';
 
         return $this->timelineRangeLabel($start, $end) . $suffix;
     }

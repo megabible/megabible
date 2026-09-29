@@ -42,6 +42,14 @@ Route::prefix('bible')->name('bible.')
             ->where('chapter', '[0-9]+')
             ->name('interlinear');
 
+        // Watch: the chapter's animation over its own text. Same fixed-word
+        // suffix trick as /interlinear — the {verse} route below is
+        // digits-first, so "watch" can never fall into it, but keeping the
+        // worded routes together up here keeps that reasoning in one place.
+        Route::get('/{translation}/{book}/{chapter}/watch', [BibleController::class, 'watchChapter'])
+            ->where('chapter', '[0-9]+')
+            ->name('watch');       
+
         // Verse across every translation (JSON) — feeds the Pericope card
         // switcher. MUST sit above the /{translation} redirect below, or
         // "verse-translations" is read as a translation slug and bounced to

@@ -270,27 +270,38 @@
         overscroll-behavior: contain;
     }
 
-    /* ─── Aa inside the pill ─────────────────────────────────────────── */
-    /* The text-settings trigger arrives with its own 40px bordered circle;
-       inside the pill it is EXACTLY --fld-size like every other app — the
-       flex item carries the size, the trigger fills it, and the Aa glyph
-       (text, so it can't scale by % like the SVGs) derives from the same
-       token. Its panel keeps its own absolute positioning. */
+    /* ─── Aa and Share inside the pill ───────────────────────────────── */
+    /* fold-unify r6: the scrimmage's share (.scrim-share / .ss-trigger)
+       joins the Aa here. Both partials arrive with their own 40px bordered
+       circle; inside the pill each is EXACTLY --fld-size like every other
+       app — the flex item carries the size, the trigger fills it, and the
+       glyph derives from the same token (the Aa is text, so it scales by
+       font-size; the share arrow is an SVG, so it scales like the apps).
+       Their panels keep their own absolute positioning and, with the
+       wrappers static, anchor under the pill like every other panel. */
     .fld-drawer .text-settings,
-    .fld-drawer .pb-share { margin: 0; flex: 0 0 auto; position: static; }
-    /* border-box: the trigger ships a 1px border (transparent in here, but
-       still painted under by the background) — drawing it inside keeps the
-       Aa's disc the same --fld-size as every other circle. */
-    .fld-drawer .ts-trigger {
+    .fld-drawer .pb-share,
+    .fld-drawer .scrim-share { margin: 0; flex: 0 0 auto; position: static; }
+    /* border-box: the triggers ship a 1px border (transparent in here, but
+       still painted under by the background) — drawing it inside keeps each
+       disc the same --fld-size as every other circle. */
+    .fld-drawer .ts-trigger,
+    .fld-drawer .ss-trigger {
         box-sizing: border-box;
         width: var(--fld-size); height: var(--fld-size);
         background: none; border-color: transparent;
     }
     .fld-drawer .ts-aa { font-size: calc(var(--fld-size) * .44); }
-    @media (hover: hover) {
-        .fld-drawer .ts-trigger:hover { color: var(--accent); background: var(--panel); border-color: transparent; }
+    .fld-drawer .ss-trigger svg {
+        width: calc(var(--fld-size) * var(--fld-glyph));
+        height: calc(var(--fld-size) * var(--fld-glyph));
     }
-    .fld-drawer .text-settings[open] .ts-trigger { color: var(--bg); background: var(--accent); border-color: transparent; }
+    @media (hover: hover) {
+        .fld-drawer .ts-trigger:hover,
+        .fld-drawer .ss-trigger:hover { color: var(--accent); background: var(--panel); border-color: transparent; }
+    }
+    .fld-drawer .text-settings[open] .ts-trigger,
+    .fld-drawer .scrim-share[open] .ss-trigger { color: var(--bg); background: var(--accent); border-color: transparent; }
 </style>
 
 <script>

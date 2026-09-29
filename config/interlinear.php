@@ -18,6 +18,7 @@ return [
     'languages' => [
         'hbo' => ['name' => 'Hebrew',  'rtl' => true],
         'arc' => ['name' => 'Aramaic', 'rtl' => true],
+        'syc' => ['name' => 'Syriac',  'rtl' => true],   // hub-xref: Classical Syriac (ISO 639-3)
         'grc' => ['name' => 'Greek',   'rtl' => false],
     ],
 

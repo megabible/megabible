@@ -23,7 +23,6 @@ class BookSeeder extends Seeder
             ],
 
             // Authentic Tanakh ordering: Former + Latter Prophets + the Twelve.
-            // (Ruth, Lamentations, Daniel sit in Ketuvim below, not here.)
             'neviim' => [
                 ['Josh',  'joshua',   'Joshua',   'Josh',  'OT', 6],
                 ['Judg',  'judges',   'Judges',   'Judg',  'OT', 7],
@@ -65,7 +64,6 @@ class BookSeeder extends Seeder
             ],
 
             // Deuterocanon — the books accepted in the Catholic/Orthodox canon.
-            // Placeholder rows (no verses yet) render as "in progress" on the homepage.
             'ft_deuterocanon' => [
                 ['Tob',    'tobit',              'Tobit',              'Tob',     'AP', 110],
                 ['Jdt',    'judith',             'Judith',             'Jdt',     'AP', 111],
@@ -120,7 +118,6 @@ class BookSeeder extends Seeder
                 ['Phlm',   'philemon',         'Philemon',        'Phlm',    'NT', 57],
             ],
 
-            // Hebrews is anonymous; grouped here with the General Epistles.
             'general' => [
                 ['Heb',   'hebrews', 'Hebrews', 'Heb',    'NT', 58],
                 ['Jas',   'james',   'James',   'James',  'NT', 59],

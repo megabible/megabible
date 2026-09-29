@@ -77,16 +77,16 @@
     <div class="fb-hero">
         <h1>{{ $label }}</h1>
         <span class="fb-mode">
-            Scrimboard &mdash; {{ $lang === 'en' ? 'English' : 'Spanish' }},
-            all editions, one board
+            Scrimboard &middot; {{ $lang === 'en' ? 'English' : 'Spanish' }},
+            all editions
         </span>
     </div>
 
     @if ($comingSoon)
         {{-- The reserved shape: a real page whose day hasn't come. --}}
         <p class="fb-meta">
-            Spanish scrimboards arrive with
-            <strong>megabiblia.net</strong> &mdash; the verse is waiting, and so is the board.
+            Spanish scrimboards are planned with
+            <strong>megabiblia.net</strong>.
         </p>
         <div class="fb-actions">
             <a href="{{ $hubUrl }}">&larr; All scrimboards</a>
@@ -95,15 +95,14 @@
         <p class="fb-meta">
             {{ number_format($plays) }} {{ $plays === 1 ? 'play' : 'plays' }} on this board all-time
             @unless ($sabbath)
-                &middot; {{ count($rows) }} {{ count($rows) === 1 ? 'name' : 'names' }} seated
+                &middot; {{ count($rows) }} {{ count($rows) === 1 ? 'name' : 'names' }} etched
             @endunless
-            &middot; the sabbath cut keeps the top {{ (int) config('typing.board_size') }}
         </p>
 
         <div class="fb-actions">
-            <a class="fb-play" href="{{ $playUrl }}">Type this scrim &rarr;</a>
-            <a href="{{ $readerUrl }}">Read it in context</a>
-            <a href="{{ $hubUrl }}">All scrimboards</a>
+            <a class="fb-play" href="{{ $playUrl }}">SCRIM &rarr;</a>
+            <a href="{{ $readerUrl }}">View in Reader &rarr;</a>
+            <a href="{{ $hubUrl }}">All scrimboards &rarr;</a>
         </div>
 
         <div class="fb-card">
@@ -142,9 +141,7 @@
         </div>
 
         <p class="fb-foot">
-            &#9733; marks a row crowned at the sabbath cut &mdash; it stands until unseated,
-            all week, even as new scores push past it. Names are four-character masks,
-            one seat per name; a better score under the same name takes the seat over.
+            &#9733; marks a TOP RACER
         </p>
     @endif
 @endsection

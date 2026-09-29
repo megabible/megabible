@@ -28,8 +28,14 @@
 --}}
 @section('styles')
 <style>
+    /* sc-home r2: hero blurb + builder card title */
     .sc-hero { margin: 0 0 1.4rem; }
     .sc-hero h1 { font-size: 2.4rem; font-weight: 400; margin: 0; letter-spacing: -.01em; }
+    /* The lede — vigil-home's hero paragraph, verbatim dress. */
+    .sc-hero p {
+        color: var(--muted); font-family: var(--sans); font-size: .9rem;
+        margin: .45rem 0 0; max-width: 54ch;
+    }
 
     .sc-card {
         border: 1px solid var(--rule); border-radius: 8px;
@@ -42,6 +48,21 @@
         text-transform: uppercase; letter-spacing: .08em;
         color: var(--muted); margin: 0 0 .35rem;
     }
+    /* sc-home r3: the builder's title + instruction sit ABOVE its card,
+       not inside it. The wrapper carries the sans (inside the card, .sc-card
+       supplied it) and the spacing.
+       SPACING KNOBS: margin-top = gap below the daily card (which already
+       adds 1.1rem of its own); margin-bottom = gap above the builder card. */
+    .sc-builder-head {
+        font-family: var(--sans);
+        margin: 1.4rem 0 .6rem;
+    }
+    .sc-card-title {
+        display: block;
+        font-size: 1.1rem; font-weight: 700;
+        color: var(--ink); margin: 0 0 .3rem;
+    }
+    .sc-builder-head .sc-label { margin: 0; }
     .sc-hint { font-size: .78rem; color: var(--muted); margin-top: .35rem; min-height: 1.1em; font-family: var(--sans); }
     .sc-hint.err { color: var(--accent); font-style: italic; }
 
@@ -100,6 +121,7 @@
 @section('content')
     <div class="sc-hero">
         <h1>Typing Scrimmage</h1>
+        <p>Type against the 20-second countdown. Every verse is a new race.</p>
     </div>
 
     {{-- TODAY'S DAILY — the doorway card. The ✓ badge is client-side: the
@@ -129,9 +151,13 @@
         @endif
     </div>
 
+    <div class="sc-builder-head">
+        <span class="sc-card-title">Scrimmage Builder</span>
+        <span class="sc-label">Select a Bible book, chapter, and verse to build a scrim</span>
+    </div>
+
     <div class="sc-card">
         <div class="sc-field">
-            <span class="sc-label">Select a Bible book, chapter, and verse to build a scrim</span>
             @include('bible.partials.verse-picker')
             <div class="sc-hint" id="sc-ref-hint">{{ $error ?? '' }}</div>
             {{-- The chosen verse itself, in reading dress — updates live as

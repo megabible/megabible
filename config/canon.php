@@ -43,7 +43,7 @@ return [
         // ---------- FIRST TESTAMENT ----------
         'torah' => [
             'label'    => 'Torah',
-            'subtitle' => 'The Law',
+            'subtitle' => 'The Teaching',
             'books'    => ['genesis', 'exodus', 'leviticus', 'numbers', 'deuteronomy'],
         ],
 
@@ -134,7 +134,7 @@ return [
 		
 		'catholic_epistles' => [
             'label'    => 'Catholic Epistles',
-            'subtitle' => 'Corpus Apostolicum',
+            'subtitle' => 'Corpus Catholicum',
             'books'    => [
                     'james', '1-peter', '2-peter', 'jude', 'hebrews',
                 ],
@@ -212,7 +212,7 @@ return [
     | at 0, at 1, and at 1,000.
     */
     'reader_words' => [
-        'genesis' => 'Ben Adam',
+       /* 'genesis' => 'Ben Adam', */
     ],
 
     /*

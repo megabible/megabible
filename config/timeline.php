@@ -9,6 +9,6 @@ return [
         ['label' => 'Exilic (586-538 BC)',      'start' => -586,  'end' => -538, 'color' => 'terracotta'],
         ['label' => 'Persian (538-332 BC)',     'start' => -538,  'end' => -332, 'color' => 'teal'],
         ['label' => 'Hellenistic (332-63 BC)', 'start' => -332,  'end' => -63,  'color' => 'olive'],
-        ['label' => 'Roman (63 BC on)',       'start' => -63,   'end' => 400,  'color' => 'moss'],
+        ['label' => 'Roman (63 BC on)',       'start' => -63,   'end' => 400,  'color' => 'crimson'],
     ],
 ];

@@ -1,10 +1,19 @@
 {{--
     Scrimmage Share — the share-arrow button + dropdown panel.
+    scrim-p5 (daily share)
 
     A <details> popover in the text-settings mould (same trigger circle, same
-    panel dress, ss- prefixes). Include once on the scrimmage page, inside
-    .sc-settings-slot next to the text-settings include; the page shows/hides
-    it per screen (scrim only, never the builder) through the API below.
+    panel dress, ss- prefixes). Include once on the scrimmage page, inside the
+    head's apps folder beside the text-settings include; the folder
+    component resizes the trigger to match the other apps. The page shows it
+    through the API below.
+
+    OPTIONAL WORDING (all default to the ordinary scrim's):
+      ssTitle   the panel heading            default "Share Scrimmage"
+      ssLabel   the label over the link      default "Link to this scrim"
+      ssNote    a small line under the link  default none
+    The daily passes all three: its link is the evergreen daily door, which
+    opens whatever verse is the daily THAT day — the note says so.
 
     PHASE 1 (this file): the page URL in a readonly field + a Copy button.
     PHASE 2 (future):    #ss-results is the reserved mount — after each scrim
@@ -13,12 +22,18 @@
                          and its own share button beneath the link row.
 
     The page owns the URL: it calls MBScrimShare.setUrl(url) on load, on
-    translation switch, and again with &score= once a round completes. No
-    state lives here.
+    translation switch, and again with the score param once a round
+    completes (never on the daily — its board is sealed). No state lives here.
 --}}
 
+@php
+    $ssTitle = $ssTitle ?? 'Share Scrimmage';
+    $ssLabel = $ssLabel ?? 'Link to this scrim';
+    $ssNote  = $ssNote  ?? null;
+@endphp
+
 <details class="scrim-share" id="scrimmage-share">
-    <summary class="ss-trigger" aria-label="Share this scrimmage" title="Share this scrimmage">
+    <summary class="ss-trigger" aria-label="{{ $ssTitle }}" title="{{ $ssTitle }}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
              stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"></path>
@@ -27,17 +42,20 @@
         </svg>
     </summary>
 
-    <div class="ss-panel" role="group" aria-label="Share this scrimmage">
+    <div class="ss-panel" role="group" aria-label="{{ $ssTitle }}">
         <div class="ss-head">
-            <span class="ss-title">Share Scrimmage</span>
+            <span class="ss-title">{{ $ssTitle }}</span>
         </div>
 
-        <span class="ss-label">Link to this scrim</span>
+        <span class="ss-label">{{ $ssLabel }}</span>
         <div class="ss-row">
             <input class="ss-url" id="ss-url" type="text" readonly value=""
-                   aria-label="Scrimmage link">
+                   aria-label="{{ $ssLabel }}">
             <button type="button" class="ss-copy" id="ss-copy">Copy</button>
         </div>
+        @if ($ssNote)
+            <p class="ss-note">{{ $ssNote }}</p>
+        @endif
 
         {{-- Phase 2 mount: marks card + PNG preview + PNG share render here. --}}
         <div class="ss-results" id="ss-results" hidden></div>
@@ -96,6 +114,12 @@
     }
     .ss-copy:hover{filter:brightness(1.12);}
     .ss-copy.is-done{background:var(--bg);color:var(--accent);}
+
+    /* The optional wording line under the link (the daily's). */
+    .ss-note{
+        font-family:var(--sans);font-size:.76rem;font-style:italic;
+        color:var(--muted);margin:.5rem 0 0;line-height:1.45;
+    }
 </style>
 
 @once

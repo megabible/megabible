@@ -117,15 +117,12 @@
         <h1>Scrimboards</h1>
     </div>
     <p class="hub-sub">
-        Where the typing is. Play counts are anonymous &mdash; rounds, never people
-        &mdash; and the boards run Sunday through Friday, cut at the sabbath, top
-        {{ (int) config('typing.board_size') }} crowned and defending.
+        MEGABIBLE.net tabulates rounds instead of people, which means all play counts are completely anonymous.  Boards and verses are active Sunday through Friday, with a rest on Saturday.
     </p>
 
     @if ($sabbath)
         <p class="hub-sub" style="color:var(--accent)">
-            <strong>The boards rest today.</strong> Standings are veiled until midnight;
-            the counts below keep tallying, because typing never stopped.
+            <strong>The racers rest today.</strong>
         </p>
     @endif
 
@@ -149,7 +146,7 @@
                 @endforeach
             </ol>
         @else
-            <div class="hub-empty">No rounds recorded in this period yet. Somebody type something.</div>
+            <div class="hub-empty">Somebody type something.</div>
         @endif
     </div>
 
@@ -183,9 +180,9 @@
                             </tbody>
                         </table>
                     @elseif ($sabbath)
-                        <div class="hub-empty">Resting &mdash; standings return at midnight.</div>
+                        <div class="hub-empty">The racers are resting.</div>
                     @else
-                        <div class="hub-empty">Played, never claimed &mdash; every round bounced or walked away. An open throne.</div>
+                        <div class="hub-empty">Something went wrong today.</div>
                     @endif
 
                     <div class="hub-board-link">
@@ -195,7 +192,7 @@
             @endforeach
         </div>
     @else
-        <div class="hub-card"><div class="hub-empty">No boards in this period yet.</div></div>
+        <div class="hub-card"><div class="hub-empty">No boards in this period. Yet.</div></div>
     @endif
 
     <a class="hub-back" href="{{ route('typing.scrimmage') }}">&larr; Scrimmage builder</a>

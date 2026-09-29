@@ -408,6 +408,17 @@
              the state. --}}
         <div class="head-actions">
             <x-head-folder persist="reader">
+                {{-- Watch (watch r1): the eyeball. One-shot app, drawn only
+                    when a live animation exists for this chapter; the URL
+                    lands in the video's own script edition, which may not
+                    be the one being read — intended, same fallback spirit
+                    as the homepage's book links. --}}
+                @if (!empty($watchUrl))
+                    <a class="fld-app" href="{{ $watchUrl }}"
+                    aria-label="Watch this chapter" title="Watch this chapter">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                    </a>
+                @endif    
                 {{-- Vigil: the candle. Now a sheet app (partials/vigil-sheet)
                      like pericope and Aa — opening it no longer toggles the
                      Vigil; its Begin action does, carrying the lowest selected

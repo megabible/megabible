@@ -565,7 +565,7 @@
             <h2 class="no-clear">Overview</h2>
             <div class="overview-placeholder">
                 <p class="ph-script">We are working on finding the best excerpt for this book. Please return soon.</p>
-                <p class="ph-block">MEGABIBLE.net does not use AI generated copy. </p><p class="ph-block">All excerpts on MEGABIBLE.net are handpicked by real humans, read from real books. Thank you for you patience as we work on filling out the 91 book corpus.</p>
+                <p class="ph-block">MEGABIBLE.net does not use AI generated copy. </p><p class="ph-block">All excerpts on MEGABIBLE.net are hand-picked by real humans, read from real books. Thank you for your patience as we work on filling out the 91 book corpus.</p>
             </div>
 
             {{-- hub-src r2.1: at the float breakpoint, stretch the dotted box

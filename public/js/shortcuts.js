@@ -1,5 +1,6 @@
 /*
  * shortcuts.js — global desktop keyboard shortcuts for MEGABIBLE.net.
+ * shortcuts r2 (page modes)
  *
  * Loaded on every page from app.blade.php (defer). It is deliberately
  * defensive: it does nothing while you're typing, nothing when a modifier
@@ -18,6 +19,17 @@
  *                        an open .tx first, then an open .qn. The synthesis
  *                        study board owns its OWN Escape in focus-synthesis.js
  *                        (it's an aria-modal dialog), so we don't touch it here.
+ *
+ * PAGE MODES (r2). A page can narrow what this file answers to by setting
+ * window.MBShortcutsMode in any inline script. Read on EVERY keystroke, not
+ * once at load — so the page's inline script and this deferred file can
+ * arrive in either order and it still holds.
+ *
+ *   (unset)          → everything above.
+ *   'search-only'    → only "/" and Escape. No letters, no arrows. For pages
+ *                      where the keyboard is the instrument — the typing
+ *                      scrimmage, where a stray "t" between rounds used to
+ *                      spring the translation switcher open.
  *
  * Chapter nav behaves like a real button press: the matching arrow LIGHTS UP
  * (.is-active) on keydown and the navigation commits on keyup. Holding the key
@@ -47,6 +59,11 @@
             || tag === 'TEXTAREA'
             || tag === 'SELECT'
             || el.isContentEditable === true;
+    }
+
+    // The page's declared mode, read fresh each time (see PAGE MODES above).
+    function searchOnly() {
+        return window.MBShortcutsMode === 'search-only';
     }
 
     // Which chapter side, if any, a key refers to. Letters are lower-cased so
@@ -158,6 +175,13 @@
             return;
         }
 
+        // Search-only pages: "/" is the one key left; everything else passes
+        // straight through untouched (never prevented, never swallowed).
+        if (searchOnly()) {
+            if (e.key === '/') focusSearch(e);
+            return;
+        }
+
         const side = chapterSide(e);
         if (side) { armChapter(side, e); return; }         // highlight now, go on release
 
@@ -174,4 +198,7 @@
     // Safety: if focus leaves the window mid-hold (alt-tab), don't strand a
     // highlighted arrow with no keyup coming.
     window.addEventListener('blur', clearArmed);
+
+    // Deploy tripwire: a stale cached copy won't print this.
+    if (window.console) console.log('[shortcuts] r2');
 })();
