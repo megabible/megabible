@@ -349,8 +349,9 @@
         .soc-youtube{ -webkit-mask-image:url('{{ asset('images/youtube.svg') }}'); mask-image:url('{{ asset('images/youtube.svg') }}'); }
         .soc-insta  { -webkit-mask-image:url('{{ asset('images/instagram.svg') }}');   mask-image:url('{{ asset('images/instagram.svg') }}'); }
         .soc-tiktok { -webkit-mask-image:url('{{ asset('images/tiktok.svg') }}');  mask-image:url('{{ asset('images/tiktok.svg') }}'); }
-        .soc-discord{ -webkit-mask-image:url('{{ asset('images/discord.svg') }}'); mask-image:url('{{ asset('images/discord.svg') }}'); }
-        .soc-email  { -webkit-mask-image:url('{{ asset('images/newsletter.svg') }}');   mask-image:url('{{ asset('images/newsletter.svg') }}'); }
+        .soc-reddit { -webkit-mask-image:url('{{ asset('images/reddit.svg') }}'); mask-image:url('{{ asset('images/reddit.svg') }}'); }
+        .soc-discord { -webkit-mask-image:url('{{ asset('images/discord.svg') }}'); mask-image:url('{{ asset('images/discord.svg') }}'); }
+        .soc-github { -webkit-mask-image:url('{{ asset('images/github.svg') }}');   mask-image:url('{{ asset('images/github.svg') }}'); }
 
         .chapter-nav{
             /* Resting spot, measured from the TOP of the viewport. Because the
@@ -787,22 +788,12 @@
             </div>
 
             <nav class="footer-social" aria-label="MEGABIBLE.net social links">
-                <a href="https://www.youtube.com/@MEGABIBLE" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on YouTube" title="YouTube">
-                    <span class="soc-ico soc-youtube" aria-hidden="true"></span>
-                </a>
-                <a href="https://www.instagram.com/megabibledotnet" target="_blank" rel="noopener" aria-label="MEGABIBLE on Instagram" title="Instagram">
-                    <span class="soc-ico soc-insta" aria-hidden="true"></span>
-                </a>
-                <a href="#" target="_blank" rel="noopener" aria-label="MEGABIBLE on TikTok" title="TikTok">
-                    <span class="soc-ico soc-tiktok" aria-hidden="true"></span>
-                </a>
-                <a href="https://discord.gg/UGNCFD3e" target="_blank" rel="noopener" aria-label="MEGABIBLE on Discord" title="Discord">
+                <a href="https://discord.gg/UGNCFD3e" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on Discord" title="Discord">
                     <span class="soc-ico soc-discord" aria-hidden="true"></span>
                 </a>
-                <button type="button" aria-label="Join our newsletter" title="Join our newsletter"
-                        onclick="megabibleNewsletter()">
-                    <span class="soc-ico soc-email" aria-hidden="true"></span>
-                </button>
+                <a href="https://github.com/megabible/megabible" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on Github" title="Github">
+                    <span class="soc-ico soc-github" aria-hidden="true"></span>
+                </a>
             </nav>
         </div>
     </footer>

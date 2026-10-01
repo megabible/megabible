@@ -85,7 +85,7 @@
         <p class="lead">
             Plain-language version: MEGABIBLE.net is free, ad-free, and built to
             respect you. We don't track you across the web, we don't run ads, and
-            we never sell your data — because we don't collect much in the first place.
+            we never sell your data, because we do our best to not collect any.
         </p>
 
         {{-- Jump links to the two halves of the page. --}}
@@ -96,7 +96,7 @@
 
         {{-- TODO: set a real effective date when you publish this page. --}}
         <p class="legal-meta">
-            <strong>Last updated:</strong> [EFFECTIVE DATE] &nbsp;·&nbsp;
+            <strong>Last updated:</strong> 2026-10-01 &nbsp;·&nbsp;
             This page is written in plain English. It isn't legal advice, and if
             your needs are formal you may want a lawyer to review it.
         </p>

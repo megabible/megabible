@@ -442,7 +442,10 @@
             el.style.top  = '0px';
             el.style.maxWidth = Math.min(MAX_W, vw - 16) + 'px';
             document.body.appendChild(el);
-            var w = el.offsetWidth;
+            // tl-fix r10.1: measure the fractional width and round UP.
+            // offsetWidth rounds to the nearest pixel, and pinning a panel
+            // half a pixel narrower than its text wraps the book name.
+            var w = Math.ceil(el.getBoundingClientRect().width);
             el.style.width = w + 'px';
             var h = el.offsetHeight;
 

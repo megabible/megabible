@@ -171,7 +171,11 @@
     /* Hover popover — the reader's .fn-pop, verbatim. */
     .fn-pop {
         position: absolute;
-        z-index: 90;
+        /* tl-fix r10.1: 25, not the reader's 90. Above all hub content,
+           but BELOW the sticky head (30) and the FAB/panel chrome (40+),
+           so a panel scrolled up under the header slides beneath it like
+           everything else, instead of painting over it. */
+        z-index: 25;
         padding: .55rem .7rem;
         background: var(--bg);
         border: 1px solid var(--rule);

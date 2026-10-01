@@ -234,7 +234,7 @@
 
     {{-- ============ HERO ============ --}}
     <section class="page-hero">
-        <h1 class="page-title">The #1 Bible Site in the World.</h1>
+        <h1 class="page-title">The #1 Bible Site in the World</h1>
         <p class="lead">
             <x-brand/> is a free, ad-free place to read, study, and type all <strong>91</strong> Hebrew and Christian books of the Bible.
         </p>
@@ -262,9 +262,9 @@
         <h2 class="section-head">The <x-brand/> Ethos</h2>
         <p>
             The books of the Hebrew Bible have been in circulation for over two thousand years, and the 
-            books of the Christian Bible for almost as long. These sacred works were a luxury for the rich
+            books of the Christian Bible for almost as long. These sacred works were a luxury for the few
             until the advent of the printing press in the 15th century, which fueled the spread of the Bible and the Protestant Reformation.
-            This boon of free information made Jewish and Christian theology accessible to the common man and woman.
+            This boon of freely accessible information put Jewish and Christian theology in the hands of the common man and woman.
         </p>
 
         <blockquote class="ethos-verse">
@@ -281,8 +281,10 @@
         <p>            
             In the last century, there has been a gold rush to create copyrighted translations of these Bible books,
             resulting in an ever-growing translation catalog that has become daunting to the lay reader. Additionally, the dawn of the world wide web
-            saw the rise of numerous Bible websites, the most popular of which host multiple advertisements right next to the verses themselves,
-            our modern illuminated Bible, while popular Bible software services place valuable tools and scholarly information behind paywalls and subscriptions.
+            saw the rise of numerous Bible websites, most of them limited to the 66 book Protestant canon, and the most popular of which host multiple 
+            advertisements right next to the verses themselves, our modern illuminated Bible! In the digital space, popular Bible software services 
+            have increasingly placed valuable tools and scholarly information behind paywalls and subscriptions. All of these modern maladies make it 
+            harder for today's Bible reader to read in peace and with ease.
         </p>
         <p>
             <strong>Not so at <x-brand/></strong>
@@ -301,12 +303,13 @@
         </blockquote>
 
         <p>
-            Here, we host the extended 91 book Bible canon entirely in the public domain. The majority of the corpus is covered by two 
-            English translations, one traditional (KJV) and one modern (World English Bible, completed in 2020). Extended Apocryphal works are hosted
-            with the same level of detail, with cross-references to the main canonical body.
+            We host the extended 91 book Bible canon entirely in the public domain. The majority of the corpus is covered by two 
+            English translations: one traditional (KJV) and one modern (World English Bible, completed in 2020). Each verse easily shows its original Hebrew, 
+            Aramaic, or Greek, with an easy to read transliteration to get to know the original languages better. Extended Apocryphal works are hosted
+            with the same level of detail, including cross-references to the main canonical body.
         </p>
         <p>  
-            These books are divided further into the following subgroups:
+            The 91 books are divided further into the following subgroups:
         </p>
         @foreach ($canonGroups as $group)
             <h3 class="canon-group-head">{{ $group['label'] }}<span class="cnt">({{ $group['count'] }} books)</span></h3>
@@ -323,7 +326,7 @@
             </ul>
         @endforeach
         <p>
-            This library of books is hosted on <x-brand/> sponsor-free and ad-free, allowing readers to copy as much
+            This library of books is hosted on <x-brand/> ad-free, allowing readers to copy as much
             of the text for their own purposes as they need. Every text shows its provenance
             and original source.
         </p>
@@ -415,7 +418,7 @@
             </p>
             <dl class="apps">
                 <dt><a href="{{ route('typing.vigil.home') }}">Typing Vigil<span class="go">&rarr;</span></a></dt>
-                <dd>Type all 91 books of the Bible, one verse at a time. Progress is tracked without any user accounts or passwords.</dd>
+                <dd>Type all 91 books of the Bible, one verse at a time. Progress is tracked on your local device only, without any user accounts or passwords.</dd>
                 <dt><a href="{{ route('typing.scrimmage') }}">Typing Scrimmage<span class="go">&rarr;</span></a></dt>
                 <dd>Every verse in the Bible is a race against the 20 second clock. Type your favorite verse in a friendly Scrim and share it with
                 a friend to etch names on the Scrimboard.</dd>

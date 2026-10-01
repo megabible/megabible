@@ -431,7 +431,7 @@
     <div class="acts-cards">
         <div class="acts-card">
             <h2>Export</h2>
-            <p>Download a copy of your records in JSON format. This includes all verses typed in Vigil, all Scrimmages, text and theme preferences.</p>
+            <p>Download a copy of your records in JSON format. This includes all verses typed in Vigil, all Pericopae and verses collected, all Scrimmages, and text and theme preferences.</p>
             <button type="button" class="acts-btn" id="acts-export">Download</button>
         </div>
 
@@ -444,7 +444,7 @@
 
         <div class="acts-card danger">
             <h2>Reset</h2>
-            <p>Clear <strong>ALL</strong> records stored on this device: Vigil history, Scrimmages, text and theme preferences, and any unlocked secrets.</p><p> <strong>This cannot be undone.</strong></p>
+            <p>Clear <strong>ALL</strong> records stored on this device: Pericopae, Vigil completion, Scrimmage records, text and theme preferences, and any unlocked secrets.</p><p> <strong>This cannot be undone.</strong></p>
             <button type="button" class="acts-btn" id="acts-clear">Reset</button>
         </div>
     </div>
@@ -1369,12 +1369,12 @@
                     let payload;
                     try { payload = JSON.parse(reader.result); }
                     catch (e) {
-                        mbNotify(['That is not a valid record file (bad JSON).']);
+                        mbNotify(['That is not a valid MEGABIBLE.net record file (bad JSON).']);
                         return;
                     }
                     if (!payload || payload.app !== 'megabible' ||
                         payload.kind !== 'user-record' || typeof payload.data !== 'object') {
-                        mbNotify(['That is not a MEGABIBLE record file.']);
+                        mbNotify(['That is not a MEGABIBLE.net record file.']);
                         return;
                     }
 
@@ -1384,7 +1384,7 @@
                     mbConfirm(
                         ['Restore this record?',
                          keys.length + ' entries, exported ' + when + '.',
-                         'Matching entries on this device will be overwritten.'],
+                         'Existing data on this device will be overwritten!'],
                         { confirmLabel: 'Restore', cancelLabel: 'Cancel' }
                     ).then(function (go) {
                         if (!go) { mbNotify(['Import cancelled.']); return; }
@@ -1412,20 +1412,20 @@
         const clearBtn = $('acts-clear');
         if (clearBtn) clearBtn.addEventListener('click', function () {
             mbConfirm(
-                ['Clear everything this device remembers?',
-                 'Vigil history, scrimmage acts, text settings, theme, and any unlocked secrets will all be erased.'],
-                { confirmLabel: 'Continue', cancelLabel: 'Cancel' }
+                ['Reset everything this device remembers?',
+                 'Pericopae, Typing Vigil history, Scrimmage records, text settings, theme, and any unlocked secrets will all be erased.'],
+                { confirmLabel: 'Continue', cancelLabel: 'Nevermind!' }
             ).then(function (one) {
                 if (!one) return;
                 return mbConfirm(
-                    ['Are you absolutely sure?',
-                     'This cannot be undone. There is no way to recover your record once it is cleared.',
-                     'Consider exporting your record first.'],
-                    { confirmLabel: 'Erase everything', cancelLabel: 'Cancel' }
+                    ['ARE YOU SURE?',
+                     'This cannot be undone. You are about to clear ALL saved records on this device. There is no way to recover these records once they are deleted.',
+                     'Consider exporting your data first, or not.'],
+                    { confirmLabel: 'RESET', cancelLabel: 'Wait STOP' }
                 ).then(function (two) {
                     if (!two) return;
                     try { localStorage.clear(); } catch (e) {}
-                    mbNotify(['Everything cleared.'], { check: true, autoReload: true });
+                    mbNotify(['System Reset Successfully.'], { check: true, autoReload: true });
                     setTimeout(function () { location.reload(); }, 700);
                 });
             });
