@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Book;
 use App\Models\Footnote;
 use App\Models\Translation;
+use App\Support\DataPath;
 use App\Support\UsfmBookMap;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -128,6 +129,13 @@ class ImportFootnotesUsfm extends Command
             $this->error('A USFM path is required unless you pass --flush.');
             return self::FAILURE;
         }
+
+        $resolved = DataPath::resolve($path);
+        if ($resolved === null) {
+            $this->error(DataPath::notFound($path));
+            return self::FAILURE;
+        }
+        $path = $resolved;
 
         $files = $this->resolveFiles($path);
         if (empty($files)) {

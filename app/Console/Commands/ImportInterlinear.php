@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Book;
 use App\Models\OriginalToken;
+use App\Support\DataPath;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -126,7 +127,7 @@ class ImportInterlinear extends Command
         }
         $dryRun = (bool) $this->option('dry-run');
 
-        $absolutePath = Storage::path($this->argument('file'));
+        $absolutePath = DataPath::resolve($this->argument('file')) ?? '';
         if (! is_file($absolutePath)) {
             $this->error("Not a readable file: {$absolutePath}");
             return self::FAILURE;

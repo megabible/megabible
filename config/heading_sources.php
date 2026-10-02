@@ -27,7 +27,7 @@ return [
     // (Oxford, 1913). For hand-entered headings in 1 Enoch, Jubilees, etc.
     'charles' => [
         'name'       => 'R. H. Charles',
-        'source_url' => 'https://archive.org/',
+        'source_url' => 'https://github.com/scrollmapper/bible_databases_deuterocanonical',
         'license'    => 'Public Domain',
         'notes'      => 'Headings transcribed from Charles’ 1913 edition',
     ],
@@ -36,6 +36,14 @@ return [
     'lake' => [
         'name'       => 'Kirsopp Lake',
         'source_url' => 'https://archive.org/details/TheApostolicFathersV1',
+        'license'    => 'Public Domain',
+        'notes'      => 'Headings extracted from PDF and plain text',
+    ],
+
+    // Kirsopp Lake
+    'wright' => [
+        'name'       => 'William Wright',
+        'source_url' => 'https://github.com/scrollmapper/bible_databases_deuterocanonical',
         'license'    => 'Public Domain',
         'notes'      => 'Headings extracted from PDF and plain text',
     ],

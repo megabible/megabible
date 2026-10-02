@@ -5,6 +5,7 @@ namespace App\Console\Commands;
 use App\Models\Book;
 use App\Models\Footnote;
 use App\Models\Translation;
+use App\Support\DataPath;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -131,10 +132,12 @@ class ImportFootnotesTsv extends Command
             $this->error('A TSV path is required unless you pass --flush.');
             return self::FAILURE;
         }
-        if (! is_file($path)) {
-            $this->error("File not found: {$path}");
+        $resolved = DataPath::resolve($path);
+        if ($resolved === null || ! is_file($resolved)) {
+            $this->error(DataPath::notFound($path));
             return self::FAILURE;
         }
+        $path = $resolved;
 
         if (! $sourceKey) {
             $this->warn('No --source-key given: rows without their own source_key column will');

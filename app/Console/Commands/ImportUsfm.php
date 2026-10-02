@@ -6,6 +6,7 @@ use App\Models\Book;
 use App\Models\Heading;
 use App\Models\Translation;
 use App\Models\Verse;
+use App\Support\DataPath;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -73,13 +74,13 @@ class ImportUsfm extends Command
     public function handle(): int
     {
         $abbreviation = strtoupper($this->argument('abbreviation'));
-        $path         = $this->argument('path');
-
-        $files = $this->resolveFiles($path);
-        if (empty($files)) {
-            $this->error("No .usfm/.sfm files found at: {$path}");
+        $path = DataPath::resolve($this->argument('path'));
+        if ($path === null) {
+            $this->error(DataPath::notFound($this->argument('path')));
             return self::FAILURE;
         }
+
+        $files = $this->resolveFiles($path);
 
         $translation = Translation::firstOrCreate(
             ['abbreviation' => $abbreviation],

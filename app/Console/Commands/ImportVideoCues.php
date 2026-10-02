@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\ChapterAnimation;
 use App\Models\Verse;
+use App\Support\DataPath;
 use Illuminate\Console\Command;
 
 /**
@@ -77,9 +78,7 @@ class ImportVideoCues extends Command
             $this->error('Give a cue file path, or --clear to remove cues.');
             return self::FAILURE;
         }
-        $path = str_starts_with($raw, '/') || preg_match('/^[A-Za-z]:[\\\\\\/]/', $raw)
-            ? $raw
-            : storage_path('app/' . ltrim($raw, '/'));
+        $path = DataPath::resolve($raw) ?? '';
 
         if (! is_readable($path)) {
             $this->error("Cannot read: {$path}");

@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Book;
 use App\Models\ChapterComplexity;
+use App\Support\DataPath;
 use Illuminate\Console\Command;
 
 /**
@@ -49,9 +50,7 @@ class ImportAnimationComplexity extends Command
     {
         // ---- Resolve the file (absolute, or relative to storage/app) ----
         $raw  = (string) $this->argument('path');
-        $path = str_starts_with($raw, '/') || preg_match('/^[A-Za-z]:[\\\\\\/]/', $raw)
-            ? $raw
-            : storage_path('app/' . ltrim($raw, '/'));
+        $path = DataPath::resolve($raw) ?? '';
 
         if (! is_readable($path)) {
             $this->error("Cannot read: {$path}");

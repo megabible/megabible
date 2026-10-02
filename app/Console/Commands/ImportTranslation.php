@@ -6,9 +6,9 @@ use App\Models\Book;
 use App\Models\Heading;
 use App\Models\Translation;
 use App\Models\Verse;
+use App\Support\DataPath;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 
 /**
  * Imports a translation from a TSV (columns: book_osis, chapter, verse, text).
@@ -63,6 +63,17 @@ use Illuminate\Support\Facades\Storage;
  * So we read lines and explode() on the tab. A tab is a tab; everything else
  * is literal text.
  *
+ * ── FILES ───────────────────────────────────────────────────────────────────
+ *
+ * The path may be ONE .tsv file or a FOLDER of them (every *.tsv inside,
+ * imported in name order). Paths resolve through App\Support\DataPath, so
+ * all of these work, from any working directory, on the dev box and server:
+ *     verses/lake                                   (relative to storage/app/private)
+ *     storage/app/private/verses/lake/didache.tsv   (relative to the project root)
+ *     /home/forge/.../verses/lake                   (absolute)
+ * --fresh runs ONCE, before the first file — never per file — so a folder
+ * import ends with every file's verses present.
+ *
  * Re-importing a file re-applies its formatting: verse format/starts_paragraph
  * are overwritten, and headings for every chapter the file touches are rebuilt
  * from the file (so editing or deleting a marker and re-importing just works).
@@ -72,15 +83,15 @@ class ImportTranslation extends Command
 {
     protected $signature = 'import:translation
                             {abbreviation : The translation abbreviation, e.g. KJV}
-                            {file : Path to TSV file (relative to storage/app/)}
+                            {path : A .tsv file OR a folder of .tsv files (absolute, project-relative, or relative to storage/app/private)}
                             {--name= : Full translation name}
                             {--year= : Year published}
                             {--license=Public Domain : License}
                             {--source= : Source URL}
-                            {--heading-source= : Default attribution key for headings in this file (see config/heading_sources.php)}
+                            {--heading-source= : Default attribution key for headings in these files (see config/heading_sources.php)}
                             {--fresh : Delete existing verses + headings for this translation before importing}';
 
-    protected $description = 'Import a translation from a TSV file (columns: book_osis, chapter, verse, text)';
+    protected $description = 'Import a translation from a TSV file or folder (columns: book_osis, chapter, verse, text)';
 
     /** Heading token → [kind, level]. */
     private const HEADING_MAP = [
@@ -94,15 +105,17 @@ class ImportTranslation extends Command
     /** Recognised block markers (poetry + prose + stanza break). */
     private const BLOCK_MARKERS = 'q[1-4]|qc|qr|qd|b|p|m|pi|pc|pr';
 
+    private const EXPECTED_HEADER = ['book_osis', 'chapter', 'verse', 'text'];
+
     public function handle(): int
     {
         $abbreviation = strtoupper($this->argument('abbreviation'));
-        $relativePath = $this->argument('file');
-        $absolutePath = Storage::path($relativePath);
+        $rawPath      = (string) $this->argument('path');
 
-        if (! is_file($absolutePath)) {
-            $this->error("Not a readable file: {$absolutePath}");
-            $this->line('(Pass the full path including the .tsv extension, and make sure it is a file, not a folder.)');
+        $files = $this->resolveFiles($rawPath);
+        if ($files === []) {
+            $this->error(DataPath::notFound($rawPath));
+            $this->line('(Give a .tsv file, or a folder containing .tsv files.)');
             return self::FAILURE;
         }
 
@@ -116,10 +129,12 @@ class ImportTranslation extends Command
             ]
         );
 
-        // Default attribution stamped on every heading in this file that doesn't
-        // carry its own inline "| src: …" override. Blank option → NULL.
+        // Default attribution stamped on every heading that doesn't carry its
+        // own inline "| src: …" override. Blank option → NULL.
         $defaultHeadingSource = $this->option('heading-source') ?: null;
 
+        // --fresh happens exactly once, before any file is read. Doing it per
+        // file would leave only the LAST file's verses behind.
         if ($this->option('fresh')) {
             $this->warn("Deleting existing verses + headings for {$abbreviation}...");
             Verse::where('translation_id', $translation->id)->delete();
@@ -128,7 +143,93 @@ class ImportTranslation extends Command
 
         $booksByOsis = Book::all()->keyBy('osis_id');
 
+        $this->info("Importing into translation: {$translation->abbreviation}");
+        if ($defaultHeadingSource) {
+            $this->line("Default heading source: {$defaultHeadingSource}");
+        }
+        $this->line(count($files) . ' file(s) to import.');
+
+        $totalImported = 0;
+        $totalSkipped  = 0;
+        $totalHeadings = 0;
+        $failed        = [];
+
+        foreach ($files as $file) {
+            $this->newLine();
+            $this->line('<comment>' . basename($file) . '</comment>');
+
+            $stats = $this->importFile($file, $translation, $defaultHeadingSource, $booksByOsis);
+            if ($stats === null) {
+                $failed[] = basename($file);     // importFile already said why
+                continue;
+            }
+
+            $totalImported += $stats['imported'];
+            $totalSkipped  += $stats['skipped'];
+            $totalHeadings += $stats['headings'];
+        }
+
+        // Update chapter_count for affected books — once, after every file.
+        $this->newLine();
+        $this->info('Updating chapter counts...');
+        DB::statement('
+            UPDATE books b
+            SET chapter_count = (SELECT MAX(chapter) FROM verses v WHERE v.book_id = b.id)
+            WHERE b.id IN (SELECT DISTINCT book_id FROM verses WHERE translation_id = ?)
+        ', [$translation->id]);
+
+        $this->info("Done. Imported {$totalImported} verses, skipped {$totalSkipped}, "
+            . "{$totalHeadings} headings, across " . (count($files) - count($failed)) . ' file(s).');
+
+        if ($failed !== []) {
+            $this->error(count($failed) . ' file(s) failed and were not imported: ' . implode(', ', $failed));
+            return self::FAILURE;
+        }
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * Turn the path argument into a sorted list of absolute .tsv paths:
+     * a single file, or every *.tsv directly inside a folder.
+     */
+    private function resolveFiles(string $raw): array
+    {
+        $path = DataPath::resolve($raw);
+        if ($path === null) {
+            return [];
+        }
+        if (is_file($path)) {
+            return [$path];
+        }
+        if (is_dir($path)) {
+            $hits = [];
+            foreach (scandir($path) as $f) {
+                if (preg_match('/\.tsv$/i', $f)) {
+                    $hits[] = rtrim($path, '/\\') . '/' . $f;
+                }
+            }
+            sort($hits);
+            return $hits;
+        }
+        return [];
+    }
+
+    /**
+     * Import one TSV. Returns ['imported', 'skipped', 'headings'] counts, or
+     * null if the file was rejected outright (bad header, unreadable).
+     */
+    private function importFile(
+        string $absolutePath,
+        Translation $translation,
+        ?string $defaultHeadingSource,
+        $booksByOsis
+    ): ?array {
         $handle = fopen($absolutePath, 'r');
+        if ($handle === false) {
+            $this->error("Could not open: {$absolutePath}");
+            return null;
+        }
 
         // Read the header as a plain line, not as CSV. Strip a UTF-8 BOM if the
         // file was saved from Excel or Notepad, otherwise the first column name
@@ -137,18 +238,11 @@ class ImportTranslation extends Command
         $headerLine = ltrim((string) $headerLine, "\u{FEFF}");
         $header     = explode("\t", rtrim($headerLine, "\r\n"));
 
-        $expectedHeader = ['book_osis', 'chapter', 'verse', 'text'];
-
-        if ($header !== $expectedHeader) {
-            $this->error('Bad header. Expected: ' . implode("\t", $expectedHeader));
+        if ($header !== self::EXPECTED_HEADER) {
+            $this->error('Bad header. Expected: ' . implode("\t", self::EXPECTED_HEADER));
             $this->error('Got: ' . implode("\t", $header ?: []));
             fclose($handle);
-            return self::FAILURE;
-        }
-
-        $this->info("Importing into translation: {$translation->abbreviation}");
-        if ($defaultHeadingSource) {
-            $this->line("Default heading source: {$defaultHeadingSource}");
+            return null;
         }
 
         $batch       = [];
@@ -235,7 +329,7 @@ class ImportTranslation extends Command
             if (count($batch) >= $batchSize) {
                 $this->flushVerses($batch);
                 $imported += count($batch);
-                $this->line("Imported {$imported} verses...");
+                $this->line("  Imported {$imported} verses...");
                 $batch = [];
             }
         }
@@ -250,17 +344,9 @@ class ImportTranslation extends Command
         // Rebuild headings for exactly the chapters this file covered.
         $this->syncHeadings($translation->id, $touched, $headingRows);
 
-        // Update chapter_count for affected books.
-        $this->info('Updating chapter counts...');
-        DB::statement('
-            UPDATE books b
-            SET chapter_count = (SELECT MAX(chapter) FROM verses v WHERE v.book_id = b.id)
-            WHERE b.id IN (SELECT DISTINCT book_id FROM verses WHERE translation_id = ?)
-        ', [$translation->id]);
+        $this->line("  {$imported} verses, {$skipped} skipped, " . count($headingRows) . ' headings.');
 
-        $this->info("Done. Imported {$imported} verses, skipped {$skipped}, "
-            . count($headingRows) . ' headings.');
-        return self::SUCCESS;
+        return ['imported' => $imported, 'skipped' => $skipped, 'headings' => count($headingRows)];
     }
 
     /** Upsert a batch of verses, including the formatting columns. */
