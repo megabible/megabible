@@ -129,6 +129,14 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Forum:wght@400;600;700&family=Bigshot+One&display=swap" rel="stylesheet">
 
+    {{-- vt r2: hold the FIRST RENDER until the parser has reached the footer
+         (id="page-foot" below). Without this, the first painted frame of a
+         new page can be a half-parsed one — header plus a naked, unstyled
+         folder — and the view transition crossfades into exactly that frame.
+         Chromium honours it (with a built-in timeout so a slow page can
+         never block forever); Safari/Firefox ignore the hint entirely. --}}
+    <link rel="expect" href="#page-foot" blocking="render">
+
     <style>
         /* =========================================================
            SHARED: design tokens + base + header/footer chrome.
@@ -299,13 +307,24 @@
            the screen on scrolled navigations.
            ========================================================= */
         :root {
-            --mb-vt-rev: 1; /* deployment tripwire */
+            --mb-vt-rev: 2; /* deployment tripwire */
         }
         @view-transition {
             navigation: auto;
         }
+        /* TRAP, LEARNED THE HARD WAY: a view-transition-name forces the
+           element to form a stacking context (css-view-transitions-1,
+           "named and transitioning"). The instant r1 shipped, the QuickNav
+           panel's z-index stopped competing globally and the panel drew
+           UNDER the chapter head / readers pill / homepage cards. So the
+           header must now carry, as a whole, a z-index above everything
+           its popup needs to cover: 100 matches the mobile sheet's own
+           "above footnote popover (90) + FAB (70)" contract. z-index is
+           ignored on static elements, hence the position:relative. */
         .site-header {
             view-transition-name: site-header;
+            position: relative;
+            z-index: 100;
         }
         .chapter-head {
             view-transition-name: chapter-head;
@@ -804,6 +823,13 @@
         }  
     </style>
 
+
+    {{-- Component styles pushed from inside the page body (head-folder, and
+         any partial that migrates later). Rendered HERE, in <head>, so a
+         component's markup can never paint before its own CSS exists.
+         Placed before the page's @yield('styles') so page rules still win. --}}
+    @stack('head-styles')
+
     @yield('styles')
 </head>
 <body>
@@ -850,7 +876,7 @@
     @yield('content')
 
     {{-- ============ SHARED FOOTER ============ --}}
-    <footer>
+    <footer id="page-foot">
         <div class="footer-inner">
             <div class="footer-text">
                 @hasSection('footer-colophon')

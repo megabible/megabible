@@ -86,6 +86,14 @@
     </div>
 </details>
 
+{{-- vt r2: this CSS is PUSHED TO <head> (the layout's @stack('head-styles')),
+     not emitted here in the body. In the body it sat 300 lines after the
+     markup it styles, and the browser's first mid-parse paint showed the
+     raw <details>: disclosure triangle, both folder glyphs, no circle —
+     the exact frame every chapter navigation flashed. The restore <script>
+     below stays in the body on purpose: it needs the markup to exist. --}}
+@once
+@push('head-styles')
 <style>
     /* ═══ THE KNOBS ═══════════════════════════════════════════════════
        --fld-size   diameter of EVERY circle: the toggle, every .fld-app,
@@ -303,6 +311,8 @@
     .fld-drawer .text-settings[open] .ts-trigger,
     .fld-drawer .scrim-share[open] .ss-trigger { color: var(--bg); background: var(--accent); border-color: transparent; }
 </style>
+@endpush
+@endonce
 
 <script>
     (function () {
