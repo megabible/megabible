@@ -115,6 +115,16 @@
     
     <title>@yield('title', 'MEGABIBLE.net')</title>
 
+    {{-- Plausible analytics — production only, so local dev doesn't pollute stats --}}
+    @production
+        <!-- Privacy-friendly analytics by Plausible -->
+        <script async src="https://plausible.io/js/pa-jTn1QX7NS9GZsXBTOt_VO.js"></script>
+        <script>
+        window.plausible=window.plausible||function(){(plausible.q=plausible.q||[]).push(arguments)},plausible.init=plausible.init||function(i){plausible.o=i||{}};
+        plausible.init()
+        </script>
+    @endproduction
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Forum:wght@400;600;700&family=Bigshot+One&display=swap" rel="stylesheet">
