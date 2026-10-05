@@ -38,12 +38,12 @@
 
     const selected = new Set();   // verse numbers currently selected
 
-    // The server-rendered title ("Genesis 2 - WEB - MEGABIBLE.net"),
+    // The server-rendered title ("Genesis 2 - WEB"),
     // restored whenever the selection empties.
     const baseTitle = document.title;
 
     // Reflect the live selection in the tab title:
-    //   "Genesis 2:4 - WEB - This is the history of the generations… | MEGABIBLE.net"
+    //   "Genesis 2:4 - WEB - This is the history of the generations…"
     // Label uses the same compact serialisation as the ?v= param
     // (so 2:4, 2:4-6, 2:4-6,9 all read naturally); the snippet is the
     // first selected verse's opening words, cut at a word boundary.
@@ -54,7 +54,7 @@
             : `${MB.book} ${serialize()}`;
         let snippet = verseText(Math.min(...selected)).replace(/\s+/g, ' ').trim();
         if (snippet.length > 60) snippet = snippet.slice(0, 60).replace(/\s+\S*$/, '') + '…';
-        document.title = `${label} - ${MB.translation} - ${snippet} | MEGABIBLE.net`;
+        document.title = `${label} - ${MB.translation} - ${snippet}`;
     };
 
     let   fab, synthEl, countEl, savedScrollY = 0, scrollLocked = false;
@@ -213,7 +213,7 @@
             parts.push(`${ref(n)}\n${verseText(n)}`);
             prev = n;
         });
-        return parts.join('\n\n') + `\n\n— ${MB.translation}, MEGABIBLE.net`;
+        return parts.join('\n\n') + `\n\n— ${MB.translation}`;
     };
 
     // Plain-text block for one card (a contiguous run). A single verse copies
@@ -223,7 +223,7 @@
         const body = run.length === 1
             ? verseText(run[0])
             : run.map(n => `${n} ${verseText(n)}`).join('\n');
-        return `${label}\n${body}\n\n— ${MB.translation}, MEGABIBLE.net`;
+        return `${label}\n${body}\n\n— ${MB.translation}`;
     };
 
     // Plain-text block for a card's INTERLINEAR side: per verse, three
@@ -244,7 +244,7 @@
 
         const label = rangeRef(run[0], run[run.length - 1]);
         const lang  = langName(IL.covered.get(run[0]));
-        return `${label} (${lang})\n${rows.join('\n\n')}\n\n— STEP Bible via MEGABIBLE.net`;
+        return `${label} (${lang})\n${rows.join('\n\n')}\n\n`;
     };
 
     // Copy text to the clipboard, with a fallback for older/non-secure

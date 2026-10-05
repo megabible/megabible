@@ -4,9 +4,9 @@
    Decorates the chapter reader with the pericope system's footprints:
    every verse already collected into a pericope gets an .in-pericope
    class (the Blade's CSS draws the canon-color underline), and each RUN —
-   consecutive verses sharing the same SET of pericopes — gets a small
+   consecutive verses sharing the same SET of pericopae — gets a small
    dot appended after its last fragment. Hovering the dot (fine pointers)
-   or tapping it (any pointer) opens a popover listing the pericopes that
+   or tapping it (any pointer) opens a popover listing the pericopae that
    hold the run, each a link to its board.
 
    PRINCIPLES

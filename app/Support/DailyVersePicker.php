@@ -215,7 +215,7 @@ class DailyVersePicker
         });
     }
 
-    /** Y-m-d in the SITE clock — the same midnight the trim and archive use. */
+    /** Y-m-d in the SITE clock, the same midnight the trim and archive use. */
     public static function normaliseDate(string|CarbonInterface|null $date = null): string
     {
         $tz = config('typing.board_trim.timezone', 'America/Denver');

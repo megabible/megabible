@@ -64,7 +64,7 @@
         calsans: { label: 'Cal Sans',       family: '"Cal Sans"' }
     };
     var PATTERNS = ['none', 'diagonal', 'grid', 'dots', 'crosshatch'];
-    // look '' = follow the site theme (parchment/pure → light, midnight/
+    // look '' = follow the site theme (day/contrast → light, night/
     // terminal → dark) until the user flips it in the deck.
     var DEFAULTS = { look: '', font: 'tinos', customUrl: '', align: 'center', color: '', pattern: 'diagonal', density: 1 };
     var CUSTOM_FONTS = false;   // custom Google Font: built, off for launch (see pericope-share.js)
@@ -189,7 +189,7 @@
     function resolvedLook() {
         if (prefs.look) { return prefs.look; }
         var t = siteTheme();
-        return (t === 'midnight' || t === 'terminal') ? 'dark' : 'light';
+        return (t === 'night' || t === 'terminal') ? 'dark' : 'light';
     }
     function toggleLook() { setPrefs({ look: resolvedLook() === 'dark' ? 'light' : 'dark' }); }
 

@@ -20,7 +20,7 @@
 @section('styles')
 <style>
     .fb-hero { margin: 0 0 .2rem; }
-    .fb-hero h1 { font-size: 2rem; font-weight: 400; margin: 0; letter-spacing: -.01em; }
+    .fb-hero h1 { font-size: 2rem; font-weight: 400; margin: 0; letter-spacing: -.01em; font-family: var(--book-font); }
     .fb-mode {
         display: block; font-family: var(--sans); font-size: .78rem;
         text-transform: uppercase; letter-spacing: .08em; color: var(--muted);
@@ -132,8 +132,7 @@
                 </table>
             @elseif ($sabbath)
                 <div class="fb-empty">
-                    The boards rest today. This one&rsquo;s standings are veiled until
-                    midnight &mdash; uncut, unchanged, merely unseen.
+                    The boards rest today.
                 </div>
             @else
                 <div class="fb-empty">No one has typed this scrimmage yet. Be the first.</div>

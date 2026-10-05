@@ -60,7 +60,7 @@
     .hub-trend li {
         display: flex; align-items: baseline; gap: .7rem;
         padding: .42rem 0; border-bottom: 1px solid var(--rule);
-        font-size: .92rem;
+        font-size: 1.22rem;
     }
     .hub-trend li:last-child { border-bottom: none; }
     .hub-trend li::before {
@@ -68,7 +68,7 @@
         flex: 0 0 1.6rem; text-align: right;
         color: var(--muted); font-variant-numeric: tabular-nums; font-size: .82rem;
     }
-    .hub-trend a { color: var(--ink); text-decoration: none; }
+    .hub-trend a { color: var(--ink); text-decoration: none; font-family: var(--book-font); }
     .hub-trend a:hover { color: var(--accent); text-decoration: underline; }
     .hub-plays {
         margin-left: auto; flex: 0 0 auto;
@@ -84,8 +84,8 @@
         border: 1px solid var(--rule); border-radius: 8px;
         padding: .9rem 1rem 1rem; background: var(--bg);
     }
-    .hub-board-ref { font-size: 1.02rem; margin: 0 0 .1rem; }
-    .hub-board-ref a { color: var(--ink); text-decoration: none; }
+    .hub-board-ref { font-size: 1.22rem; margin: 0 0 .1rem; } /* title of hottest boards */
+    .hub-board-ref a { color: var(--ink); text-decoration: none; font-family: var(--book-font); }
     .hub-board-ref a:hover { color: var(--accent); }
     .hub-board-meta { font-size: .76rem; color: var(--muted); margin: 0 0 .55rem; }
 

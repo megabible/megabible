@@ -7,7 +7,7 @@
         Text Settings                    (↺ reset)
         [ A− ] [ A+ ] [ spacing ]
         [ Serif ] [ Sans ]      ← swapped for a pressed [Monospace] in Terminal
-        [ Parchment ] [ Midnight ] [ Pure ]
+        [ Day ] [ Night ] [ Contrast ]
         [ TERMINAL ]            ← only rendered once unlocked
         ☑ Headings
         ☑ Verse numbers
@@ -93,14 +93,14 @@
 
         {{-- ── Row 3: themes ──────────────────────────────────────── --}}
         <div class="ts-row ts-row-themes">
-            <button type="button" class="ts-btn ts-theme ts-theme-parchment" title="Parchment theme">
-                <span class="ts-swatch" aria-hidden="true"></span>Parchment
+            <button type="button" class="ts-btn ts-theme ts-theme-day" title="Day theme">
+                <span class="ts-swatch" aria-hidden="true"></span>Day
             </button>
-            <button type="button" class="ts-btn ts-theme ts-theme-midnight" title="Midnight theme">
-                <span class="ts-swatch" aria-hidden="true"></span>Midnight
+            <button type="button" class="ts-btn ts-theme ts-theme-night" title="Night theme">
+                <span class="ts-swatch" aria-hidden="true"></span>Night
             </button>
-            <button type="button" class="ts-btn ts-theme ts-theme-pure" title="Pure theme">
-                <span class="ts-swatch" aria-hidden="true"></span>Pure
+            <button type="button" class="ts-btn ts-theme ts-theme-contrast" title="Contrast theme">
+                <span class="ts-swatch" aria-hidden="true"></span>Contrast
             </button>
             {{-- Shown only in Terminal: permanently pressed, not a control. --}}
             <button type="button" class="ts-btn ts-theme ts-theme-terminal"
@@ -274,15 +274,15 @@
     /* ─── Row 3 state: swatches + active theme; Terminal row ───────── */
     .ts-theme{flex-direction:column;gap:.3rem;padding:.5rem .3rem;font-size:.72rem;}
     .ts-swatch{width:22px;height:22px;border-radius:50%;display:block;}
-    .ts-theme-parchment .ts-swatch{background:#f7f1e3;}
-    .ts-theme-midnight  .ts-swatch{background:#1a1410;}
-    .ts-theme-pure      .ts-swatch{background:#ffffff;}
+    .ts-theme-day .ts-swatch{background:#f7f1e3;}
+    .ts-theme-night  .ts-swatch{background:#1a1410;}
+    .ts-theme-contrast      .ts-swatch{background:#ffffff;}
     .ts-theme-terminal  .ts-swatch{background:#33ff66;}
 
-    :root[data-theme="parchment"] .ts-theme-parchment,
-    :root[data-theme="midnight"]  .ts-theme-midnight,
-    :root[data-theme="pure"]      .ts-theme-pure,
-    :root[data-theme="terminal"]  .ts-theme-terminal{color:var(--bg);background:var(--accent);border-color:var(--accent);}
+    :root[data-theme="day"]         .ts-theme-day,
+    :root[data-theme="night"]       .ts-theme-night,
+    :root[data-theme="contrast"]    .ts-theme-contrast,
+    :root[data-theme="terminal"]    .ts-theme-terminal{color:var(--bg);background:var(--accent);border-color:var(--accent);}
 
     .ts-theme-terminal{
         display:none;grid-column:1 / -1;flex-direction:row;letter-spacing:.08em;
@@ -357,7 +357,7 @@
 
         on('.ts-reset', () => {
             // Reset every text preference to defaults, but KEEP the current
-            // theme — flipping someone's Midnight back to Parchment on a
+            // theme — flipping someone's Night back to Day on a
             // "reset text" click is jarring and rarely what they meant.
             const keepTheme = R.get().theme;
             R.reset();
@@ -368,9 +368,9 @@
         on('.ts-spacing',        () => R.cycleSpacing());
         on('.ts-font-serif',     () => R.setFont('serif'));
         on('.ts-font-sans',      () => R.setFont('sans'));
-        on('.ts-theme-parchment',() => R.setTheme('parchment'));
-        on('.ts-theme-midnight', () => R.setTheme('midnight'));
-        on('.ts-theme-pure',     () => R.setTheme('pure'));
+        on('.ts-theme-day',      () => R.setTheme('day'));
+        on('.ts-theme-night',    () => R.setTheme('night'));
+        on('.ts-theme-contrast', () => R.setTheme('contrast'));
         on('.ts-theme-terminal', () => {
             R.get().theme === 'terminal' ? R.exitTerminal() : R.setTheme('terminal');
         });

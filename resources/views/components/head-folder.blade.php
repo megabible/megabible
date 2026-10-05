@@ -53,7 +53,7 @@
     Built on <details>/<summary> like the Aa panel, so open/close is native
     and keyboard-accessible with no JS, and shortcuts.js can treat it like
     any other details dropdown. The look is the FAB's app drawer scaled up:
-    the same parchment pill, ghost circles, accent fill for the active app.
+    the same day bg pill, ghost circles, accent fill for the active app.
 
     CSS NOTE: keep each rule's braces on their own line — two adjacent
     opening braces in a Blade file read as an echo tag (see sticky-head).
@@ -93,7 +93,7 @@
                     cluster is ever allowed to derive its own size (the
                     aspect-ratio/auto-height chain let anchors collapse to
                     ~35px on some pages; fixed both ways, nothing can).
-       --fld-pad    the ring of parchment between the circles and the
+       --fld-pad    the ring of day bg between the circles and the
                     pill's edge; the pill's height and the folder circle's
                     seat both derive from it.
        --fld-glyph  every SVG glyph as a fraction of its circle.

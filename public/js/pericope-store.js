@@ -73,7 +73,7 @@
 
     // Slugs that are real routes under /extras/pericope and so can never be
     // assigned to a board (would shadow the hub's own pages).
-    var RESERVED_SLUGS = ['shared', 'verses', 'like', 'likes'];   // like/likes: the scroll r2 beacon endpoints
+    var RESERVED_SLUGS = ['shared', 'verses', 'like', 'likes', 'collected'];   // like/likes/collected: beacon endpoints (scroll r2, pc-collected r1)
 
     // Caps. Card caps are your answer to open-question #3 (150 soft / 300
     // hard); tweakable from here. Text caps stop one note from eating storage.
@@ -1029,6 +1029,48 @@
         return true;
     }
 
+    // pc-collected r1: the collected-verses beacon. Counts the verses
+    // landed through addCards into the anonymous per-book daily counter —
+    // the book_visits pattern with volume semantics. One POST per book
+    // per add (multi-book adds are rare; the loop covers them). The
+    // layout provides { url, csrf } as window.MBCollectCtx before this
+    // file runs (the bridge pattern); no context → silent no-op and the
+    // store stays storage-only. A card's verse count prefers its vv rows
+    // (exact, honours non-contiguous selections like "1-3,8"), falling
+    // back to the v1..v2 range. Imports, restores, and duplicates
+    // deliberately do NOT pass through here: collecting is the reader
+    // choosing a verse, not copying a board.
+    function beaconCollected(cards) {
+        var ctx = (typeof window !== 'undefined') ? window.MBCollectCtx : null;
+        if (!ctx || !ctx.url || !cards || !cards.length) { return; }
+
+        var counts = {}, i, c, n;
+        for (i = 0; i < cards.length; i++) {
+            c = cards[i];
+            if (!c || c.type !== 'verse' || !c.osis) { continue; }
+            n = (isArray(c.vv) && c.vv.length) ? c.vv.length
+              : ((c.v2 >= c.v1) ? (c.v2 - c.v1 + 1) : 1);
+            counts[c.osis] = (counts[c.osis] || 0) + n;
+        }
+
+        var osis;
+        for (osis in counts) {
+            if (!counts.hasOwnProperty(osis)) { continue; }
+            try {
+                fetch(ctx.url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': ctx.csrf || ''
+                    },
+                    body: JSON.stringify({ osis: osis, count: counts[osis] }),
+                    keepalive: true,
+                    credentials: 'same-origin'
+                }).catch(function () { /* counter: losses are acceptable */ });
+            } catch (e) { /* ancient browsers: nothing to do */ }
+        }
+    }
+
     // Append cards from the reader. Enforces the hard cap.
     // -> { board: doc|null, added: int, rejected: int, landed: card[] }
     //    rejected > 0 means the cap was hit; the caller surfaces the message.
@@ -1059,6 +1101,7 @@
             return { board: null, added: 0, rejected: incoming.length, landed: [] };
         }
         syncIndexEntry(board);
+        beaconCollected(toAdd);   // pc-collected r1: after the write stuck
         return { board: board, added: toAdd.length, rejected: rejected, landed: toAdd };
     }
 

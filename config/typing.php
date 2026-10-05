@@ -228,6 +228,23 @@ return [
         'pick_at'       => '00:10',
     ],
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | Share links (scrim-share r1)
+    |--------------------------------------------------------------------------
+    | host : the short-link host the share button hands out, e.g.
+    |        https://scrim.bible (no trailing slash). The redirect itself
+    |        lives in Cloudflare (scrim.bible zone → Redirect Rules), which
+    |        prefixes /extras/scrimmage onto the path. If the scrimmage
+    |        route prefix ever moves, update that rule too.
+    |        Null (unset) = share this site's own full URLs — the right
+    |        answer for local dev.
+    */
+    'share' => [
+        'host' => env('SCRIM_SHARE_HOST'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Scrimboard hub

@@ -737,6 +737,11 @@
            renaming a route never means editing a path string in here. */
         const SCRIM_URL     = @json($scrimUrlPattern);
         const READER_URL    = @json($readerUrlPattern);
+        /* scrim-share r1: the SHARE link's shape — absolute, and on the
+           short host (scrim.bible) when the server has one configured,
+           else this site's own verse URL. The controller decides; the
+           page never glues location.origin onto anything. */
+        const SHARE_URL     = @json($scrimSharePattern);
         /* The full-board page's URL shape, and how many rows a scrim page
            shows before deferring to it. The board endpoint still returns up
            to BOARD_CAP rows — the slice is purely presentation, so YOUR row
@@ -757,7 +762,7 @@
         const ROLLOVER_MS   = DAILY ? DAILY.rolloverAtMs : 0;
         /* scrim-p5: the daily's share link — the evergreen door, not this
            date's verse URL. Whoever opens it plays whatever daily is live. */
-        const DAILY_SHARE_URL = @json(route('typing.scrimmage.daily'));
+        const DAILY_SHARE_URL = @json($dailyShareUrl);
 
         /* The dial alphabet — the ONLY characters a name can hold. Order is
            the spin order: A..Z then 0..9, wrapping. */
@@ -870,19 +875,19 @@
         function readerHref(p) { return fill(READER_URL, p); }
 
         /**
-         * The share URL — this page's, plus &score= bragging once a round
-         * has one. Feeds round.shareUrl and the share panel (phase 1: the
-         * copyable link; phase 2 will hang the PNG card off the same hook).
+         * The share URL — this verse's clean link, never a score (scrim-share
+         * r2: scores stay out of URLs; phase 2's PNG card carries the
+         * bragging). Feeds round.shareUrl and the share panel. Still called
+         * after each round so round.shareUrl exists for that card.
          */
-        function syncShare(score) {
+        function syncShare() {
             // scrim-p5: the daily shares its evergreen door — and never a
             // score (the board is sealed; a marks link would leak it).
             if (DAILY) {
                 if (window.MBScrimShare) MBScrimShare.setUrl(DAILY_SHARE_URL);
                 return;
             }
-            let url = location.origin + scrimHref(params());
-            if (score) url += '?score=' + score;
+            let url = fill(SHARE_URL, params());
             if (round) round.shareUrl = url;
             if (window.MBScrimShare) MBScrimShare.setUrl(url);
         }
@@ -1183,7 +1188,7 @@
             $('sc-title').href = readerHref(params());
             renderTxSwitch();
             readyRound(roundData(slug));
-            syncShare(null);
+            syncShare();
         }
 
         /* =================================================================
@@ -1544,7 +1549,7 @@
             });
             showBonus(round.wraps, round.errors);
 
-            syncShare(Math.round(est));
+            syncShare();
 
             // No claim on the sabbath, whatever the score. The server would
             // refuse it anyway; offering dials that can only be turned away
@@ -2085,7 +2090,7 @@
                     // glowing row IS the rank announcement — a takeover earns
                     // one extra line of bragging, censored if the name is.
                     $('sc-final').textContent = j.score.final_score;
-                    syncShare(Math.round(j.score.final_score));
+                    syncShare();
 
                     // SEALED DAILY: no rank came back (the server withheld
                     // it) and no board renders. The seat is confirmed, the
@@ -2174,7 +2179,8 @@
         // but the header, clock, and verse text are already on screen.
         renderTxSwitch();
         if (window.MBScrimShare) MBScrimShare.show();
-        syncShare(null);
+        console.info('[scrimmage] share r2');
+        syncShare();
         // bootDaily arbitrates the daily's three states; true means it owns
         // the page (played or stale — no live round is armed). Ordinary
         // scrims, and a daily with an unspent shot, boot as ever.

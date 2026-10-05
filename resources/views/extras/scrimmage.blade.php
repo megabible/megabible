@@ -92,7 +92,7 @@
     /* ---- Daily card ---------------------------------------------------- */
     .sc-dailycard { margin-bottom: 1.1rem; border-left: 3px solid var(--accent); }
     .sc-daily-ref {
-        font-family: var(--reading-family); font-size: 1.25rem;
+        font-family: var(--book-font); font-size: 1.25rem;
         color: var(--ink); margin: .3rem 0 .1rem;
     }
     .sc-daily-sub { font-size: .8rem; color: var(--muted); font-family: var(--sans); }

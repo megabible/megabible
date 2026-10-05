@@ -1327,8 +1327,8 @@
     {{-- Shown when the slug doesn't resolve on this device. --}}
     <div class="pb-missing" id="pb-missing" hidden>
         <h2>Pericope not found</h2>
-        <p>It may have been deleted, or the link was made in a different browser. Pericopes live only on the device that created them.</p>
-        <a href="{{ $hubUrl }}">&larr; Back to your pericopes</a>
+        <p>It may have been deleted, or the link was made in a different browser. Pericopae live only on the device that created them.</p>
+        <a href="{{ $hubUrl }}">&larr; Back to your pericopae</a>
     </div>
 @endsection
 

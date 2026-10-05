@@ -24,7 +24,7 @@
 
        <details class="pericope-app" id="app-pericope">
            <summary class="fld-app" …>scissors</summary>
-           <div class="ps-panel" role="group" aria-label="Pericopes"></div>
+           <div class="ps-panel" role="group" aria-label="Pericopae"></div>
        </details>
 
    All storage goes through window.MBPericope (pericope-store.js); this file
@@ -66,7 +66,7 @@
 
     function render() {
         if (!window.MBPericope) {
-            panel.innerHTML = '<p class="ps-empty">Pericopes aren\u2019t available on this page.</p>';
+            panel.innerHTML = '<p class="ps-empty">Pericopae aren\u2019t available on this page.</p>';
             return;
         }
 
@@ -85,11 +85,11 @@
         // the full pericope page.
         html += '<div class="ps-head">';
         if (base) {
-            html += '<a class="ps-title" href="' + esc(base) + '">Pericopes';
+            html += '<a class="ps-title" href="' + esc(base) + '">Pericopae';
             html +=   '<svg class="ps-title-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"></polyline></svg>';
             html += '</a>';
         } else {
-            html += '<span class="ps-title">Pericopes</span>';
+            html += '<span class="ps-title">Pericopae</span>';
         }
         html += '</div>';
 
@@ -139,8 +139,8 @@
             html += '</div>';
         } else {
             html += '<p class="ps-empty">' + (h
-                ? 'No pericopes yet \u2014 name your first below.'
-                : 'No pericopes yet. Select verses in the reader to start one.') + '</p>';
+                ? 'No pericopae yet. Create your first one below.'
+                : 'No pericopae yet. Select verses in the reader to start one.') + '</p>';
         }
 
         // The new-pericope field exists ONLY while something is in hand.

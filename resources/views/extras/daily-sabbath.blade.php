@@ -44,10 +44,7 @@
     </div>
 
     <div class="sb-card">
-        There is no daily verse today. The daily rests on the sabbath, and the
-        scrimboards rest with it &mdash; you may still type any scrimmage you
-        like, but no score is kept and no name is set. Everything returns at
-        midnight tonight, boards restored, last week&rsquo;s champions crowned.
+        There is no daily verse today as the daily rests on the sabbath.
         <p class="sb-verse">
             &ldquo;Six days shall work be done: but the seventh day is the sabbath
             of rest.&rdquo; &mdash; Leviticus 23:3

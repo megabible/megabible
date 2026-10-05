@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\VerseLike;
+use App\Models\Book;
 use App\Support\BookMetadata;
 use App\Support\Fonts;
 use Illuminate\Contracts\View\View;
@@ -13,7 +14,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * PERICOPE  ·  /extras/pericope
  *
- * Milanote-for-verses: collect verses into boards ("pericopes") while reading,
+ * Milanote-for-verses: collect verses into boards ("pericopae") while reading,
  * then arrange them. Like Vigil and Acts, the data lives only in the visitor's
  * browser (localStorage, via public/js/pericope-store.js → window.MBPericope) —
  * there are no accounts and the server stores nothing about a board. So these
@@ -240,5 +241,41 @@ class PericopeController extends Controller
             });
 
         return response()->json(['counts' => $counts]);
+    }
+
+    /**
+     * PC-COLLECTED R1 · the collected-verses beacon — the vigilTyped()
+     * twin: per-book daily counter of verses landed on boards through the
+     * store's addCards() path. Board contents never touch the server;
+     * this receives only an OSIS id and a count. Volume semantics —
+     * removals never decrement, imports and duplicates never fire (the
+     * store hooks only the interactive add path).
+     */
+    public function collected(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'osis'  => 'required|string|max:16',
+            'count' => 'required|integer|min:1',
+        ]);
+
+        // Only real books count. Silent 204 either way — it's a counter,
+        // not an API; bad input earns nothing, including an error to probe.
+        if (! Book::where('osis_id', $data['osis'])->exists()) {
+            return response()->json([], 204);
+        }
+
+        // Ceiling well above any honest add (the longest chapter is 176
+        // verses).
+        $n = min((int) $data['count'], 500);
+
+        // One atomic upsert — race-proof under concurrent beacons.
+        DB::statement(
+            'INSERT INTO pericope_collects (osis, collect_date, hits, created_at, updated_at)
+             VALUES (?, ?, ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE hits = hits + ?, updated_at = NOW()',
+            [$data['osis'], now()->toDateString(), $n, $n]
+        );
+
+        return response()->json([], 204);
     }
 }

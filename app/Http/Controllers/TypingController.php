@@ -361,7 +361,7 @@ class TypingController extends Controller
                 'error'            => $request->session()->get('scrim_error'),
                 'daily'            => [
                     'date'    => $today,
-                    'label'   => 'The Sabbath — a day of rest',
+                    'label'   => 'The Sabbath, a day of rest',
                     'note'    => 'The daily returns at midnight tonight.',
                     'url'     => route('typing.scrimmage.daily'),
                     'sabbath' => true,
@@ -824,7 +824,7 @@ class TypingController extends Controller
      *
      * One verse, chosen by the ledger, the same for everyone on earth for one
      * day. Mechanically an ordinary scrim; what differs is the ceremony —
-     * one shot, results sealed until the midnight freeze, then permanent.
+     * one shot, results sealed until midnight, then permanent.
      *
      * THE DATE IS THE SERVER'S, ALWAYS. It is handed to the blade so the
      * client never computes "today" from a local clock: a player in Tokyo and
@@ -945,6 +945,8 @@ class TypingController extends Controller
 
             'scrimUrlPattern'  => $this->scrimUrlPattern(),
             'readerUrlPattern' => $this->readerUrlPattern(),
+            'scrimSharePattern' => $this->scrimSharePattern(),
+            'dailyShareUrl'     => $this->dailyShareUrl(),
             // The daily's board is sealed, so the full-board link never
             // renders there — but the blade is shared and its constants
             // must exist on every path through it.
@@ -1005,6 +1007,8 @@ class TypingController extends Controller
             ]) . '?v=' . $ch->refs[0]['verse'],
             'scrimUrlPattern'   => $this->scrimUrlPattern(),
             'readerUrlPattern'  => $this->readerUrlPattern(),
+            'scrimSharePattern' => $this->scrimSharePattern(),
+            'dailyShareUrl'     => $this->dailyShareUrl(),
             'boardUrlPattern'   => $this->boardUrlPattern(),
             'boardShow'         => (int) config('typing.hub.board_show', 20),
             // The page must know the day BEFORE the first keystroke — a
@@ -1024,6 +1028,36 @@ class TypingController extends Controller
         return route('typing.scrimmage.verse', [
             't' => '__T__', 'b' => '__B__', 'c' => '__C__', 'v' => '__V__',
         ], false);
+    }
+
+    /**
+     * scrim-share r1: the SHARE link's shape. With typing.share.host set
+     * (production: https://scrim.bible) it's the short form, which the
+     * Cloudflare redirect rule maps back onto /extras/scrimmage/…; unset,
+     * it's this site's own verse URL. Absolute either way, so the page
+     * never has to glue location.origin onto a path.
+     */
+    private function scrimSharePattern(): string
+    {
+        $host = rtrim((string) config('typing.share.host'), '/');
+
+        if ($host === '') {
+            return route('typing.scrimmage.verse', [
+                't' => '__T__', 'b' => '__B__', 'c' => '__C__', 'v' => '__V__',
+            ]);
+        }
+
+        return $host . '/__T__/__B__/__C__/__V__';
+    }
+
+    /** The daily's evergreen share door: scrim.bible/daily, or the full route. */
+    private function dailyShareUrl(): string
+    {
+        $host = rtrim((string) config('typing.share.host'), '/');
+
+        return $host === ''
+            ? route('typing.scrimmage.daily')
+            : $host . '/daily';
     }
 
     private function readerUrlPattern(): string
@@ -1192,7 +1226,7 @@ class TypingController extends Controller
     /**
      * Has this daily board been frozen into the archive yet?
      *
-     * The freeze — not midnight — is what ends a daily board. A round begun
+     * The freeze (not midnight) is what ends a daily board. A round begun
      * at 23:59 still submits to yesterday for a few minutes afterwards (see
      * the archive command's timing note), and it should be allowed to: the
      * player typed it in good faith while the day was still running. Once
@@ -1726,6 +1760,44 @@ class TypingController extends Controller
 
         // ---- 4. Once per round, no matter how many times this fires ---------
         $this->recordPlay($claim, $data['token']);
+
+        return response()->json([], 204);
+    }
+
+    /**
+     * VG-TYPED R1 · the typed-verses beacon — BibleController::seen()'s
+     * shape with scrim_plays volume semantics: hits accumulate per verse
+     * completed, no per-device dedup (retypes and multipliers count —
+     * they're real typing). The client batches completions over ~12s, so
+     * `count` rides the payload; clamped server-side because any counter
+     * endpoint is spoofable by design and a ceiling keeps one request
+     * honest-sized.
+     */
+    public function vigilTyped(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'osis'  => 'required|string|max:16',
+            'count' => 'required|integer|min:1',
+        ]);
+
+        // Only real books count. Silent 204 either way — it's a counter,
+        // not an API; bad input earns nothing, including an error to probe.
+        if (! Book::where('osis_id', $data['osis'])->exists()) {
+            return response()->json([], 204);
+        }
+
+        // Ceiling well above any honest batch (the longest chapter is 176
+        // verses; a 12-second batch is single digits).
+        $n = min((int) $data['count'], 500);
+
+        // One atomic upsert — the scrim_plays pattern: race-proof under
+        // concurrent beacons, no read-modify-write window.
+        DB::statement(
+            'INSERT INTO vigil_typed (osis, typed_date, hits, created_at, updated_at)
+             VALUES (?, ?, ?, NOW(), NOW())
+             ON DUPLICATE KEY UPDATE hits = hits + ?, updated_at = NOW()',
+            [$data['osis'], now()->toDateString(), $n, $n]
+        );
 
         return response()->json([], 204);
     }

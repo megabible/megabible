@@ -109,6 +109,7 @@
 
 /* ---- Type inside the head ----------------------------------------------- */
     .chapter-head h1 {
+        font-family: var(--book-font);
         font-size: var(--mb-head-title);
         font-weight: 400;
         margin: 0;                  /* every page wraps the h1 in its own row */
@@ -172,7 +173,7 @@
         opacity: 0;
         transition: opacity .18s ease;
         border-top: 1px solid var(--rule);
-        /* rgb of --ink (#2a1f17): a warm shadow reads better on parchment
+        /* rgb of --ink (#2a1f17): a warm shadow reads better on day bg
            than a cold pure-black one. */
         background: linear-gradient(to bottom,
             rgba(42,31,23,.20),
@@ -182,7 +183,7 @@
     .chapter-head.is-stuck::after { opacity: 1; }
 
     /* On wide screens the head no longer spans the viewport, so the line and
-       shadow would stop abruptly against the parchment at each end. This mask
+       shadow would stop abruptly against the day bg at each end. This mask
        fades the outer ~8% of the strip to nothing. Skipped on narrow screens,
        where the strip runs edge to edge and the ends fall off-screen. */
     @media (min-width: 821px) {

@@ -21,16 +21,14 @@ return [
         'first' => [
             'label' => 'First Testament',
             'blurb' => [
-                'The Hebrew Scriptures. These are the first documents of the revelation of YHWH to mankind, the earliest of which were written 3,000 years ago.',
-                'These books are arranged in the Hebrew Tanakh format: Torah, Nevi’im, and Ketuvim. Also included are the wider Deuterocanonical works and lesser known Apocryphal texts.',
+                'These books are arranged in the Hebrew Tanakh format: [[torah|Torah]], [[neviim|Nevi’im]], and [[ketuvim|Ketuvim]]. Also included are the wider [[ft_deuterocanon|Deuterocanonical]] works and lesser known [[ft_apocrypha|Apocryphal]] texts.',
             ],
             'sections' => ['torah', 'neviim', 'ketuvim', 'ft_deuterocanon', 'ft_apocrypha'],
         ],
         'second' => [
             'label' => 'Second Testament',
             'blurb' => [
-                'The Christian Scriptures. Not a replacement but a continuation, the writers of the Second Testament entirely relied on the framework and vocabulary of the First.',
-                'Written and compiled 2,000 years ago in the ancient Roman Empire, the recognized Second Testament documents include the first Pauline Epistles, the Synoptic Gospels and Acts of the Apostles, the Johannine Writings, the Pastoral Epistles, the Catholic Epistles, and an expanded Apocryphal tradition of scriptures which were considered canon in centuries past.',
+                'Written and compiled 2,000 years ago in the ancient Roman Empire, the recognized Second Testament documents include the first [[pauline_epistles|Pauline Epistles]], the [[gospels_acts|Synoptic Gospels and Acts of the Apostles]], the [[johannine|Johannine Writings]], the [[pastoral_epistles|Pastoral Epistles]], the [[catholic_epistles|Catholic Epistles]], and an expanded [[st_apocrypha|Apocryphal]] tradition of scriptures which were considered canon in centuries past.',
             ],
             'sections' => ['pauline_epistles', 'gospels_acts', 'johannine', 'pastoral_epistles', 'catholic_epistles', 'st_apocrypha'],
         ],

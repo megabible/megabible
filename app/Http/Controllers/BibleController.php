@@ -522,41 +522,164 @@ class BibleController extends Controller
             ->header('Cache-Control', 'public, max-age=3600');
     }
 
+ 
+    /* =========================================================================
+    hp-hero r1 — BibleController::index()
+    -------------------------------------------------------------------------
+    Everything
+    down to the end of the $linkTranslation loop is UNCHANGED; the new block
+    is the "top five books this week" section, and the view() call gains one
+    key ('topBooks').
+    
+    IMPORT CHECK — the method uses these facades/classes. Cache, DB, and Str
+    are already imported (showBook uses all three).
+    ========================================================================= */
+    
     public function index(Request $request): View
     {
         // Fast slug → Book lookup so the view can resolve the slugs in config/canon.php.
         $books = Book::all()->keyBy('slug');
+    
+        // The never-404 link rule, shared with Top Books — see
+        // resolveLinkTranslations() for the full story.
+        $linkTranslation = $this->resolveLinkTranslations($request);
+    
+        // hp-hero r1: the five most-read books over the rolling seven-day window
+        // (today + the previous six) — the readers pill's exact window, summed
+        // per book from the anonymous daily counters. Cached briefly, RAW ROWS
+        // ONLY: nothing route() produced ever goes in the cache (the scrimboard
+        // hub lesson — a cached absolute URL is a snapshot of whoever warmed it).
+        $topRows = Cache::remember('home:top-books', now()->addMinutes(10), function () {
+            return DB::table('book_visits')
+                ->where('visit_date', '>=', now()->subDays(6)->toDateString())
+                ->select('osis', DB::raw('SUM(hits) as hits'))
+                ->groupBy('osis')
+                ->orderByDesc('hits')
+                ->limit(5)
+                ->get()
+                // PLAIN ARRAYS into the cache — never raw row objects. Scalars and
+                // arrays survive every cache serializer identically; row objects
+                // are at the mercy of the store. Same reason the pill caches a
+                // bare int and the scrimboard hub caches arrays.
+                ->map(fn ($r) => ['osis' => (string) $r->osis, 'hits' => (int) $r->hits])
+                ->all();
+        });
+    
+        // Resolve each cached row to a live book + link + colour per request.
+        // A row is skipped if its book vanished (re-import churn) or has no
+        // verses anywhere (no linkTranslation entry — can't happen for a book
+        // that earned visits, but cheap to guard). Fewer than five rows just
+        // renders fewer chips; zero rows hides the strip entirely (the view's
+        // count() guard), which is the honest face on a fresh database.
+        $byOsis   = $books->keyBy('osis_id');
+        $topBooks = [];
+        foreach ($topRows as $row) {
+            // Self-heal: if a stale cached value from before this fix is still
+            // inside its TTL, skip its entries instead of crashing — the strip
+            // just renders empty until the key expires or is cleared.
+            if (! is_array($row) || ! isset($row['osis'])) {
+                continue;
+            }
 
-        // Point the homepage at the translation the reader last viewed (remembered by
-        // the RememberTranslation middleware), falling back to KJV if the cookie is
-        // absent or stale.
+            $bk = $byOsis->get($row['osis']);
+            $tx = $bk ? ($linkTranslation[$bk->id] ?? null) : null;
+            if (! $tx) {
+                continue;
+            }
+
+            $topBooks[] = [
+                'name'  => config('canon.home_names.' . $bk->slug) ?? $bk->name,
+                'short' => config('canon.home_short_names.' . $bk->slug),
+                'hits'  => $row['hits'],
+                'word'  => config('canon.reader_words.' . $bk->slug)
+                        ?? Str::plural('reader', $row['hits']),
+                'color' => BookMetadata::colorFor($bk),
+                'href'  => route('bible.book', [$tx, $bk->slug]),
+            ];
+        }
+    
+        // hp-demo r1: the hero's synthesis-card facsimile — Genesis 1:1 in
+        // the KJV, flipped against the SAME /interlinear endpoint the
+        // reader's cards use, so the demo can never drift from the real
+        // thing. Null (and the blade hides the card) if the verse isn't
+        // imported. The leading pilcrow some KJV verses carry is display
+        // noise on a hero card and is trimmed.
+        $demo    = null;
+        $kjvTx   = Translation::findBySlug('kjv');
+        $genesis = $books->get('genesis');
+        if ($kjvTx && $genesis) {
+            $v = Verse::where('translation_id', $kjvTx->id)
+                ->where('book_id', $genesis->id)
+                ->where('chapter', 1)
+                ->where('verse_number', 1)
+                ->first();
+            if ($v) {
+                $demo = [
+                    'text' => preg_replace('/^\x{00B6}\s*/u', '', $v->text),
+                    'ref'  => 'Genesis 1:1',
+                    'tx'   => 'KJV',
+                    'lang' => 'Hebrew',   // eternally true for this verse
+                    'url'  => route('bible.interlinear', ['kjv', 'genesis', 1]) . '?v=1',
+                ];
+            }
+        }
+
+        // hp-ring r1: run each testament blurb through the token linkifier
+        // (see linkifyBlurb) so the view can raw-echo pre-escaped HTML.
+        $testaments = config('canon.testaments', []);
+        foreach ($testaments as $tKey => $t) {
+            $testaments[$tKey]['blurb'] = array_map(
+                fn ($p) => $this->linkifyBlurb((string) $p),
+                (array) ($t['blurb'] ?? [])
+            );
+        }
+
+        return view('bible.index', [
+            'testaments' => $testaments,
+            'sections'        => config('canon.sections'),
+            'books'           => $books,
+            'linkTranslation' => $linkTranslation,
+            'demo'            => $demo,
+            'topBooks'        => $topBooks,   // hp-hero r1
+        ]);
+    }
+
+    /**
+     * TB-RANK R1 · the never-404 link rule, shared by the homepage and the
+     * Top Books table — extracted verbatim from index() so the two can't
+     * drift. For every book with verses in SOME translation, pick the URL
+     * slug a link should use: the reader's remembered translation if it
+     * has the book, else the highest-priority translation that does.
+     *
+     * @return array<int,string>  book_id => translation URL slug
+     */
+    private function resolveLinkTranslations(Request $request): array
+    {
+        // The translation the reader last viewed (remembered by the
+        // RememberTranslation middleware), falling back to KJV if the
+        // cookie is absent or stale.
         $pref    = strtolower($request->cookie('reader_translation', 'kjv'));
         $primary = Translation::findBySlug($pref) ?? Translation::findBySlug('kjv');
 
-        // All translations, ordered by priority: global (full-canon) editions first,
-        // then sort_order within each tier. Used both to resolve a translation's URL
-        // slug and to pick a sensible fallback when the reader's current translation
-        // doesn't carry a given book.
+        // All translations, ordered by priority: global (full-canon)
+        // editions first, then sort_order within each tier.
         $translations = Translation::orderByDesc('is_global')
             ->orderBy('sort_order')
             ->get()
             ->keyBy('id');
 
-        // Every (book, translation) pair that actually has verses, grouped by book.
-        // A book may appear under several translations (Genesis in KJV + WEB) or just
-        // one (Psalm 151 in WEB only; later, 1 Enoch in its own lone edition).
+        // Every (book, translation) pair that actually has verses.
         $availableByBook = DB::table('verses')
             ->select('book_id', 'translation_id')
             ->distinct()
             ->get()
             ->groupBy('book_id');
 
-        // For every book that exists in *some* translation, decide where a homepage
-        // click should land:
-        //   1. the reader's current translation, if it has the book (stay put), else
-        //   2. the highest-priority translation that does (so the link never 404s).
-        // Books absent from this map (no verses anywhere yet) fall through to a
-        // dashed "soon" placeholder in the view.
+        // For every book that exists in *some* translation:
+        //   1. the reader's current translation, if it has the book, else
+        //   2. the highest-priority translation that does.
+        // Books absent from this map (no verses anywhere yet) are the
+        // caller's "soon" case.
         $linkTranslation = [];   // book_id => translation URL slug
         foreach ($availableByBook as $bookId => $rows) {
             $ids = $rows->pluck('translation_id')->all();
@@ -570,13 +693,141 @@ class BibleController extends Controller
             }
         }
 
-        return view('bible.index', [
-            'testaments'      => config('canon.testaments'),
-            'sections'        => config('canon.sections'),
-            'books'           => $books,
-            'linkTranslation' => $linkTranslation,
-        ]);
+        return $linkTranslation;
     }
+
+    /**
+     * HP-RING R1 · blurb deep links. canon.php blurbs may carry
+     * [[section_key|Display text]] tokens; this escapes the WHOLE
+     * paragraph first, then swaps each token for a #section_key anchor
+     * tinted with that section's palette colour — so the only unescaped
+     * bytes in the output are the ones this method wrote itself. An
+     * unknown key degrades to its plain text, so a canon.php typo can
+     * never ship a dead link.
+     */
+    private function linkifyBlurb(string $para): string
+    {
+        $colors   = config('canon.section_colors', []);
+        $sections = config('canon.sections', []);
+
+        return preg_replace_callback(
+            '/\[\[([a-z0-9_]+)\|([^\]|]+)\]\]/',
+            function ($m) use ($colors, $sections) {
+                if (! isset($sections[$m[1]])) {
+                    return $m[2];                      // typo-proof fallback
+                }
+                $cg = $colors[$m[1]] ?? 'clay';
+                return '<a href="#' . $m[1] . '" style="--cg:var(--tl-' . $cg . ')">' . $m[2] . '</a>';
+            },
+            e($para)
+        );
+    }
+
+    /**
+     * TB-RANK R1 · /extras/top-books — the whole canon ranked by the four
+     * anonymous counters. Weekly window by default (the pill's rolling
+     * seven days); ?window=all for all-time. Aggregates are cached as
+     * PLAIN SCALAR ARRAYS only (house rule — never row objects, never
+     * route() output); names, links, and colours resolve per request.
+     */
+    public function topBooks(Request $request): View
+    {
+        $window = $request->query('window') === 'all' ? 'all' : 'weekly';
+
+        $agg = Cache::remember('topbooks:' . $window, now()->addMinutes(10), function () use ($window) {
+            $since = $window === 'weekly' ? now()->subDays(6)->toDateString() : null;
+
+            // osis => hits for the three osis-keyed counter tables. One
+            // grouped SUM each; $since === null is the all-time case.
+            $sum = function (string $table, string $dateCol) use ($since): array {
+                $q = DB::table($table)
+                    ->select('osis', DB::raw('SUM(hits) as n'))
+                    ->groupBy('osis');
+                if ($since) {
+                    $q->where($dateCol, '>=', $since);
+                }
+                return array_map('intval', $q->pluck('n', 'osis')->all());
+            };
+
+            // scrim_plays is slug-keyed and counts in `plays`. No mode or
+            // lang filter — "scrimmed" means every finished round, both
+            // modes, both languages, by this page's definition.
+            $scrim = DB::table('scrim_plays')
+                ->select('book_slug', DB::raw('SUM(plays) as n'))
+                ->whereNotNull('book_slug')
+                ->groupBy('book_slug');
+            if ($since) {
+                $scrim->where('play_date', '>=', $since);
+            }
+
+            return [
+                'readers'   => $sum('book_visits', 'visit_date'),
+                'typed'     => $sum('vigil_typed', 'typed_date'),
+                'collected' => $sum('pericope_collects', 'collect_date'),
+                'scrimmed'  => array_map('intval', $scrim->pluck('n', 'book_slug')->all()),
+            ];
+        });
+
+        // One row per canon book, built in canon display order — the same
+        // testaments → sections → subgroups walk the homepage renders, so
+        // the two pages can never disagree about what "the canon" is.
+        $books           = Book::all()->keyBy('slug');
+        $linkTranslation = $this->resolveLinkTranslations($request);
+
+        $rows = [];
+        $pos  = 0;
+        foreach (config('canon.testaments', []) as $testament) {
+            foreach (($testament['sections'] ?? []) as $sectionKey) {
+                $section = config('canon.sections.' . $sectionKey);
+                if (! $section) {
+                    continue;
+                }
+                $groups = $section['subgroups'] ?? [['books' => $section['books'] ?? []]];
+                foreach ($groups as $group) {
+                    foreach (($group['books'] ?? []) as $slug) {
+                        $bk = $books->get($slug);
+                        if (! $bk) {
+                            continue;
+                        }
+
+                        $typed     = $agg['typed'][$bk->osis_id]     ?? 0;
+                        $collected = $agg['collected'][$bk->osis_id] ?? 0;
+                        $scrimmed  = $agg['scrimmed'][$slug]         ?? 0;
+                        $tx        = $linkTranslation[$bk->id]       ?? null;
+
+                        $rows[] = [
+                            'canon'     => $pos++,   // stable tie-break + the Book column's sort key
+                            'name'      => config('canon.home_names.' . $slug) ?? $bk->name,
+                            // tb-abbr r2: the homepage's short-name chain —
+                            // only the handful of genuinely long names have
+                            // one ("1 Thess", "Wisdom of Sol"). The DB
+                            // short_name abbreviations from r1 are retired:
+                            // the mobile view is now Book + Total only, so
+                            // full names fit.
+                            'abbr'      => config('canon.home_short_names.' . $slug),
+                            'color'     => BookMetadata::colorFor($bk),
+                            'href'      => $tx ? route('bible.book', [$tx, $slug]) : null,
+                            'readers'   => $agg['readers'][$bk->osis_id] ?? 0,
+                            'typed'     => $typed,
+                            'scrimmed'  => $scrimmed,
+                            'collected' => $collected,
+                            'total'     => $typed + $scrimmed + $collected,
+                        ];
+                    }
+                }
+            }
+        }
+
+        // Server-side default order: readers descending, canon tie-break —
+        // the first paint matches the sorter's default state, and a no-JS
+        // visitor still gets a fully ranked page.
+        usort($rows, fn ($a, $b) => [$b['readers'], $a['canon']] <=> [$a['readers'], $b['canon']]);
+
+        return view('extras.topbooks', [
+            'rows'   => $rows,
+            'window' => $window,
+        ]);
+    }    
 
     /**
      * VERSE PERMALINK  ·  /bible/{t}/{b}/{c}/{v}  →  301 → chapter ?v={v}

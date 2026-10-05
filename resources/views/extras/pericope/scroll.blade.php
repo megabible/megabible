@@ -106,7 +106,7 @@
 
         <div class="pb-empty" id="pb-empty" hidden>
             <h2>This pericope is empty</h2>
-            <p>Add verses while reading: select a verse, open the folder, and choose the scissors. The feed builds itself from the board.</p>
+            <p>Add verses while reading: select a verse, open the folder, and choose the scissors.</p>
             <a href="{{ $gridUrl }}">Open the board &rarr;</a>
         </div>
     </div>
@@ -114,8 +114,8 @@
     {{-- Shown when the slug doesn't resolve on this device. --}}
     <div class="pb-missing" id="pb-missing" hidden>
         <h2>Pericope not found</h2>
-        <p>It may have been deleted, or this address was made in a different browser. Pericopes live only on the device that created them &mdash; the Share link is how a board travels.</p>
-        <a href="{{ $hubUrl }}">&larr; Back to your pericopes</a>
+        <p>It may have been deleted, or this address was made in a different browser. Pericopae live only on the device that created them.</p>
+        <a href="{{ $hubUrl }}">&larr; Back to your pericopae</a>
     </div>
 @endsection
 

@@ -297,10 +297,10 @@
                     'actionLabel' => 'Back to reader',
                 ])
                 <details class="pericope-app" id="app-pericope">
-                    <summary class="fld-app" aria-label="Pericopes" title="Pericopes">
+                    <summary class="fld-app" aria-label="Pericopae" title="Pericopae">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
                     </summary>
-                    <div class="ps-panel" role="group" aria-label="Pericopes"></div>
+                    <div class="ps-panel" role="group" aria-label="Pericopae"></div>
                 </details>                
                 @include('bible.partials.text-settings')
             </x-head-folder>
@@ -389,6 +389,57 @@
     };
 </script>
 <script src="{{ asset('js/book-seen.js') }}?v={{ filemtime(public_path('js/book-seen.js')) }}" defer></script>
+
+{{-- vg-typed r1: the typed-verses beacon. Completions are BATCHED — a
+     page-local counter, flushed 12s after the first unflushed completion
+     and on tab-hide/navigation — so a fast typist never machine-guns the
+     endpoint. The engine calls window.mbTypedBump() once per completed
+     verse; everything else lives here. Soft-coupled: if this block is
+     ever absent, the engine's guarded call is a no-op and typing works
+     untouched. fetch + keepalive rather than sendBeacon for the same
+     reason as book-seen: the CSRF header. --}}
+<script>
+    (function () {
+        'use strict';
+        var url  = @json(route('typing.vigil.typed'));
+        var osis = @json($book->osis_id);
+        var csrf = @json(csrf_token());
+
+        var pending = 0;
+        var timer   = null;
+
+        function flush() {
+            if (timer) { clearTimeout(timer); timer = null; }
+            if (!pending) { return; }
+            var count = pending;
+            pending = 0;
+            try {
+                fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': csrf
+                    },
+                    body: JSON.stringify({ osis: osis, count: count }),
+                    keepalive: true,
+                    credentials: 'same-origin'
+                }).catch(function () { /* counter: losses are acceptable */ });
+            } catch (e) { /* ancient browsers: nothing to do */ }
+        }
+
+        window.mbTypedBump = function () {
+            pending += 1;
+            if (!timer) { timer = setTimeout(flush, 12000); }
+        };
+
+        // Tab hidden or page leaving: flush what's pending — keepalive
+        // carries the POST through an immediate navigation.
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'hidden') { flush(); }
+        });
+        window.addEventListener('pagehide', flush);
+    })();
+</script>
 
 <script>
     /* ======================================================================
@@ -695,6 +746,11 @@
             if (e.ms.length > TSCAP) e.ms = e.ms.slice(-TSCAP);
             map[vn] = e;
             saveStore();
+
+            // vg-typed r1: count this completion into the anonymous daily
+            // typed-verses counter (batched; see the beacon block below
+            // the engine). Guarded so the engine never depends on it.
+            if (window.mbTypedBump) { window.mbTypedBump(); }
 
             decorate(vn);
             updateMeter();

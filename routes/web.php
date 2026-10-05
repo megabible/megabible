@@ -92,6 +92,13 @@ Route::view('/extras/terminal', 'extras.terminal')->name('terminal.index');
 Route::get('/extras/acts-of-the-user', [ActsController::class, 'show'])
     ->name('extras.acts');
 
+// tb-rank r1: Top Books — the whole 91-book canon ranked by the anonymous
+// counters (readers, vigil typing, scrimmage rounds, pericope collecting).
+// Weekly window by default — the pill's rolling seven days; ?window=all
+// for all-time. Read-only page, no throttle needed.
+Route::get('/extras/top-books', [BibleController::class, 'topBooks'])
+    ->name('extras.topbooks');    
+
 // Pericope — Milanote-for-verses. All data lives in the visitor's browser
 // (localStorage → window.MBPericope); these are thin client-rendered shells.
 //
@@ -117,6 +124,17 @@ Route::prefix('extras/pericope')->name('extras.pericope')->group(function () {
     Route::post('/likes', [PericopeController::class, 'likeCounts'])
         ->middleware('throttle:30,1')
         ->name('.likes');
+
+    // pc-collected r1: the collected-verses beacon — anonymous per-book
+    // daily counter for verses landed on boards (book_visits table
+    // shape, volume semantics; the count rides the payload because one
+    // add can land a whole passage). POST-only literal, registered up
+    // here per house habit — and `collected` joins the store's
+    // RESERVED_SLUGS so no board can ever squat the name. Throttled
+    // like any write.
+    Route::post('/collected', [PericopeController::class, 'collected'])
+        ->middleware('throttle:30,1')
+        ->name('.collected');
 
     // The share-link landing page (share plan S2). Fragment-borne board data
     // never reaches the server; this just ships the import shell.
@@ -164,7 +182,7 @@ Route::prefix('extras/scrimmage')->name('typing.scrimmage')->group(function () {
         ->where(['c' => '[0-9]+', 'v' => '[0-9]+', 'lang' => 'en|es'])
         ->name('.board');
 
-    // THE DAILY ARCHIVE — every day that has happened, and each frozen
+    // THE DAILY ARCHIVE: every day that has happened, and each frozen
     // board. Registered BEFORE /daily so neither literal can shadow the
     // other, and before the parameterised routes as ever. The {date}
     // pattern is pinned to YYYY-MM-DD so a typo 404s here rather than
@@ -176,7 +194,7 @@ Route::prefix('extras/scrimmage')->name('typing.scrimmage')->group(function () {
         ->where('date', '[0-9]{4}-[0-9]{2}-[0-9]{2}')
         ->name('.daily.day');
 
-    // TODAY'S DAILY — one verse, one shot, sealed until midnight.
+    // TODAY'S DAILY
     Route::get('/daily', [TypingController::class, 'daily'])->name('.daily');
 
     Route::get('/{t}/{b}/{c}/{v}', [TypingController::class, 'scrimmageVerse'])
@@ -201,6 +219,16 @@ Route::prefix('extras/vigil')->name('typing.')->group(function () {
 
     Route::get('/', [TypingController::class, 'vigilHome'])
         ->name('vigil.home');
+
+    // vg-typed r1: the typed-verses beacon — anonymous per-book daily
+    // counter (book_visits table shape, scrim_plays volume semantics).
+    // The client batches a few completions per POST, so the count rides
+    // the payload. Literal registered before the parameterised routes
+    // per house habit (its POST verb could never collide with their
+    // GETs anyway). Throttled like any write.
+    Route::post('/typed', [TypingController::class, 'vigilTyped'])
+        ->middleware('throttle:30,1')
+        ->name('vigil.typed');
 
     Route::get('/{translation}/{book}', [TypingController::class, 'vigilBook'])
         ->name('vigil.book');

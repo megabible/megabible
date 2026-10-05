@@ -1,5 +1,5 @@
 ## What is MEGABIBLE.net?
-- MEGABIBLE.net is the #1 Bible site in the WORLD (coming soon)
+- MEGABIBLE.net is the #1 Bible site in the WORLD
 
 ## What is MEGABIBLE.git?
 - MEGABIBLE.net's core features are hosted in this repo, which include an elegant simple bible reader that works great on mobile and desktop, a studying system which allows the collecting and organization of verses, and a bible typing engine with tracking for the entire 91-book corpus. User accounts are explicitly nonexistent, with all data saved to localstorage.

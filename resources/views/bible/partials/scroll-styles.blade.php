@@ -16,7 +16,7 @@
     alongside the font manager) — a change there wants a mirror here.
 
     Everything reads the theme tokens (--bg / --ink / --muted / --rule /
-    --panel / --accent / --tl-*), so midnight, pure and terminal repaint the
+    --panel / --accent / --tl-*), so night, contrast and terminal repaint the
     feed without a line here changing.
 
     KNOBS (custom properties on #pb-feed):
@@ -180,7 +180,7 @@
 
     /* Backdrop v1: the gradient. --pbf-a is the section colour, --pbf-b a
        seeded second palette colour; both darkened a touch so white type
-       clears them under every theme (midnight's palette runs pastel). */
+       clears them under every theme (night's palette runs pastel). */
     .pbf-box.bd-gradient::before {
         content: ""; position: absolute; inset: 0;
         background:

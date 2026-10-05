@@ -48,8 +48,8 @@
 
        Prose verses are INLINE spans inside a shared <p>; poetry verses are the
        block <p> itself. The rules below work for both. Everything is built on
-       the shared theme tokens, so Focus Mode automatically follows Parchment /
-       Midnight / Pure / Terminal with no per-theme overrides.
+       the shared theme tokens, so Focus Mode automatically follows Day /
+       Night / Contrast / Terminal with no per-theme overrides.
        ====================================================================== */
 
     /* Verses invite a tap. touch-action:pan-y keeps vertical scrolling native
@@ -94,8 +94,8 @@
 
     /* Confirmed selection: the same highlight, a step darker so the chosen
        verses clearly stand out from the page (and from a mere hover preview).
-       --rule is the parchment hairline tone — panel, but a touch deeper — and
-       it's theme-defined, so this follows Parchment / Midnight / Pure / Terminal
+       --rule is the Day hairline tone — panel, but a touch deeper — and
+       it's theme-defined, so this follows Day / Night / Contrast / Terminal
        automatically. Nothing else is dimmed or blurred; the page stays fully
        readable. */
     .reading p:not(.poetry) .verse.is-selected,
@@ -108,12 +108,12 @@
        ----------------------------------------------------------------------
        Verses already collected into a pericope wear an underline in the
        book's canon-section color; each RUN (consecutive verses sharing the
-       same set of pericopes) ends with a small dot that opens the list of
-       pericopes holding it. pericope-marks.js paints the classes and dots;
+       same set of pericopae) ends with a small dot that opens the list of
+       pericopae holding it. pericope-marks.js paints the classes and dots;
        every visual lives here.
 
        --peri-underline resolves through the theme's --tl-* palette, so the
-       marks repaint with Parchment / Midnight / Pure / Terminal for free.
+       marks repaint with Day / Night / Contrast / Terminal for free.
        The underline rides the SAME text-hugging carriers as the Focus
        highlight (prose .verse span / poetry .vt): highlight is background,
        mark is text-decoration — they never fight.
@@ -433,12 +433,12 @@
                 {{-- Pericope: scissors. A panel beneath the pill, like Aa —
                      pericope-sheet.js fills .ps-panel on open. Always
                      openable: with nothing selected it's a browse list of
-                     your pericopes; with verses in hand each row adds them. --}}
+                     your pericopae; with verses in hand each row adds them. --}}
                 <details class="pericope-app" id="app-pericope">
-                    <summary class="fld-app" aria-label="Pericopes" title="Pericopes">
+                    <summary class="fld-app" aria-label="Pericopae" title="Pericopae">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
                     </summary>
-                    <div class="ps-panel" role="group" aria-label="Pericopes"></div>
+                    <div class="ps-panel" role="group" aria-label="Pericopae"></div>
                 </details>                        
                 @include('bible.partials.text-settings')
             </x-head-folder>

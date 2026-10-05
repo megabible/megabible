@@ -115,9 +115,9 @@
         padding-right: 0.9rem; line-height: 1.15; min-width: 0;
         overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
     }
-    .tl-name { font-family: var(--serif); font-size: 0.98rem; color: var(--ink); text-decoration: none; }
+    .tl-name { font-family: var(--book-font); font-size: 0.98rem; color: var(--ink); text-decoration: none; }
     a.tl-name:hover { color: var(--accent); text-decoration: underline; }
-    .tl-row.current .tl-name { color: var(--accent); font-weight: 700; }
+    .tl-row.current .tl-name { color: var(--accent); }
 
     /* tl-fix r7: up to THREE labels per book. Full shows by default; mid
        (canon.php home_short_names) shows when the fit pass tags .is-mid on

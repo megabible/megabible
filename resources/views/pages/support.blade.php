@@ -300,11 +300,6 @@
                 ['label' => 'Footnotes for apocryphal books',                        'pct' => 42],
                 ['label' => 'Footnotes for every book chapter in KJV',                           'pct' => 0],
             ]],
-            ['title' => 'Pericope', 'items' => [
-                ['label' => 'Add verses from search results',          'pct' => 0],
-                ['label' => 'Add verses from inside Pericope', 'pct' => 20],
-                ['label' => 'Select all cards in grid',         'pct' => 0],
-            ]],
             ['title' => 'Book Hub', 'items' => [
                 ['label' => 'Excerpts for all 91 books',                'pct' => 59],
                 ['label' => 'Expanded timeline system',                 'pct' => 10],
@@ -313,6 +308,11 @@
                 ['label' => 'Bible character pages',                    'pct' => 0],
                 ['label' => 'Bible location pages',                     'pct' => 0],
                 ['label' => 'Bible historical pages',                   'pct' => 0],
+            ]],
+            ['title' => 'Pericope', 'items' => [
+                ['label' => 'Add verses from search results',          'pct' => 0],
+                ['label' => 'Add verses from inside Pericope', 'pct' => 20],
+                ['label' => 'Select all cards in grid',         'pct' => 0],
             ]],
             ['title' => 'Animation', 'items' => [
                 ['label' => 'Animation web system',          'pct' => 40],

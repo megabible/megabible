@@ -57,7 +57,7 @@
    BACKDROPS: v1 is gradients only — the post's section colour from the
    theme palette (--tl-*) blended toward a second palette colour picked
    by the post's seed, at a seeded angle. Everything reads CSS variables,
-   so the whole feed repaints under midnight / terminal for free. The
+   so the whole feed repaints under night / terminal for free. The
    backdrop() function is the ONE place a future image / video pool
    plugs in: it returns a class and inline vars for the box and nothing
    else here cares which kind it was.

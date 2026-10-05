@@ -67,7 +67,7 @@
        blocks that show progress. Everything category-tinted below reads
        var(--vg-cat, var(--accent)) — the fallback keeps the page sane if
        the token ever fails to land. The --tl-* palette is theme-defined in
-       app.blade.php, so this follows Parchment/Midnight/Pure/Terminal
+       app.blade.php, so this follows Day/Night/Contrast/Terminal
        automatically.
        CONTRAST KNOB: if a light colour (gold, plum) ever reads weak as the
        completed ring, swap the ring/border lines below to
@@ -255,10 +255,10 @@
                     'actionLabel' => 'Back to book',
                 ])
                 <details class="pericope-app" id="app-pericope">
-                    <summary class="fld-app" aria-label="Pericopes" title="Pericopes">
+                    <summary class="fld-app" aria-label="Pericopae" title="Pericopae">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>
                     </summary>
-                    <div class="ps-panel" role="group" aria-label="Pericopes"></div>
+                    <div class="ps-panel" role="group" aria-label="Pericopae"></div>
                 </details>                
                 @include('bible.partials.text-settings', ['tsChecks' => false])
             </x-head-folder>

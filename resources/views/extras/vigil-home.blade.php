@@ -137,7 +137,7 @@
     .vg-book.soon { color: var(--soon); border-style: dashed; cursor: default; }
 
     .vg-book-row { display: flex; align-items: baseline; justify-content: space-between; gap: .5rem; }
-    .vg-book-name { font-size: 1.02rem; line-height: 1.25; }
+    .vg-book-name { font-size: 1.12rem; line-height: 1.25; font-family:var(--book-font); }
     .vg-book-pct {
         font-family: var(--sans); font-size: .72rem; font-weight: 700;
         color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap;

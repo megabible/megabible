@@ -9,8 +9,8 @@
         READER SETTINGS — theme + text preferences, persisted to localStorage.
 
         This runs SYNCHRONOUSLY in <head>, before the page paints, so a saved
-        theme (e.g. Midnight) is applied to <html> immediately and the reader
-        never sees a flash of the default Parchment first.
+        theme (e.g. Night) is applied to <html> immediately and the reader
+        never sees a flash of the default Day first.
 
         Everything is expressed as data-* attributes on <html>; the CSS in the
         stylesheet maps those attributes to the actual colours / sizes. No other
@@ -23,7 +23,7 @@
 
             // Defaults + allowed ranges — the one place these live.
             const DEFAULTS = {
-                theme:            'parchment',  // parchment | midnight | pure | terminal
+                theme:            'day',  // day | night | contrast | terminal
                 size:             2,            // 0..4  (2 = default)
                 spacing:          0,            // 0..2  (0 = default)
                 font:             'serif',      // serif | sans (ignored while terminal)
@@ -46,7 +46,7 @@
             // Safety net: never honour a persisted Terminal theme for someone who
             // hasn't actually unlocked it (e.g. copied localStorage, cleared unlock).
             if (state.theme === 'terminal' && !state.terminalUnlocked) {
-                state.theme = 'parchment';
+                state.theme = 'day';
             }
 
             function apply() {
@@ -97,8 +97,8 @@
 
                 // Easter egg: unlock + drop straight into Terminal.
                 unlockTerminal() { set({ terminalUnlocked: true, theme: 'terminal' }); },
-                // Toggling Terminal OFF from the panel returns to Parchment.
-                exitTerminal()   { if (state.theme === 'terminal') set({ theme: 'parchment' }); },
+                // Toggling Terminal OFF from the panel returns to Day.
+                exitTerminal()   { if (state.theme === 'terminal') set({ theme: 'day' }); },
 
                 // Reset TEXT/theme settings to default — but keep the unlock, so the
                 // reader doesn't lose the easter egg they already found.
@@ -117,7 +117,7 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Forum:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Forum:wght@400;600;700&family=Bigshot+One&display=swap" rel="stylesheet">
 
     <style>
         /* =========================================================
@@ -129,6 +129,7 @@
             --serif:'Iowan Old Style','Palatino Linotype','Book Antiqua',Palatino,Georgia,serif;
             --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;
             --wordmark-font:'Forum', var(--serif);
+            --book-font:'Bigshot One', var(--serif);
 
             /* ---- TITLE LEADING KNOB ------------------------------------
                Line gap when a page-title H1 wraps to two lines (long book
@@ -137,7 +138,7 @@
                (it uses --reading-leading). */
             --title-leading:1.15;
 
-            /* Timeline bar palette — parchment-friendly. */
+            /* Timeline bar palette — day-bg-friendly. */
             --tl-clay:#7c624f;       --tl-slate:#6f7a82;        --tl-gold:#c2952f;
             --tl-plum:#a28db8;       --tl-terracotta:#a8553a;   --tl-teal:#4f7d6e;
             --tl-royal:#5b4f80;      --tl-olive:#74804f;        --tl-crimson:#8a2f3c;
@@ -196,21 +197,21 @@
         :root[data-footnotes="off"]     .reading .fn-markers,
         :root[data-footnotes="off"]     .reading .footnotes     { display:none; }
 
-        /* ---- THEME: Midnight (warm near-black, parchment-toned ink) ---- */
-        :root[data-theme="midnight"]{
+        /* ---- THEME: Night (warm near-black, day-bg-toned ink) ---- */
+        :root[data-theme="night"]{
             --bg:#1a1410; --ink:#e8ddc9; --muted:#9c8a72; --accent:#cf9b6b;
             --rule:#3a2f25; --panel:#241c15; --soon:#6b5b47; --field:#241c15;
         }
 
-        /* ---- THEME: Pure (clean white, accessibility-safe contrast) ---- */
-        :root[data-theme="pure"]{
+        /* ---- THEME: Contrast (clean white, accessibility-safe contrast) ---- */
+        :root[data-theme="contrast"]{
             --bg:#ffffff; --ink:#1a1a1a; --muted:#5a5a5a; --accent:#7a1414;
             --rule:#dddddd; --panel:#f2f2f2; --soon:#8a8a8a; --field:#ffffff;
         }
 
         /* ---- THEME: Terminal (secret — black + phosphor green, monospace) ----
            Everything mono, site-wide. Because every font-family in the site
-           resolves through --serif / --sans / --wordmark-font (verified: zero
+           resolves through --serif / --sans / --wordmark-font/--book-font (verified: zero
            hardcoded stacks), overriding those three flips the WHOLE interface —
            not just the reader. Placed last so it wins over the serif/sans rule. */
         :root[data-theme="terminal"]{
@@ -222,20 +223,21 @@
             --sans:var(--mono);
             --wordmark-font:var(--mono);
             --reading-family:var(--mono);
+            --book-font:var(--mono);            
         }
 
         /* ---- Canon / timeline palette per theme ---- */
 
-        /* Midnight — luminous so bars read on warm near-black. */
-        :root[data-theme="midnight"]{
+        /* Night — luminous so bars read on warm near-black. */
+        :root[data-theme="night"]{
             --tl-clay:#c9a25e;      --tl-slate:#9aacb8;         --tl-gold:#e0b34e;
             --tl-plum:#7893c0;      --tl-terracotta:#d68a63;    --tl-teal:#6fb59f;
             --tl-royal:#6e6ed6;     --tl-olive:#aab878;         --tl-crimson:#d46e7c;
             --tl-indigo:#6b6192;    --tl-moss:#678a3c;          --tl-navy:#4f9ed0;
         }
 
-        /* Pure — no change from default parchment palette. */
-        :root[data-theme="pure"]{
+        /* Contrast — no change from default Day palette. */
+        :root[data-theme="contrast"]{
             --tl-clay:#7c624f;       --tl-slate:#6f7a82;        --tl-gold:#c2952f;
             --tl-plum:#a28db8;       --tl-terracotta:#a8553a;   --tl-teal:#4f7d6e;
             --tl-royal:#5b4f80;      --tl-olive:#74804f;        --tl-crimson:#8a2f3c;
@@ -256,6 +258,67 @@
         h1{line-height:var(--title-leading);}
         .container{max-width:820px;margin:0 auto;padding:.7rem 1.5rem 6rem;}
 
+        /* =========================================================
+           CROSS-PAGE TRANSITIONS (vt r1)
+           ---------------------------------------------------------
+           Opts every same-origin navigation into a cross-document
+           view transition: the browser snapshots the outgoing page,
+           holds that frame (no white blink), and animates into the
+           new one. Pure CSS, no JS. Chrome/Edge 126+ and Safari
+           18.2+ honour it; Firefox ignores the at-rule entirely and
+           keeps the plain navigation it has today.
+
+           Named fixtures get their own snapshot layer, OUTSIDE the
+           root crossfade:
+
+             .site-header   the chrome never takes part in the fade.
+                            Navigating from a scrolled page, it
+                            slides back into place as one piece.
+             .chapter-head  one head morphs into the next: position,
+                            size (pinned to resting) and title
+                            crossfade as a unit, with the folder
+                            cluster riding inside the snapshot —
+                            this is the fix for the rebuilt-folder
+                            jolt when paging through a book.
+
+           A name must be unique per page. There is exactly one of
+           each on any page, and a page without the element simply
+           has no group. Names have zero effect outside a transition,
+           so normal rendering is untouched. The footer is left
+           unnamed on purpose: naming it would make it fly across
+           the screen on scrolled navigations.
+           ========================================================= */
+        :root {
+            --mb-vt-rev: 1; /* deployment tripwire */
+        }
+        @view-transition {
+            navigation: auto;
+        }
+        .site-header {
+            view-transition-name: site-header;
+        }
+        .chapter-head {
+            view-transition-name: chapter-head;
+        }
+        /* TIMING KNOB. root is the page-body crossfade; the named
+           groups above keep the default. A short root fade reads
+           snappier while the head morph carries the motion. */
+        ::view-transition-old(root),
+        ::view-transition-new(root) {
+            animation-duration: .18s;
+        }
+        /* Reduced motion: the swap becomes instant — still no white
+           flash, just no animation. VT's default animations do not
+           disable themselves, so this rule must exist. */
+        @media (prefers-reduced-motion: reduce) {
+            ::view-transition-group(*),
+            ::view-transition-image-pair(*),
+            ::view-transition-old(*),
+            ::view-transition-new(*) {
+                animation: none !important;
+            }
+        }
+
         /* ---- Header ---- */
         .site-header{display:flex;align-items:center;gap:1.1rem;padding-bottom:.7rem;margin-bottom:1.5rem;border-bottom:1px solid var(--rule);}
 
@@ -266,8 +329,8 @@
             width:50px;height:50px;border-radius:50%;flex:0 0 50px;display:block;
             background:url('{{ asset('images/MEGABIBLE_LOGO_256.png') }}') center/cover no-repeat;
         }
-        :root[data-theme="midnight"] .logo{ background-image:url('{{ asset('images/MEGABIBLE_LOGO_256.png') }}'); }
-        :root[data-theme="pure"]     .logo{ background-image:url('{{ asset('images/MEGABIBLE_LOGO_256.png') }}'); }
+        :root[data-theme="night"] .logo{ background-image:url('{{ asset('images/MEGABIBLE_LOGO_256.png') }}'); }
+        :root[data-theme="contrast"]     .logo{ background-image:url('{{ asset('images/MEGABIBLE_LOGO_256.png') }}'); }
         :root[data-theme="terminal"] .logo{ background-image:url('{{ asset('images/MEGABIBLE_LOGO_256_terminal.png') }}'); }
 
         .wordmark-link{text-decoration:none;color:inherit;min-width:0;}
@@ -499,7 +562,7 @@
         /* Themed scrollbar for the panel. It only ever appears when the panel
            actually scrolls: always on the mobile sheet, and on desktop only if
            the safety-net cap engages on a short window. Built from the theme
-           tokens so Midnight / Terminal get matching bars. */
+           tokens so Night / Terminal get matching bars. */
         .qn-panel{scrollbar-width:thin;scrollbar-color:var(--rule) transparent;}
         .qn-panel::-webkit-scrollbar{width:10px;}
         .qn-panel::-webkit-scrollbar-track{background:transparent;}
@@ -544,7 +607,7 @@
             color:var(--accent);background:none;border:none;cursor:pointer;padding:.2rem .1rem;
         }
         .qn-back:hover{text-decoration:underline;}
-        .qn-chap-title{font-family:var(--serif);font-size:1.15rem;font-weight:600;color:var(--ink);text-decoration:none;}
+        .qn-chap-title{font-family:var(--book-font);font-size:1.15rem;font-weight:400;color:var(--ink);text-decoration:none;}
         .qn-chap-title:hover{color:var(--accent);text-decoration:underline;}
         .qn-chap-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(44px,1fr));gap:.4rem;}
         .qn-chap{
@@ -788,7 +851,7 @@
             </div>
 
             <nav class="footer-social" aria-label="MEGABIBLE.net social links">
-                <a href="https://discord.gg/UGNCFD3e" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on Discord" title="Discord">
+                <a href="https://discord.gg/PnpbA8vSQm" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on Discord" title="Discord">
                     <span class="soc-ico soc-discord" aria-hidden="true"></span>
                 </a>
                 <a href="https://github.com/megabible/megabible" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on Github" title="Github">
@@ -993,6 +1056,18 @@
      it; both defer, so they run before the reader's focus-synthesis.js. --}}
 <script>window.MB_PERICOPE_BASE = @json(route('extras.pericope'));</script>
 <script src="{{ asset('js/pericope-store.js') }}?v={{ filemtime(public_path('js/pericope-store.js')) }}" defer></script>
+{{-- pc-collected r1: context for the store's collected-verses beacon
+     (the bridge pattern: inline during parse, the deferred store reads
+     it at call time). The layout is the one place every store-bearing
+     page shares, so the context can never drift per surface. No
+     context on some future storeless page → the store's beacon is a
+     silent no-op. --}}
+<script>
+    window.MBCollectCtx = {
+        url:  @json(route('extras.pericope.collected')),
+        csrf: @json(csrf_token()),
+    };
+</script>
 <script src="{{ asset('js/pericope-sheet.js') }}?v={{ filemtime(public_path('js/pericope-sheet.js')) }}" defer></script>
 
 {{-- Global desktop keyboard shortcuts (j/k + arrows, t, /, Escape). Loaded on

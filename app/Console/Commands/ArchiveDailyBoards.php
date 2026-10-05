@@ -11,7 +11,7 @@ use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 /**
- * scrim:daily-archive — THE MIDNIGHT FREEZE.
+ * scrim:daily-archive — THE MIDNIGHT CONJUNCTION.
  *
  * A daily board is never trimmed. When its day ends the WHOLE field is
  * copied into daily_snapshot_entries with its ranks frozen, and the live
