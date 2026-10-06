@@ -203,7 +203,11 @@
     /* ---- Synthesis view (the study board) ---- */
     .synthesis {
         position: fixed; inset: 0;
-        z-index: 70;
+        /* Above the header's open-QuickNav elevation (100) — so even if the
+           board is launched while the panel is open, the board wins — and
+           incidentally above the footnote popover (90) and FAB (70). Keep
+           below dialog.js (9999). Was 70 before vt r3. */
+        z-index: 110;
         background: var(--bg);
         display: flex; flex-direction: column;
         opacity: 0; visibility: hidden;

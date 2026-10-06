@@ -307,24 +307,29 @@
            the screen on scrolled navigations.
            ========================================================= */
         :root {
-            --mb-vt-rev: 2; /* deployment tripwire */
+            --mb-vt-rev: 3; /* deployment tripwire */
         }
         @view-transition {
             navigation: auto;
         }
-        /* TRAP, LEARNED THE HARD WAY: a view-transition-name forces the
-           element to form a stacking context (css-view-transitions-1,
-           "named and transitioning"). The instant r1 shipped, the QuickNav
-           panel's z-index stopped competing globally and the panel drew
-           UNDER the chapter head / readers pill / homepage cards. So the
-           header must now carry, as a whole, a z-index above everything
-           its popup needs to cover: 100 matches the mobile sheet's own
-           "above footnote popover (90) + FAB (70)" contract. z-index is
-           ignored on static elements, hence the position:relative. */
+        /* TRAP, LEARNED THE HARD WAY — TWICE. A view-transition-name forces
+           the element to form a stacking context (css-view-transitions-1),
+           so the QuickNav panel's z-index stopped competing globally and
+           drew under the chapter head / pills / homepage cards (r1 bug).
+           But a FLAT z-index:100 on the header overshot: the synthesis
+           board (fixed, inset:0) had always covered the header by simple
+           paint order, and 100 stamped the header on top of the open
+           board (r2 bug). The invariant that satisfies both: the header
+           outranks the page ONLY while its own popup is open. At rest it
+           has no z-index, so full-screen overlays cover it exactly as
+           they did before view transitions existed. :has() is Baseline
+           in all browsers since late 2023. */
         .site-header {
             view-transition-name: site-header;
             position: relative;
-            z-index: 100;
+        }
+        .site-header:has(.qn[open]) {
+            z-index: 100;   /* the open panel's above-popover(90)/FAB(70) contract */
         }
         .chapter-head {
             view-transition-name: chapter-head;
