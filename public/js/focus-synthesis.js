@@ -17,8 +17,14 @@
 
    A single shared link (?v=16) highlights and scrolls to that verse. Two or
    more verses (?v=3,8) open straight into the Synthesis board.
+
+   REV scrim-gate r1 — the FAB's scrim button is a locked easter egg: it
+   shows only when window.MB.reader reports scrimUnlocked (mb.reader in
+   localStorage). Stale-file check from the console: window.MBFocusRev.
    ====================================================================== */
 (function () {
+    window.MBFocusRev = 'scrim-gate r1';   // deployment tripwire
+
     const reading = document.querySelector('.reading');
     if (!reading) return;
 
@@ -62,7 +68,18 @@
     // share, where it lived before the folder era). A scrim is always ONE
     // verse, so it only makes sense beside the selection tools: hidden except
     // at exactly one selected verse. Built with the FAB in buildChrome().
+    // scrim-gate r1: ALSO hidden until the scrim shortcut is unlocked — see
+    // scrimUnlocked() and syncScrim() below.
     let   scrimBtn;
+
+    // Has this device unlocked the FAB's scrim shortcut? Read LIVE from the
+    // reader settings every time (never cached at boot), so an unlock that
+    // happens while the page is open takes effect on the next sync. MB.reader
+    // is built synchronously in the layout's <head>, so it always exists by
+    // the time this deferred file runs; the guards just keep a missing layout
+    // script from throwing — locked is the safe default.
+    const scrimUnlocked = () =>
+        !!(window.MB && window.MB.reader && window.MB.reader.get().scrimUnlocked);
 
     const el = (tag, cls) => {
         const node = document.createElement(tag);
@@ -322,7 +339,9 @@
 
         // The scrim link just built above. No disarmed-click guard needed any
         // more: it's [hidden] (display:none, unclickable) except at exactly
-        // one selected verse, and whenever it's visible it has a real href.
+        // one selected verse on an unlocked device, and whenever it's
+        // visible it has a real href. It is ALWAYS built, even when locked,
+        // so an unlock can simply un-hide it — no FAB rebuild.
         scrimBtn = fab.querySelector('.fab-scrim');
 
         // The synthesis board is rendered in Blade (see section('content'))
@@ -375,28 +394,35 @@
             : `${selected.size} verses`;
     };
 
+    // The FAB's scrim button. Three conditions, ALL required to show it:
+    //   1. exactly one verse selected (a scrim is one verse by definition,
+    //      see App\Support\Challenge)
+    //   2. MB.scrimUrl exists (the scrimmage route with a __V__ slot)
+    //   3. this device has unlocked the scrim shortcut (scrim-gate r1)
+    // Otherwise it's hidden AND loses its href, so a locked button is never
+    // a working link even if something un-hides it. It sits in the FAB, so
+    // when the FAB parks (empty selection) it's gone anyway.
+    const syncScrim = () => {
+        if (!scrimBtn) return;
+        if (selected.size === 1 && MB.scrimUrl && scrimUnlocked()) {
+            scrimBtn.href = MB.scrimUrl.replace('__V__', [...selected][0]);
+            scrimBtn.hidden = false;
+        } else {
+            scrimBtn.hidden = true;
+            scrimBtn.removeAttribute('href');
+        }
+    };
+
     // Keep the selection's dependents in step, and tell anyone listening
     // (the pericope panel, the vigil sheet, later pages) what's in hand.
     // Runs on EVERY selection change, including to empty.
-    //   scrim    visible only at exactly one verse (a scrim is one verse by
-    //            definition, see App\Support\Challenge); MB.scrimUrl is the
-    //            scrimmage route with a __V__ slot. It sits in the FAB, so
-    //            when the FAB parks (empty selection) it's gone anyway —
-    //            the hidden flag covers 2+ verses, when the FAB is up but
-    //            a scrim makes no sense.
+    //   scrim    see syncScrim() above.
     //   pericope reads the published hand itself (pericope-sheet.js).
     const syncApps = () => {
         const count = selected.size;
 
-        if (scrimBtn) {
-            if (count === 1 && MB.scrimUrl) {
-                scrimBtn.href = MB.scrimUrl.replace('__V__', [...selected][0]);
-                scrimBtn.hidden = false;
-            } else {
-                scrimBtn.hidden = true;
-                scrimBtn.removeAttribute('href');
-            }
-        }
+        syncScrim();
+
         // Publish the hand two ways: the global for a panel that opens LATER
         // (it reads the latest on open), the event for one that's open NOW.
         // Deferred scripts load in an order this file must not depend on.
@@ -700,9 +726,17 @@
     // it — re-pin every card carrying an explicit height, exactly as the resize
     // handler does. Auto-height cards (front-facing or no interlinear) size
     // themselves and have no inline style, so they're correctly skipped.
+    //
+    // scrim-gate r1: the same event carries the scrimUnlocked flag, so an
+    // unlock (or lock) in THIS tab shows/hides the FAB's scrim button right
+    // away. Only syncScrim — not syncApps — so a font-size click doesn't
+    // re-publish the selection to the pericope panel for nothing. Other tabs
+    // pick the change up on their next page load (no storage-event wiring,
+    // by choice).
     document.addEventListener('mb:reader-change', () => {
         document.querySelectorAll('.synthesis-card .card-faces[style]')
             .forEach(stage => syncFaces(stage.closest('.synthesis-card')));
+        syncScrim();
     });
 
     /* ---- synthesis view ------------------------------------------------- */

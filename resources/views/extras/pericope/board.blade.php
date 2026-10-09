@@ -591,6 +591,15 @@
         box-shadow: 0 12px 32px rgba(0,0,0,.18);
         text-align: left; cursor: default;
     }
+    /* While a head-folder panel is open, lift the whole chapter head
+       above the board's floating chrome. The pan gizmo is FIXED at root
+       level, outside the head's own stacking context — so the panel's
+       z 80, trapped inside it, can never win from within (the vt r1
+       trap, same mechanism). Elevation is scoped to the open state
+       only, per the vt r3 invariant: full-screen takeovers (presenter,
+       synthesis) belong ABOVE this tier, at 110. The Aa panel shares
+       the same trap, so it rides the same selector. */
+    .chapter-head:has(.pb-share[open], .text-settings[open]) { z-index: 100; }
     /* The red Presentation pill holds two buttons: the main one and, on its
        far right INSIDE the pill, the round gear that flips the panel to
        presentation settings. */
@@ -665,18 +674,56 @@
     .pps-hint { grid-column: 1 / -1; margin: 0; font-family: var(--sans); font-size: .72rem; color: var(--muted); line-height: 1.4; }
     .pps-hint.is-error { color: var(--accent); }
 
-    .pbs-title { font-family: var(--serif); font-size: 1.05rem; color: var(--ink); margin: 0 0 .5rem; }
+    /* Share body (share r2 — short links). Header mirrors .ts-head /
+       .ts-title so this panel and the Aa panel read as siblings. */
+    .pbs-head { --pbs-rev: 2; display: flex; align-items: center; margin-bottom: .8rem; }
+    .pbs-title { font-family: var(--sans); font-weight: 700; font-size: .95rem; color: var(--ink); }
+    .pbs-divider { border-top: 1px solid var(--rule); margin: 0 0 .9rem; }
     .pbs-blurb { font-family: var(--sans); font-size: .82rem; color: var(--muted); margin: 0 0 .8rem; line-height: 1.5; }
-    .pbs-url {
-        width: 100%; box-sizing: border-box; resize: none;
-        font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .74rem; line-height: 1.45;
-        color: var(--ink); background: var(--panel);
-        border: 1px solid var(--rule); border-radius: 8px;
-        padding: .5rem .6rem; word-break: break-all;
+    .pbs-blurb strong { color: var(--ink); font-weight: 600; }
+    /* THE LINK CARD (share r2.1) — the address as it reads aloud: the
+       brand wordmark small, the code large and fully visible, wrapping
+       onto a second line when a long code needs it. One button; click
+       copies. The ghost input beneath it carries the full URL for the
+       copy machinery and the native share tray — offscreen, never
+       display:none (execCommand needs a selectable element). */
+    .pbs-link {
+        --pbs-rev: 2.2;
+        display: block; width: 100%; box-sizing: border-box; text-align: left;
+        padding: .6rem .75rem; cursor: pointer;
+        /* Buttons DON'T inherit color — the UA gives them ButtonText,
+           which iOS Safari renders BLUE, and the brand wordmark inside
+           was inheriting it. Ink here ends that for everything inside
+           (ink, not literal black, so Night/Contrast repaint it). */
+        color: var(--ink);
+        background: var(--panel); border: 1px solid var(--rule); border-radius: 8px;
+        line-height: 1.3;
+        transition: border-color .12s, box-shadow .12s;
     }
-    .pbs-url:focus { outline: none; border-color: var(--accent); }
-    .pbs-size { font-family: var(--sans); font-size: .78rem; color: var(--muted); margin: .5rem 0 .9rem; }
-    .pbs-size.is-over { color: var(--accent); }
+    .pbs-link:hover { border-color: var(--accent); }
+    .pbs-link:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107,31,31,.12); }
+    .pbs-link.is-copied { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107,31,31,.12); }
+    /* The wordmark sizes itself to its surroundings (brand.blade's whole
+       trick), so the wrapper's font-size IS the brand's size knob.
+       The brand line is a BLOCK: "MEGABIBLE.net/" owns line 1, the code
+       always starts on line 2 with the full card width to itself — no
+       more mid-word wraps like "PatientEternal / Hosanna". */
+    .pbs-link-brand { display: block; font-size: .85rem; white-space: nowrap; margin-bottom: .05rem; }
+    .pbs-link-slash { color: var(--muted); }
+    .pbs-link-code {
+        font-family: var(--serif);            /* knob: the code's face */
+        font-size: 1.25rem; font-weight: 600; /* knob: the code's size */
+        letter-spacing: -.01em; color: var(--ink);
+        overflow-wrap: anywhere;              /* long codes wrap, never clip */
+    }
+    .pbs-link-pin { font-size: .78rem; color: var(--muted); }
+    .pbs-url.is-ghost {
+        position: absolute; left: -9999px; top: 0;
+        width: 1px; height: 1px; opacity: 0; padding: 0; border: 0;
+    }
+    .pbs-note { font-family: var(--sans); font-size: .78rem; color: var(--muted); margin: .5rem 0 .9rem; }
+    .pbs-note.is-stale { color: var(--accent); }
+    .pbs-error { font-family: var(--sans); font-size: .78rem; color: var(--accent); margin: 0 0 .7rem; line-height: 1.45; }
     /* Always dark-on-white in its own backing box, whatever the theme —
        phone cameras want contrast. The svg carries its own quiet margin. */
     .pbs-qr { display: flex; justify-content: center; margin: 0 0 1rem; }
@@ -685,16 +732,19 @@
         background: #fff; border-radius: 10px;
         box-shadow: 0 1px 6px rgba(0,0,0,.12);
     }
-    .pbs-btns { display: flex; justify-content: flex-end; gap: .5rem; }
+    .pbs-btns { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; }
     .pbs-btn {
         font-family: var(--sans); font-size: .88rem; font-weight: 600; cursor: pointer;
         border-radius: 999px; padding: .45rem 1rem; border: 1px solid var(--rule);
         background: none; color: var(--muted);
         transition: color .12s, background .12s, filter .12s;
     }
+    .pbs-btn:disabled { opacity: .5; cursor: default; }
     .pbs-btn.is-quiet:hover { color: var(--ink); background: var(--panel); }
     .pbs-btn.is-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .pbs-btn.is-primary:hover { filter: brightness(1.12); }
+    /* Delete link sits apart on the left — destructive, out of thumb's way. */
+    .pbs-del { margin-right: auto; padding-left: .7rem; padding-right: .7rem; font-size: .8rem; }
 
     /* DRAG-TO-PLACE (Phase 3). While a card is dragged from its grip the grid
        gains spare columns on both sides (left as padding, right as the

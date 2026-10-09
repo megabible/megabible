@@ -9,6 +9,7 @@ use App\Support\Fonts;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -52,30 +53,50 @@ class PericopeController extends Controller
     }
 
     /**
-     * The RECEIVING end of a share link — /extras/pericope/shared (S2).
-     * The board rides in the URL FRAGMENT, which browsers never send to the
-     * server, so this action knows nothing about what it is about to import:
-     * it only ships the shell and the lookups the client-side rebuild needs.
+     * The RECEIVING end of a share link — /extras/pericope/shared (S2),
+     * and (short-link r1) the shell behind every vanity code too.
+     * The board arrives one of two ways, and the client prefers the first:
      *
-     *   bookMeta  — osis => {slug, …}: the fragment stores OSIS ids (stable
+     *   fragment  — the original long links: #p1!… never reaches the
+     *               server, so shared() ships a blob-less shell and
+     *               pericope-share.js reads location.hash.
+     *   config    — vanity codes: PericopeShareController::resolve()
+     *               looks the blob up by code and passes it here, and
+     *               the same script falls back to sharedConfig.blob
+     *               when the fragment is empty.
+     *
+     *   bookMeta  — osis => {slug, …}: the blob stores OSIS ids (stable
      *               keys), but the verse endpoint takes book SLUGS.
      *   cardTxUrl — the verseTranslations JSON endpoint that refills each
      *               card's text by reference.
      *   hubUrl    — for the redirect to the freshly created board and the
      *               error panel's way back.
+     *
+     * X-Robots-Tag on both paths: import shells are nothing a search
+     * engine should hold, and unlisted codes stay unlisted.
      */
-    public function shared(): View
+    public function shared(): Response
+    {
+        return $this->sharedShell(null);
+    }
+
+    public function sharedShell(?string $blob): Response
     {
         $hubUrl = route('extras.pericope');
 
-        return view('extras.pericope.shared', [
+        $config = [
+            'bookMeta'  => BookMetadata::displayMeta(),
+            'cardTxUrl' => route('bible.verse-translations'),
+            'hubUrl'    => $hubUrl,
+        ];
+        if ($blob !== null) {
+            $config['blob'] = $blob;
+        }
+
+        return response()->view('extras.pericope.shared', [
             'hubUrl'       => $hubUrl,
-            'sharedConfig' => [
-                'bookMeta'  => BookMetadata::displayMeta(),
-                'cardTxUrl' => route('bible.verse-translations'),
-                'hubUrl'    => $hubUrl,
-            ],
-        ]);
+            'sharedConfig' => $config,
+        ])->header('X-Robots-Tag', 'noindex');
     }
 
     /**

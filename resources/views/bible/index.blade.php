@@ -15,6 +15,31 @@
     .home-lead a{color:var(--accent);text-decoration:none;}
     .home-lead a:hover{text-decoration:underline;}
 
+    /* hp-links r1: the two book names in the blurb render in the site's
+       book font. Bigshot runs wide and a touch tall inline, so it's sized
+       slightly down to sit evenly in the sentence — SIZE KNOB. The accent
+       colour and hover underline come from the .home-lead a rules above;
+       an unlinked fallback (book not imported) is plain ink. */
+    .home-lead .bk{font-family:var(--book-font);font-size:.95em;letter-spacing:.01em;}
+
+    /* hp-links r1: the hero link list — replaces the big testament CTA
+       pills. Arrow-fronted links: accent text, muted counts, and the
+       arrow nudges right on hover. The arrow is a flex item (the anchor
+       is inline-flex), so its transform is honoured — a transform on a
+       plain inline span would be silently ignored. */
+    .home-links{list-style:none;margin:1.3rem 0 0;padding:0;display:flex;flex-direction:column;gap:.55rem;}
+    .home-links a{
+        display:inline-flex;align-items:baseline;gap:.55rem;
+        font-family:var(--sans);font-size:1.05rem;font-weight:600;
+        color:var(--accent);text-decoration:none;
+    }
+    .home-links .hl-arrow{transition:transform .16s ease;}
+    .home-links a:hover .hl-arrow,
+    .home-links a:focus-visible .hl-arrow{transform:translateX(5px);}
+    .home-links a:hover .hl-text,
+    .home-links a:focus-visible .hl-text{text-decoration:underline;}
+    .home-links .hl-count{font-weight:400;font-size:.88rem;color:var(--muted);}
+
     /* ---- HERO DEMO CARD (hp-demo r1) ----------------------------------
        The reader's synthesis card, transplanted. BACK-FACE styles (the
        Hebrew rows, word links, credit line) come from the shared
@@ -23,7 +48,7 @@
        is a MIRROR of chapter.blade's synthesis styles; if the cards are
        restyled there, update here too (post-launch candidate for
        extraction into a shared partial of its own). */
-    .home-demo{max-width:680px;margin:1.6rem auto 0;}
+    .home-demo{max-width:680px;margin:2.4rem auto 0;}   /* SPACE KNOB (was 1.6rem) */
     .home-demo-label{
         display:block;font-family:var(--sans);font-size:.72rem;font-weight:600;
         text-transform:uppercase;letter-spacing:.08em;color:var(--muted);
@@ -42,6 +67,11 @@
         text-transform: uppercase; letter-spacing: .05em;
         color: var(--accent);
     }
+    /* hp-ref r1: the ref header is now a reader deep link. It keeps the
+       header's exact look; only the hover underline says "clickable". */
+    .synthesis-ref a { color: inherit; text-decoration: none; }
+    .synthesis-ref a:hover,
+    .synthesis-ref a:focus-visible { text-decoration: underline; }
     .synthesis-copy {
         margin-left: auto;
         display: inline-flex; align-items: center; justify-content: center;
@@ -96,7 +126,7 @@
        Five chips fed by the same book_visits window as the hub pill.
        Each chip is a link to its book hub, carries its canon-section
        colour as --cg, and joins the trace-draw hover below. */
-    .top-books{margin:1.5rem 0 0;}
+    .top-books{margin:2.6rem 0 0;}   /* SPACE KNOB (was 1.5rem) */
     .top-books-head{display:flex;align-items:baseline;gap:1rem;margin:0 0 .7rem;}
     .top-books-title{color:var(--accent);font-size:1.15rem;font-weight:600;margin:0;letter-spacing:.01em;}
     .top-all{margin-left:auto;font-family:var(--sans);font-size:.82rem;color:var(--muted);text-decoration:none;white-space:nowrap;}
@@ -115,21 +145,16 @@
     .tb-name{font-family:var(--book-font);font-size:1.22rem;line-height:1.25;}
     .tb-count{font-family:var(--sans);font-size:.75rem;color:var(--muted);font-variant-numeric:tabular-nums;margin-top:.15rem;}
 
-    /* ---- TESTAMENT CTA PILLS ----------------------------------------- */
-    .testament-ctas{display:flex;gap:.7rem;margin:1.6rem 0 0;}
-    .btn-testament{
-        flex:1;display:inline-flex;align-items:center;justify-content:center;
-        font-family:var(--sans);font-size:1.05rem;font-weight:600;text-decoration:none;
-        padding:.8rem 1rem;border-radius:999px;
-        border:1px solid var(--accent);background:transparent;color:var(--accent);
-        transition:background .12s,color .12s;
-    }
-    .btn-testament:hover{background:var(--accent);color:#fff;}
-    .btn-testament:focus-visible{outline:none;box-shadow:0 0 0 3px rgba(107,31,31,.25);}
+    /* hp-div r1: the rule drawn above each testament — one between the
+       top books and the First Testament, one between 2 Baruch and the
+       Second Testament, both from the same line in the loop below. Full
+       content width; the margins collapse politely with the hero's
+       bottom margin and the previous testament's. */
+    .canon-divider{border:0;border-top:1px solid var(--rule);margin:2.6rem 0 0;}
 
     /* ---- TESTAMENT / SECTION STRUCTURE (unchanged bones) ------------- */
     .testament{margin-bottom:1rem;}
-    /* The ids make each testament the CTA pills' anchor target; the
+    /* The ids make each testament the hero links' anchor target; the
        scroll-margin keeps a little air above the title on landing. */
     .testament[id]{scroll-margin-top:.9rem;}
     .testament-title{font-size:2.2rem;font-weight:400;letter-spacing:-.01em;margin:1.8rem 0 .3rem;}
@@ -242,10 +267,6 @@
     .has-short .bk-full {display:none;}
     .has-short .bk-short{display:inline;}
 
-    @media (max-width:420px){
-        .btn-testament{font-size:.95rem;}
-    }
-
     @media (max-width:560px){
         .home-title{font-size:1.9rem;}
         .book-grid{grid-template-columns:repeat(auto-fill,minmax(135px,1fr));}
@@ -254,6 +275,7 @@
 
     @media (prefers-reduced-motion:reduce){
         .book,.top-chip,.trace .trace-svg path,
+        .home-links .hl-arrow,
         .card-faces,.card-faces .face{transition:none;}
     }
     @include('bible.partials.interlinear-styles')
@@ -270,16 +292,48 @@
         // hp-cell r1: section key → palette name, the same map the QuickNav
         // and the About tiles tint from. One source of truth.
         $sectionColors  = config('canon.section_colors', []);
+        // hp-links r1: the blurb's two book links, pre-resolved by the
+        // controller (never-404 rule). Null = render plain text.
+        $heroG = $heroLinks['genesis'] ?? null;
+        $heroH = $heroLinks['shepherd-of-hermas'] ?? null;
     @endphp
 
     {{-- ============ HERO ============ --}}
     <section class="home-hero">
         <h1 class="home-title">Read and study the 91 books of the Bible</h1>
+        {{-- hp-links r1: Genesis and the Shepherd of Hermas render in the
+             book font and link to their hubs. The raw echoes are safe: the
+             hrefs pass through e(), and everything else is literal text
+             written right here. The "Learn more" sentence moved into the
+             link list below. --}}
         <p class="home-lead">
-            We host every Bible book from Genesis to the Shepherd of Hermas, with the
-            original Hebrew, Greek, and Aramaic a click away.
-            <a href="{{ route('about') }}">Learn more here.</a>
+            We host every Bible book from
+            {!! $heroG ? '<a class="bk" href="'.e($heroG).'">Genesis</a>' : '<span class="bk">Genesis</span>' !!}
+            to the
+            {!! $heroH ? '<a class="bk" href="'.e($heroH).'">Shepherd of Hermas</a>' : '<span class="bk">Shepherd of Hermas</span>' !!},
+            with the original Hebrew, Greek, and Aramaic a click away.
         </p>
+
+        {{-- hp-links r1: the hero link list — replaces the testament CTA
+             pills. Two testament anchors (counts computed by the
+             controller from the canon config) and the About link. --}}
+        <ul class="home-links">
+            @foreach ($testaments as $tKey => $t)
+                <li>
+                    <a href="#{{ $tKey }}-testament">
+                        <span class="hl-arrow" aria-hidden="true">&rarr;</span>
+                        <span class="hl-text">Read the {{ $t['label'] }}</span>
+                        <span class="hl-count">({{ $testamentCounts[$tKey] ?? 0 }} books)</span>
+                    </a>
+                </li>
+            @endforeach
+            <li>
+                <a href="{{ route('about') }}">
+                    <span class="hl-arrow" aria-hidden="true">&rarr;</span>
+                    <span class="hl-text">Learn more about the website</span>
+                </a>
+            </li>
+        </ul>
 
         {{-- hp-demo r1: a live facsimile of the reader's synthesis card —
              Genesis 1:1 with the real flip / word-link / copy behaviour,
@@ -292,7 +346,14 @@
                 <span class="home-demo-label">Click {{ $demo['lang'] }}, then tap a word</span>
                 <article class="synthesis-card" id="hp-demo">
                     <div class="synthesis-ref">
-                        <span>{{ $demo['ref'] }} &middot; {{ $demo['tx'] }}</span>
+                        {{-- hp-ref r1: the header is a reader deep link
+                             (chapter 1, verse 1 focused). Guarded so an
+                             older controller payload still renders. --}}
+                        @if (!empty($demo['href']))
+                            <a href="{{ $demo['href'] }}">{{ $demo['ref'] }} &middot; {{ $demo['tx'] }}</a>
+                        @else
+                            <span>{{ $demo['ref'] }} &middot; {{ $demo['tx'] }}</span>
+                        @endif
                         <button type="button" class="synthesis-flip" id="hp-demo-flip"
                                 aria-pressed="false" title="Show {{ $demo['lang'] }}"
                                 aria-label="Show {{ $demo['lang'] }} for {{ $demo['ref'] }}">
@@ -340,16 +401,14 @@
                 </ol>
             </div>
         @endif
-
-        {{-- The two big anchors into the canon below. --}}
-        <nav class="testament-ctas" aria-label="Jump to a testament">
-            @foreach ($testaments as $tKey => $t)
-                <a class="btn-testament" href="#{{ $tKey }}-testament">{{ $t['label'] }}</a>
-            @endforeach
-        </nav>
     </section>
 
     @foreach ($testaments as $tKey => $testament)
+        {{-- hp-div r1: one rule above every testament — top books to the
+             First Testament, and 2 Baruch to the Second Testament, both
+             drawn by this single line. --}}
+        <hr class="canon-divider" aria-hidden="true">
+
         <section class="testament" id="{{ $tKey }}-testament">
             <h2 class="testament-title">{{ $testament['label'] }}</h2>
             @php

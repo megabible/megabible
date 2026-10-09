@@ -1018,6 +1018,11 @@
         var e = entryOf(id);
         var index = readIndex(), i, kept = [];
         var realId = e ? e.id : id;
+        // short-link r2: a dying board takes its vanity code with it. Read
+        // the doc before it's wiped; the beacon is best-effort (offline or
+        // blocked, the admin unmint command remains the backstop).
+        var doomed = readBoard(realId);
+        if (doomed && isObj(doomed.share)) { beaconUnmint(doomed.share); }
         for (i = 0; i < index.boards.length; i++) {
             if (index.boards[i].id !== realId) { kept.push(index.boards[i]); }
         }
@@ -2046,6 +2051,89 @@
         return { pericopeBytes: pericope, totalBytes: total, boards: boards };
     }
 
+    /* ---- short links (short-link r2) ------------------------------------
+       The server-stored vanity mask (megabible.net/SweetHoneyedEmber) over
+       the p1 share blob. The store's part is small and storage-shaped:
+       remember, per board, the code the server minted, the capability
+       SECRET that proves ownership (re-share / delete), the version last
+       pushed, and a hash of the last-pushed blob so the share panel can
+       tell "edited since shared" at a glance.
+
+           board.share = { code, secret, version, h }
+
+       The record lives ONLY on this browser's copy of the board:
+       validateBoard never passes it through (an imported board is the
+       IMPORTER's copy — ownership of the sender's link must not travel),
+       and exportBoard strips it (pericope files get handed around; the
+       secret must never ride along). Writes are QUIET — invisible to undo
+       history — and never bump `updated`: sharing a board is not editing
+       it.
+
+       beaconUnmint is the delete hook: remove() fires it when a board
+       holding a share record dies, honouring "the code dies with the
+       board". Fire-and-forget with keepalive, the MBCollectCtx bridge
+       pattern — the layout provides window.MBShareLinkCtx = { url, csrf }
+       before this file runs; no context, silent no-op, and the store
+       stays storage-only (the Node harness never sees a network). */
+
+    // The board's share record (a copy), or null. Accepts slug or id.
+    function shareLink(id) {
+        var board = get(id);
+        return (board && isObj(board.share)) ? {
+            code:    board.share.code,
+            secret:  board.share.secret,
+            version: board.share.version,
+            h:       board.share.h
+        } : null;
+    }
+
+    // Record a freshly minted or re-shared link. Shape-checked hard: the
+    // code must look like a mintable code, the secret like the server's
+    // hex token. -> board | null.
+    function setShareLink(id, info) {
+        var board = get(id);
+        if (!board || !isObj(info)) { return null; }
+        if (!isStr(info.code)   || !/^[A-Za-z]{10,64}$/.test(info.code))     { return null; }
+        if (!isStr(info.secret) || !/^[A-Za-z0-9]{16,64}$/.test(info.secret)) { return null; }
+        board.share = {
+            code:    info.code,
+            secret:  info.secret,
+            version: clampInt(info.version, 1, 1000000000, 1),
+            h:       isNum(info.h) ? info.h : 0
+        };
+        if (!writeBoard(board, true)) { return null; }
+        return board;
+    }
+
+    // Forget the link (the owner deleted it, or the server says it's gone).
+    // Idempotent. -> board | null.
+    function clearShareLink(id) {
+        var board = get(id);
+        if (!board) { return null; }
+        if (board.share == null) { return board; }
+        delete board.share;
+        if (!writeBoard(board, true)) { return null; }
+        return board;
+    }
+
+    // Best-effort DELETE for a dying board's code (see section note).
+    function beaconUnmint(share) {
+        var ctx = (typeof window !== 'undefined') ? window.MBShareLinkCtx : null;
+        if (!ctx || !ctx.url || !isObj(share) || !share.code || !share.secret) { return; }
+        try {
+            fetch(ctx.url + '/' + encodeURIComponent(share.code), {
+                method: 'DELETE',
+                keepalive: true,
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': ctx.csrf || ''
+                },
+                body: JSON.stringify({ secret: share.secret })
+            })['catch'](function () {});
+        } catch (e) {}
+    }
+
     /* ---- export / import document shaping (Phase 4 leans on these) ------
        These build/parse the FILE payload shape only; the actual download and
        file-picker wiring is Phase 4 UI. Kept here so the file schema has one
@@ -2055,6 +2143,10 @@
     function exportBoard(slugOrId) {
         var board = get(slugOrId);
         if (!board) { return null; }
+        // short-link r2: the share record never rides in an export file —
+        // the secret IS ownership, and pericope files get handed around.
+        // (get() parses a fresh copy, so this delete touches storage never.)
+        if (board.share != null) { delete board.share; }
         return {
             app: 'megabible', kind: 'pericope', version: SCHEMA_VERSION,
             exported_at: new Date().toISOString(),
@@ -2557,6 +2649,11 @@
         decodeShare:  decodeShare,
         importShared: importShared,
         setCardTx:    setCardTx,
+
+        // short links (short-link r2): the vanity-code record on a board
+        shareLink:      shareLink,
+        setShareLink:   setShareLink,
+        clearShareLink: clearShareLink,
 
         // groups (Phase 5)
         GROUP_COLORS: GROUP_COLORS,

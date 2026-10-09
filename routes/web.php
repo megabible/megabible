@@ -6,6 +6,7 @@ use App\Http\Controllers\PericopeController;
 use App\Http\Controllers\TypingController;
 use App\Http\Controllers\HeadedController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\PericopeShareController;
 use App\Http\Middleware\RememberTranslation;
 use Illuminate\Support\Facades\Route;
 
@@ -156,6 +157,19 @@ Route::prefix('extras/pericope')->name('extras.pericope')->group(function () {
     Route::get('/{slug}', [PericopeController::class, 'board'])
         ->where('slug', '[a-z0-9-]+')
         ->name('.board');
+
+    // short-link r1: mint / re-share / delete a vanity code. Group-RELATIVE
+    // like every sibling (the group supplies the /extras/pericope prefix and
+    // the extras.pericope name stem — note the leading dot, the `.like`
+    // pattern). POST/PUT/DELETE literals can never collide with the GET
+    // {slug} route above. The code's RESOLUTION route lives at the bottom
+    // of this file, outside any group: it must be megabible.net/{code}.
+    Route::post('/share-links', [PericopeShareController::class, 'mint'])
+        ->middleware('throttle:15,1')->name('.share-links.mint');
+    Route::put('/share-links/{code}', [PericopeShareController::class, 'reshare'])
+        ->middleware('throttle:15,1')->name('.share-links.reshare');
+    Route::delete('/share-links/{code}', [PericopeShareController::class, 'unmint'])
+        ->middleware('throttle:15,1')->name('.share-links.unmint');
 });
 
 // Typing Scrimmage — the builder and the scrims themselves.
@@ -276,6 +290,16 @@ Route::prefix('extras/bible-typing')->name('typing.')->group(function () {
         ->middleware('throttle:30,1')
         ->name('played');    
 });
+
+// ── THE VERY LAST ROUTE IN THIS FILE ────────────────────────────────
+// Vanity short links (short-link r1): megabible.net/SweetHoneyedEmber.
+// Letters-only, 10+ chars (the shortest mintable code is 10), so it can
+// never shadow /bible/… or /extras/… paths, and every route defined
+// above it is matched first. Unknown codes 404 like any dead URL.
+Route::get('/{code}', [PericopeShareController::class, 'resolve'])
+    ->where('code', '[A-Za-z]{10,64}')
+    ->middleware('throttle:60,1')
+    ->name('pericope.short');
 
 // HEADed — the local-only heading TSV editor. Not registered in production.
 if (app()->environment('local')) {

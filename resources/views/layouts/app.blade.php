@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <script>
+<script>
         /* =====================================================================
         READER SETTINGS — theme + text preferences, persisted to localStorage.
 
@@ -16,6 +16,15 @@
         stylesheet maps those attributes to the actual colours / sizes. No other
         script needs to run for the settings to take effect — this is the single
         source of truth, exposed as window.MB.reader for the settings panel.
+
+        UNLOCKS (easter eggs) live here too, because mb.reader is the closest
+        thing this site has to a "profile" — per device, never on the server:
+          terminalUnlocked  the Terminal theme (found via /extras/terminal)
+          scrimUnlocked     the reader FAB's scrim button (scrim-gate r1;
+                            the unlock sequence is still to be written —
+                            for now: MB.reader.unlockScrim() in the console)
+        reset() keeps every unlock; only Acts of the User's "clear all"
+        (localStorage.clear) takes them away.
         ===================================================================== */
         (function () {
             const KEY  = 'mb.reader';
@@ -32,6 +41,7 @@
                 footnotes:        true,
                 pericopeMarks:    true,         // canon-color underlines on collected verses
                 terminalUnlocked: false,        // set true once the easter egg is found
+                scrimUnlocked:    false,        // scrim-gate r1: FAB scrim button easter egg
             };
             const SIZE_MIN = 0, SIZE_MAX = 4, SPACING_STEPS = 3;
 
@@ -59,6 +69,7 @@
                 ROOT.dataset.footnotes    = state.footnotes ? 'on' : 'off';
                 ROOT.dataset.pericopeMarks = state.pericopeMarks ? 'on' : 'off';
                 ROOT.dataset.terminalUnlocked = state.terminalUnlocked ? 'yes' : 'no';
+                ROOT.dataset.scrimUnlocked    = state.scrimUnlocked ? 'yes' : 'no';
             }
 
             function save() {
@@ -100,18 +111,28 @@
                 // Toggling Terminal OFF from the panel returns to Day.
                 exitTerminal()   { if (state.theme === 'terminal') set({ theme: 'day' }); },
 
-                // Reset TEXT/theme settings to default — but keep the unlock, so the
-                // reader doesn't lose the easter egg they already found.
+                // Easter egg (scrim-gate r1): the reader FAB's scrim button.
+                // focus-synthesis.js listens for mb:reader-change, so the
+                // button appears/disappears on the open page immediately.
+                // lockScrim() exists for testing and for any future "forget".
+                unlockScrim() { if (!state.scrimUnlocked) set({ scrimUnlocked: true }); },
+                lockScrim()   { if (state.scrimUnlocked)  set({ scrimUnlocked: false }); },
+
+                // Reset TEXT/theme settings to default — but keep every unlock,
+                // so the reader doesn't lose an easter egg they already found.
                 reset() {
-                    const unlocked = state.terminalUnlocked;
-                    state = Object.assign({}, DEFAULTS, { terminalUnlocked: unlocked });
+                    const keep = {
+                        terminalUnlocked: state.terminalUnlocked,
+                        scrimUnlocked:    state.scrimUnlocked,
+                    };
+                    state = Object.assign({}, DEFAULTS, keep);
                     apply(); save(); notify();
                 },
             };
 
             apply();   // first paint, before <body> exists
         })();
-    </script>    
+    </script>
     
     <title>@yield('title', 'MEGABIBLE.net')</title>
 
@@ -1107,6 +1128,10 @@
     window.MBCollectCtx = {
         url:  @json(route('extras.pericope.collected')),
         csrf: @json(csrf_token()),
+    };
+    window.MBShareLinkCtx = { 
+        url: '{{ route('extras.pericope.share-links.mint') }}', 
+        csrf: '{{ csrf_token() }}' 
     };
 </script>
 <script src="{{ asset('js/pericope-sheet.js') }}?v={{ filemtime(public_path('js/pericope-sheet.js')) }}" defer></script>

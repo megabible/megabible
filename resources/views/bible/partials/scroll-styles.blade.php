@@ -14,6 +14,10 @@
     shell rules are copied from board.blade's style block (the source
     of truth for that chrome until the shared partials are extracted
     alongside the font manager) — a change there wants a mirror here.
+    As of scroll r9 the share body mirrors the grid's SHORT-LINK panel
+    (board.blade share r2.1): header + divider, the brand link card,
+    status/error lines, Delete/Update/Copy — the old url textarea and
+    size-readout rules are gone with the long links.
 
     Everything reads the theme tokens (--bg / --ink / --muted / --rule /
     --panel / --accent / --tl-*), so night, contrast and terminal repaint the
@@ -25,7 +29,7 @@
       --pbf-pad    inner padding of a page, also in cqw
 --}}
     /* Revision tripwire (pairs with console '[pericope] scroll r2'). */
-    #pb-feed { --pbf-rev: 6; }
+    #pb-feed { --pbf-rev: 7; }
 
     /* ---- page shell (scroll r3) ---------------------------------------
        The grid page's chrome, mirrored: back link, the view pill in the
@@ -49,9 +53,9 @@
     .pb-missing a, .pb-empty a { color: var(--accent); }
 
     /* ---- the share panel + scroll settings ----------------------------
-       The grid share panel's clothes (.pbs-* / .pps-*), copied from
-       board.blade; the header pill here is a LABEL ("Scroll"), not a
-       button, so it gets the .is-label calm. */
+       The grid share panel's clothes (.pbs-* / .pps-*), mirrored from
+       board.blade's share r2.1 block; the header pill here is a LABEL
+       ("Scroll"), not a button, so it gets the .is-label calm. */
     .pbs-panel {
         position: absolute; right: 0; top: calc(100% + 10px); z-index: 80;
         width: 300px; padding: 1rem;
@@ -59,6 +63,15 @@
         box-shadow: 0 12px 32px rgba(0,0,0,.18);
         text-align: left; cursor: default;
     }
+    /* While a head-folder panel is open, lift the whole chapter head
+       above the board's floating chrome. The pan gizmo is FIXED at root
+       level, outside the head's own stacking context — so the panel's
+       z 80, trapped inside it, can never win from within (the vt r1
+       trap, same mechanism). Elevation is scoped to the open state
+       only, per the vt r3 invariant: full-screen takeovers (presenter,
+       synthesis) belong ABOVE this tier, at 110. The Aa panel shares
+       the same trap, so it rides the same selector. */
+    .chapter-head:has(.pb-share[open], .text-settings[open]) { z-index: 100; }
     .pbs-present-row {
         display: flex; align-items: center; gap: .3rem;
         margin: 0 0 1rem; padding: .28rem .28rem .28rem 0;
@@ -81,34 +94,68 @@
     .pbs-gear svg { width: 18px; height: 18px; display: block; pointer-events: none; }
     .pbs-gear:hover { background: rgba(255,255,255,.14); }
     .pbs-gear.is-on { background: #fff; color: var(--accent); border-color: #fff; transform: rotate(60deg); }
-    .pbs-title { font-family: var(--serif); font-size: 1.05rem; color: var(--ink); margin: 0 0 .5rem; }
+
+    /* Share body (share r2.1 mirror). Header mirrors .ts-head / .ts-title
+       so this panel and the Aa panel read as siblings. */
+    .pbs-head { --pbs-rev: 2.1; display: flex; align-items: center; margin-bottom: .8rem; }
+    .pbs-title { font-family: var(--sans); font-weight: 700; font-size: .95rem; color: var(--ink); }
+    .pbs-divider { border-top: 1px solid var(--rule); margin: 0 0 .9rem; }
     .pbs-blurb { font-family: var(--sans); font-size: .82rem; color: var(--muted); margin: 0 0 .8rem; line-height: 1.5; }
-    .pbs-url {
-        width: 100%; box-sizing: border-box; resize: none;
-        font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .74rem; line-height: 1.45;
-        color: var(--ink); background: var(--panel);
-        border: 1px solid var(--rule); border-radius: 8px;
-        padding: .5rem .6rem; word-break: break-all;
+    .pbs-blurb strong { color: var(--ink); font-weight: 600; }
+    /* THE LINK CARD — the address as it reads aloud: the brand wordmark
+       small, the code large and fully visible, wrapping onto a second
+       line when a long code needs it. One button; click copies. */
+    .pbs-link {
+        display: block; width: 100%; box-sizing: border-box; text-align: left;
+        padding: .6rem .75rem; cursor: pointer;
+        /* Buttons DON'T inherit color — the UA gives them ButtonText,
+           which iOS Safari renders BLUE, and the brand wordmark inside
+           was inheriting it. Ink here ends that for everything inside
+           (ink, not literal black, so Night/Contrast repaint it). */
+        color: var(--ink);
+        background: var(--panel); border: 1px solid var(--rule); border-radius: 8px;
+        line-height: 1.3;
+        transition: border-color .12s, box-shadow .12s;
     }
-    .pbs-url:focus { outline: none; border-color: var(--accent); }
-    .pbs-size { font-family: var(--sans); font-size: .78rem; color: var(--muted); margin: .5rem 0 .9rem; }
-    .pbs-size.is-over { color: var(--accent); }
+    .pbs-link:hover { border-color: var(--accent); }
+    .pbs-link:focus-visible { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107,31,31,.12); }
+    .pbs-link.is-copied { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(107,31,31,.12); }
+    /* The wordmark sizes itself to its surroundings (brand.blade's whole
+       trick), so the wrapper's font-size IS the brand's size knob.
+       The brand line is a BLOCK: "MEGABIBLE.net/" owns line 1, the code
+       always starts on line 2 with the full card width to itself — no
+       more mid-word wraps like "PatientEternal / Hosanna". */
+    .pbs-link-brand { display: block; font-size: .85rem; white-space: nowrap; margin-bottom: .05rem; }
+    .pbs-link-slash { color: var(--muted); }
+    .pbs-link-code {
+        font-family: var(--serif);            /* knob: the code's face */
+        font-size: 1.25rem; font-weight: 600; /* knob: the code's size */
+        letter-spacing: -.01em; color: var(--ink);
+        overflow-wrap: anywhere;              /* long codes wrap, never clip */
+    }
+    .pbs-link-pin { font-size: .78rem; color: var(--muted); }
+    .pbs-note { font-family: var(--sans); font-size: .78rem; color: var(--muted); margin: .5rem 0 .9rem; }
+    .pbs-note.is-stale { color: var(--accent); }
+    .pbs-error { font-family: var(--sans); font-size: .78rem; color: var(--accent); margin: 0 0 .7rem; line-height: 1.45; }
     .pbs-qr { display: flex; justify-content: center; margin: 0 0 1rem; }
     .pbs-qr svg {
         width: min(58vw, 13rem); height: auto; display: block;
         background: #fff; border-radius: 10px;
         box-shadow: 0 1px 6px rgba(0,0,0,.12);
     }
-    .pbs-btns { display: flex; justify-content: flex-end; gap: .5rem; }
+    .pbs-btns { display: flex; align-items: center; justify-content: flex-end; gap: .5rem; flex-wrap: wrap; }
     .pbs-btn {
         font-family: var(--sans); font-size: .88rem; font-weight: 600; cursor: pointer;
         border-radius: 999px; padding: .45rem 1rem; border: 1px solid var(--rule);
         background: none; color: var(--muted);
         transition: color .12s, background .12s, filter .12s;
     }
+    .pbs-btn:disabled { opacity: .5; cursor: default; }
     .pbs-btn.is-quiet:hover { color: var(--ink); background: var(--panel); }
     .pbs-btn.is-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
     .pbs-btn.is-primary:hover { filter: brightness(1.12); }
+    /* Delete link sits apart on the left — destructive, out of thumb's way. */
+    .pbs-del { margin-right: auto; padding-left: .7rem; padding-right: .7rem; font-size: .8rem; }
     .pps-title { font-family: var(--serif); font-weight: 700; font-size: 1.05rem; color: var(--ink); margin: 0 0 .7rem; }
     .pps-row { display: grid; gap: .5rem; margin-bottom: .55rem; }
     .pps-preview {

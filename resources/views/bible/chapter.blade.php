@@ -406,10 +406,11 @@
 
     <div class="chapter-head">
         {{-- Corner cluster: the apps folder (components/head-folder). Pill
-             order, left to right: scrim / pericope / vigil / Aa, then the
-             folder circle. focus-synthesis.js finds the first three by id and
-             never builds them — the Blade owns the markup, the engine owns
-             the state. --}}
+             order, left to right: watch (only when an animation exists) /
+             vigil / pericope / Aa, then the folder circle. The Blade owns this
+             markup; the engines own the state. The scrim is NOT here — it
+             lives in the selection FAB, built by focus-synthesis.js, and is
+             hidden until this device unlocks it (scrim-gate r1). --}}
         <div class="head-actions">
             <x-head-folder persist="reader">
                 {{-- Watch (watch r1): the eyeball. One-shot app, drawn only

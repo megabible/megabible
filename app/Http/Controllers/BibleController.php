@@ -620,6 +620,10 @@ class BibleController extends Controller
                     'tx'   => 'KJV',
                     'lang' => 'Hebrew',   // eternally true for this verse
                     'url'  => route('bible.interlinear', ['kjv', 'genesis', 1]) . '?v=1',
+                    // hp-ref r1: the card header's reader deep link —
+                    // /bible/kjv/genesis/1?v=1, built here (not in Blade)
+                    // per the house rule. Focus mode lands on verse 1.
+                    'href' => route('bible.chapter', ['kjv', 'genesis', 1]) . '?v=1',
                 ];
             }
         }
@@ -634,13 +638,49 @@ class BibleController extends Controller
             );
         }
 
+        $sections = config('canon.sections', []);
+
+        // hp-links r1: canon book counts per testament for the hero link
+        // list, counted from config — the CANON's size (57 / 34), not the
+        // imported subset — via the same testaments → sections → subgroups
+        // walk every canon consumer does. If the canon ever gains a book,
+        // these numbers follow on their own.
+        $testamentCounts = [];
+        foreach ($testaments as $tKey => $t) {
+            $n = 0;
+            foreach (($t['sections'] ?? []) as $sectionKey) {
+                $section = $sections[$sectionKey] ?? null;
+                if (! $section) {
+                    continue;
+                }
+                $groups = $section['subgroups'] ?? [['books' => $section['books'] ?? []]];
+                foreach ($groups as $group) {
+                    $n += count($group['books'] ?? []);
+                }
+            }
+            $testamentCounts[$tKey] = $n;
+        }
+
+        // hp-links r1: the hero blurb's two book links (Genesis, Shepherd
+        // of Hermas), resolved by the same never-404 rule as every book
+        // cell on the page. Null = no verses anywhere yet; the Blade then
+        // renders the name as plain book-font text instead of a link.
+        $heroLinks = [];
+        foreach (['genesis', 'shepherd-of-hermas'] as $slug) {
+            $bk = $books->get($slug);
+            $tx = $bk ? ($linkTranslation[$bk->id] ?? null) : null;
+            $heroLinks[$slug] = $tx ? route('bible.book', [$tx, $slug]) : null;
+        }
+
         return view('bible.index', [
             'testaments' => $testaments,
-            'sections'        => config('canon.sections'),
+            'sections'        => $sections,
             'books'           => $books,
             'linkTranslation' => $linkTranslation,
             'demo'            => $demo,
-            'topBooks'        => $topBooks,   // hp-hero r1
+            'topBooks'        => $topBooks,         // hp-hero r1
+            'testamentCounts' => $testamentCounts,  // hp-links r1
+            'heroLinks'       => $heroLinks,        // hp-links r1
         ]);
     }
 

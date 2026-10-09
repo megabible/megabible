@@ -1,59 +1,74 @@
 /* ======================================================================
    PERICOPE BOARD — SHARING                      public/js/pericope-share.js
    ----------------------------------------------------------------------
-   S1 of the share plan. The head folder's share app is a <details> whose
-   panel (.pbs-panel, filled here on open) hangs beneath the toolbar like
-   the Aa panel, and carries the board's whole state as one self-contained
-   URL:
+   share r2.1 — SHORT LINKS, brand link display. The panel hands out a
+   vanity code minted on the server:
 
-       <site>/extras/pericope/shared#<p1 blob>
+       megabible.net/SweetHoneyedEmber            (bare code = latest)
+       megabible.net/SweetHoneyedEmber?v=3        (a re-share, pinned)
 
-   The blob is MBPericope.encodeShare(board) — the frozen p1 format from
-   pericope-store.js. It rides in the FRAGMENT, so it is never sent to the
-   server, never logged, never cached: the board travels person-to-person.
-   The panel offers copy, the platform share tray where the browser has one
-   (navigator.share), and a size readout against the QR comfort line. The
-   QR itself is S3 (the .pbs-qr container is already here for it); the
-   import page that these URLs point at is S2 — until that route ships, a
-   generated link 404s by design.
+   The panel, top to bottom (the Aa panel's anatomy — bold title first):
 
-   The panel also leads with the PRESENTATION button — the door into
-   pericope-present.js (the board as fullscreen slides) — and its GEAR,
-   which swaps the share content for the presentation settings (font,
-   alignment, tint, wall pattern). Those are read from and written to
-   MBPericopePresent.prefs()/setPrefs(); they live in the presenter's own
-   localStorage key, never in the share URL. Attaches through
-   window.MBPericopeBoard on mb:pericope-board-ready, like the drag and
-   edit modules.
+       Share Pericope                       ← .pbs-head, mirrors .ts-head
+       [ ▶ Presentation            ⚙ ]      ← the red pill, unchanged
+       ──────────────────────────────       ← .pbs-divider
+       …the share body…                     ← one of two states:
 
-   S2 — THE IMPORT DRIVER, same file, other page. When this script finds
-   #pbi-root (the /extras/pericope/shared shell) it runs the import instead:
-   decode the fragment, importShared() into THIS browser's store (fresh ids,
-   name deduped with a trailing number), then fetch each verse card's text
-   by reference through the same verseTranslations endpoint the switcher
-   uses — sequentially, with a progress line — and redirect to the new
-   board. A shared translation this site doesn't have for that reference
-   falls back to the first available one (and the card's tx is corrected to
-   match). A failed fetch just leaves the card text-less: the board's own
-   self-heal finishes it on first expand.
+       CREATE   blurb + [Create short link]
+       LINKED   the LINK CARD · status line · QR ·
+                [Delete link]  ([Update link] when edited)  [Copy link]
 
-   S3 — THE QR CODE. Under QR_COMFORT the panel also renders the whole URL
-   as a QR (vendored qrcode-generator, MIT, public/js/vendor/qrcode.js),
-   loaded ON DEMAND the first time the panel needs one — an ordinary board
-   visit never pays for it. Always dark-on-white in its own backing box
-   regardless of theme: scanners want contrast, not aesthetics. Vanilla
-   ES5.
+   THE LINK CARD (r2.1): no more URL trailing off in a one-line input.
+   A button-card shows the address the way it reads aloud — the brand
+   wordmark small, the code large and fully visible:
+
+       MEGABIBLE.net/            ← the x-brand component's exact markup
+       FaithfulCrownedOstrich    ← the code, wrapping when long
+                            ?v=3 ← the pin, small + muted, re-shares only
+
+   The wordmark markup is replicated from components/brand.blade (JS
+   builds this panel, so the Blade component can't be included here);
+   the .mb-brand / .mb-tld classes carry the header-logo treatment and
+   size to their surroundings, so this stays in lockstep with every
+   other page's wordmark. Clicking the card copies the full URL. A
+   GHOST input (#pbs-url, offscreen) still holds that URL verbatim —
+   the Copy button, the execCommand fallback, and the native share
+   tray all read it, one source of truth.
+
+   State lives on the board document as board.share = {code, secret,
+   version, h} via the store's short-link r2 functions. h is
+   MBPericope.hashStr of the last-pushed blob — when encodeShare(board)
+   hashes differently, the board has changed since it was shared, and
+   the panel leads with "Update link" (which PUTs the new blob, bumps
+   the version, and shows the ?v=N form; the bare code serves the
+   latest version either way). Deleting the link DELETEs the code —
+   the same endpoint the store's remove() hook fires when the whole
+   board dies. Endpoints + CSRF arrive through window.MBShareLinkCtx
+   = { url, csrf }, set by the layout next to MBCollectCtx.
+
+   The GEAR still flips the panel to the presentation settings (font,
+   alignment, tint, wall pattern — MBPericopePresent's own prefs); the
+   header swaps to "Presentation Settings" while it's open.
+
+   S2 — THE IMPORT DRIVER, same file, other page, UNCHANGED by r2.x.
+   When this script finds #pbi-root (the /extras/pericope/shared shell)
+   it runs the import instead: the blob arrives in location.hash (legacy
+   long links — still honoured forever) or in MBPericopeSharedConfig.blob
+   (short links: PericopeShareController::resolve serves this same shell
+   with the blob in config). decodeShare → importShared → fetch each
+   verse card's text by reference → redirect to the new board.
+
+   S3 — THE QR CODE. A short link is always tiny, so the QR always
+   renders (vendored qrcode-generator, MIT, loaded on demand). Always
+   dark-on-white in its own backing box regardless of theme. Vanilla ES5.
    ====================================================================== */
 (function () {
     'use strict';
 
-    // Above this many characters the panel stops promising a scannable QR
-    // (≈ QR version 20 at medium error correction) and leads with the link.
-    var QR_COMFORT = 1000;
-
     var B = null, panel = null, root = null;
     var qrLibState = 0;      // 0 not requested · 1 loading · 2 ready · 3 failed
     var qrPending = null;    // url waiting for the lib to arrive
+    var busy = false;        // one mint/update/delete in flight at a time
 
     function esc(s) {
         var d = document.createElement('div');
@@ -61,12 +76,22 @@
         return d.innerHTML;
     }
 
-    // The import page's URL, derived from the hub route the shell already
-    // ships (never cached, so LAN/mobile devices get the right host).
-    function shareBase() {
-        var hub = (window.MBPericopeBoardConfig && window.MBPericopeBoardConfig.hubUrl) || '/extras/pericope';
-        return hub.replace(/\/$/, '') + '/shared';
+    // The layout's bridge to the share-link endpoints (app.blade, beside
+    // MBCollectCtx): { url: POST base, csrf }. PUT/DELETE append /{code}.
+    function ctx() { return window.MBShareLinkCtx || null; }
+
+    // The public face of a share record. The server's route shape is
+    // simply /{code} on this same host, so the origin is all we need;
+    // v1 stays bare, re-shares carry their pin (bare serves latest
+    // regardless — the pin is for "this exact revision").
+    function shortUrl(rec) {
+        return location.origin + '/' + rec.code +
+               (rec.version > 1 ? '?v=' + rec.version : '');
     }
+
+    // The x-brand wordmark, verbatim from components/brand.blade — see
+    // the header note for why the markup lives here too.
+    var BRAND = '<span class="mb-brand">MEGABIBLE<span class="mb-tld">.net</span></span>';
 
     var ICON_PRESENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="13" rx="2"/><path d="M8 21h8"/><path d="M12 18v3"/></svg>';
     var ICON_GEAR    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>';
@@ -86,7 +111,8 @@
         var pr = P(), prefs = pr ? pr.prefs() : {}, fonts = pr ? pr.FONTS : {}, k, h = '';
         var colors = (window.MBPericope && window.MBPericope.GROUP_COLORS) || [];
 
-        h += '<p class="pps-title">Presentation settings</p>';
+        // No title row here — the panel's own header swaps to
+        // "Presentation Settings" while the gear is on (share r2).
 
         // Preview: the board's name in the chosen face.
         h += '<div class="pps-preview" id="pps-preview" aria-hidden="true"></div>';
@@ -185,12 +211,12 @@
             var hint = document.getElementById('pps-custom-hint');
             var fam = pr.customFamily(url);
             if (!/^https:\/\/fonts\.googleapis\.com\/css2?\?/.test(url) || !fam) {
-                hint.textContent = 'That doesn\u2019t look like a fonts.googleapis.com css URL with a family= in it.';
+                hint.textContent = 'That doesn’t look like a fonts.googleapis.com css URL with a family= in it.';
                 hint.classList.add('is-error');
                 return;
             }
             hint.classList.remove('is-error');
-            hint.textContent = 'Using \u201c' + fam + '\u201d.';
+            hint.textContent = 'Using “' + fam + '”.';
             pr.setPrefs({ font: 'custom', customUrl: url });
         });
         box.addEventListener('click', function (e) {
@@ -208,41 +234,68 @@
     }
 
     function setSettingsMode(on) {
-        var gear = document.getElementById('pbs-gear');
+        var gear  = document.getElementById('pbs-gear');
         var share = document.getElementById('pbs-share-body');
-        var box = document.getElementById('pbs-settings');
+        var box   = document.getElementById('pbs-settings');
+        var title = document.getElementById('pbs-head-title');
         if (!gear || !share || !box) { return; }
         gear.setAttribute('aria-pressed', on ? 'true' : 'false');
         gear.classList.toggle('is-on', on);
         share.hidden = on;
         box.hidden = !on;
+        if (title) { title.textContent = on ? 'Presentation Settings' : 'Share Pericope'; }
         if (on) { syncSettings(); }
     }
 
-    // Build the panel's contents once; open() refreshes the values.
+    /* =================== the share body =================== */
+
+    // Build the panel's skeleton once; renderShare() fills the live parts
+    // on every open and after every server round-trip.
     function buildPanel() {
         if (panel.getAttribute('data-built')) { return; }
         panel.setAttribute('data-built', '1');
         panel.innerHTML =
+            '<div class="pbs-head"><span class="pbs-title" id="pbs-head-title">Share Pericope</span></div>' +
             '<div class="pbs-present-row">' +
                 '<button type="button" class="pbs-present" id="pbs-present">' + ICON_PRESENT + '<span>Presentation</span></button>' +
                 '<button type="button" class="pbs-gear" id="pbs-gear" aria-pressed="false" aria-label="Presentation settings" title="Presentation settings">' + ICON_GEAR + '</button>' +
             '</div>' +
+            '<div class="pbs-divider" aria-hidden="true"></div>' +
             '<div id="pbs-share-body">' +
-                '<p class="pbs-title">Share this pericope</p>' +
-                '<p class="pbs-blurb">The whole board — cards, placement, groups — lives inside this link. ' +
-                    'Nothing is stored on MEGABIBLE; whoever opens it rebuilds their own copy.</p>' +
-                '<textarea class="pbs-url" id="pbs-url" readonly rows="3" spellcheck="false"></textarea>' +
-                '<p class="pbs-size" id="pbs-size"></p>' +
-                '<div class="pbs-qr" id="pbs-qr" hidden></div>' +
-                '<div class="pbs-btns">' +
-                    '<button type="button" class="pbs-btn is-quiet" id="pbs-native" hidden>Share&hellip;</button>' +
-                    '<button type="button" class="pbs-btn is-primary" id="pbs-copy">Copy link</button>' +
+                // CREATE — no link yet.
+                '<div id="pbs-make" hidden>' +
+                    '<p class="pbs-blurb">Create an easy to remember link. ' +
+                        'This mints a snapshot of the board exactly as it currently exists so the link can rebuild it. ' +
+                        'Deleting the link or the board will clear your URL.</p>' +
+                    '<p class="pbs-error" id="pbs-make-err" hidden></p>' +
+                    '<div class="pbs-btns">' +
+                        '<button type="button" class="pbs-btn is-primary" id="pbs-mint">Create short link</button>' +
+                    '</div>' +
+                '</div>' +
+                // LINKED — the code exists; maybe the board has moved on.
+                // The link card is one <button>: brand wordmark small, the
+                // code large, the ?v pin small — click copies. No spaces
+                // between the spans: the card reads as the URL it is.
+                '<div id="pbs-linked" hidden>' +
+                    '<button type="button" class="pbs-link" id="pbs-link" title="Copy link">' +
+                        '<span class="pbs-link-brand">' + BRAND + '<span class="pbs-link-slash">/</span></span>' +
+                        '<span class="pbs-link-code" id="pbs-link-code"></span>' +
+                        '<span class="pbs-link-pin" id="pbs-link-pin" hidden></span>' +
+                    '</button>' +
+                    '<input type="text" class="pbs-url is-ghost" id="pbs-url" readonly tabindex="-1" aria-hidden="true">' +
+                    '<p class="pbs-note" id="pbs-note"></p>' +
+                    '<div class="pbs-qr" id="pbs-qr" hidden></div>' +
+                    '<p class="pbs-error" id="pbs-linked-err" hidden></p>' +
+                    '<div class="pbs-btns">' +
+                        '<button type="button" class="pbs-btn is-quiet pbs-del" id="pbs-unlink">Delete link</button>' +
+                        '<button type="button" class="pbs-btn is-quiet" id="pbs-native" hidden>Share&hellip;</button>' +
+                        '<button type="button" class="pbs-btn is-primary" id="pbs-update" hidden>Update link</button>' +
+                        '<button type="button" class="pbs-btn is-primary" id="pbs-copy">Copy link</button>' +
+                    '</div>' +
                 '</div>' +
             '</div>' +
             '<div class="pbs-settings" id="pbs-settings" hidden>' + settingsHtml() + '</div>';
 
-        document.getElementById('pbs-copy').addEventListener('click', copyUrl);
         document.getElementById('pbs-present').addEventListener('click', function () {
             if (window.MBPericopePresent) { window.MBPericopePresent.open(); }   // panel stays open underneath
         });
@@ -251,12 +304,14 @@
         });
         wireSettings();
 
-        var urlEl = document.getElementById('pbs-url');
-        urlEl.addEventListener('focus', function () { urlEl.select(); });
+        document.getElementById('pbs-mint').addEventListener('click', mintLink);
+        document.getElementById('pbs-update').addEventListener('click', updateLink);
+        document.getElementById('pbs-unlink').addEventListener('click', deleteLink);
+        document.getElementById('pbs-copy').addEventListener('click', copyUrl);
+        document.getElementById('pbs-link').addEventListener('click', copyUrl);
 
         var native = document.getElementById('pbs-native');
         if (navigator.share) {
-            native.hidden = false;
             native.addEventListener('click', function () {
                 var board = B.board();
                 navigator.share({
@@ -267,34 +322,202 @@
         }
     }
 
-    // Fill the panel for the board as it is RIGHT NOW (runs on every open,
-    // so a board edited since the last share gets a fresh link).
-    function open() {
+    function showErr(id, msg) {
+        var el = document.getElementById(id);
+        if (!el) { return; }
+        el.hidden = !msg;
+        el.textContent = msg || '';
+    }
+
+    // Paint the share body for the board as it is RIGHT NOW.
+    function renderShare(keepErrors) {
         var board = B.board();
         if (!board) { return; }
-        var blob = window.MBPericope.encodeShare(board);
-        if (!blob) { return; }
         buildPanel();
 
-        var url = shareBase() + '#' + blob;
-        document.getElementById('pbs-url').value = url;
-
-        var sizeEl = document.getElementById('pbs-size');
-        if (url.length <= QR_COMFORT) {
-            sizeEl.textContent = url.length + ' characters — small enough for a scannable QR code.';
-            sizeEl.classList.remove('is-over');
-        } else {
-            sizeEl.textContent = url.length + ' characters — too large for a comfortable QR code; share it as a link.';
-            sizeEl.classList.add('is-over');
-        }
-
-        var copyBtn = document.getElementById('pbs-copy');
-        copyBtn.textContent = 'Copy link';
-
+        var make   = document.getElementById('pbs-make');
+        var linked = document.getElementById('pbs-linked');
         var present = document.getElementById('pbs-present');
         if (present) { present.disabled = !(board.cards && board.cards.length); }
+        if (!keepErrors) { showErr('pbs-make-err', null); showErr('pbs-linked-err', null); }
 
-        renderQr(url.length <= QR_COMFORT ? url : null);
+        var rec = window.MBPericope.shareLink(board.id);
+        if (!rec) {
+            make.hidden = false;
+            linked.hidden = true;
+            renderQr(null);
+            return;
+        }
+
+        make.hidden = true;
+        linked.hidden = false;
+
+        var blob    = window.MBPericope.encodeShare(board);
+        var changed = !!blob && window.MBPericope.hashStr(blob) !== rec.h;
+        var url     = shortUrl(rec);
+
+        // The ghost input carries the FULL url — copy, fallback, and the
+        // native tray all read it; the card displays its readable parts.
+        document.getElementById('pbs-url').value = url;
+        document.getElementById('pbs-link-code').textContent = rec.code;
+        var pin = document.getElementById('pbs-link-pin');
+        pin.hidden = !(rec.version > 1);
+        pin.textContent = rec.version > 1 ? '?v=' + rec.version : '';
+        document.getElementById('pbs-link')
+            .setAttribute('aria-label', 'Copy link: ' + url);
+
+        var note = document.getElementById('pbs-note');
+        note.classList.toggle('is-stale', changed);
+        note.textContent = changed
+            ? 'This pericope has changed since v' + rec.version +
+              ' — update the link to share the changes.'
+            : 'Up to date · v' + rec.version;
+
+        var updateBtn = document.getElementById('pbs-update');
+        var copyBtn   = document.getElementById('pbs-copy');
+        var nativeBtn = document.getElementById('pbs-native');
+        updateBtn.hidden = !changed;
+        updateBtn.disabled = false;
+        updateBtn.textContent = 'Update link';
+        copyBtn.className = changed ? 'pbs-btn is-quiet' : 'pbs-btn is-primary';
+        copyBtn.textContent = 'Copy link';
+        nativeBtn.hidden = changed || !navigator.share;
+
+        renderQr(url);
+    }
+
+    /* ---- server round-trips ---------------------------------------------- */
+
+    // One small fetch wrapper: JSON in, {status, data} out; network
+    // failures resolve to status 0 so every caller handles one shape.
+    function api(method, url, payload) {
+        var c = ctx();
+        return fetch(url, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': (c && c.csrf) || ''
+            },
+            body: JSON.stringify(payload)
+        }).then(function (r) {
+            return r.json().then(
+                function (data) { return { status: r.status, data: data }; },
+                function ()     { return { status: r.status, data: null }; }
+            );
+        }, function () {
+            return { status: 0, data: null };
+        });
+    }
+
+    function netMsg(status) {
+        if (status === 0)   { return 'Couldn’t reach MEGABIBLE — check your connection and try again.'; }
+        if (status === 419) { return 'This page sat open too long — reload it and try again.'; }
+        if (status === 429) { return 'Too many link requests in a row — give it a minute.'; }
+        if (status === 422) { return 'The server didn’t recognise this board’s share data.'; }
+        return 'Something went wrong on MEGABIBLE’s side (' + status + ') — try again in a moment.';
+    }
+
+    function mintLink() {
+        if (busy) { return; }
+        var board = B.board();
+        var c = ctx();
+        if (!board) { return; }
+        if (!c || !c.url) {
+            showErr('pbs-make-err', 'Short links aren’t available right now.');
+            try { console.warn('[pericope] share r2.1: window.MBShareLinkCtx missing — add it in app.blade beside MBCollectCtx'); } catch (e) {}
+            return;
+        }
+        var blob = window.MBPericope.encodeShare(board);
+        if (!blob) { showErr('pbs-make-err', 'This board couldn’t be encoded for sharing.'); return; }
+
+        var btn = document.getElementById('pbs-mint');
+        busy = true; btn.disabled = true; btn.textContent = 'Minting…';
+
+        api('POST', c.url, { blob: blob }).then(function (res) {
+            busy = false; btn.disabled = false; btn.textContent = 'Create short link';
+            if (res.status === 200 && res.data && res.data.code) {
+                window.MBPericope.setShareLink(board.id, {
+                    code:    res.data.code,
+                    secret:  res.data.secret,
+                    version: res.data.version || 1,
+                    h:       window.MBPericope.hashStr(blob)
+                });
+                renderShare();
+                return;
+            }
+            showErr('pbs-make-err', netMsg(res.status));
+        });
+    }
+
+    function updateLink() {
+        if (busy) { return; }
+        var board = B.board();
+        var c = ctx();
+        var rec = board && window.MBPericope.shareLink(board.id);
+        if (!board || !rec || !c || !c.url) { return; }
+        var blob = window.MBPericope.encodeShare(board);
+        if (!blob) { showErr('pbs-linked-err', 'This board couldn’t be encoded for sharing.'); return; }
+
+        var btn = document.getElementById('pbs-update');
+        busy = true; btn.disabled = true; btn.textContent = 'Updating…';
+
+        api('PUT', c.url + '/' + encodeURIComponent(rec.code), { blob: blob, secret: rec.secret })
+        .then(function (res) {
+            busy = false;
+            if (res.status === 200 && res.data && res.data.version) {
+                window.MBPericope.setShareLink(board.id, {
+                    code:    rec.code,
+                    secret:  rec.secret,
+                    version: res.data.version,
+                    h:       window.MBPericope.hashStr(blob)
+                });
+                renderShare();
+                return;
+            }
+            if (res.status === 404) {
+                // The code is gone server-side (unminted by hand, perhaps).
+                // Forget it and offer a fresh mint — self-healing.
+                window.MBPericope.clearShareLink(board.id);
+                renderShare(true);
+                showErr('pbs-make-err', 'That link no longer exists on MEGABIBLE — you can mint a fresh one.');
+                return;
+            }
+            renderShare(true);
+            showErr('pbs-linked-err', res.status === 403
+                ? 'This browser doesn’t hold the key for that link.'
+                : netMsg(res.status));
+        });
+    }
+
+    function deleteLink() {
+        if (busy) { return; }
+        var board = B.board();
+        var c = ctx();
+        var rec = board && window.MBPericope.shareLink(board.id);
+        if (!board || !rec || !c || !c.url) { return; }
+        if (!window.confirm('Delete this short link? Anyone who has it will find nothing there. The board itself stays on this device.')) { return; }
+
+        var btn = document.getElementById('pbs-unlink');
+        busy = true; btn.disabled = true;
+
+        api('DELETE', c.url + '/' + encodeURIComponent(rec.code), { secret: rec.secret })
+        .then(function (res) {
+            busy = false; btn.disabled = false;
+            // 204 deleted · 404 already gone — either way, forget it here.
+            if (res.status === 204 || res.status === 404) {
+                window.MBPericope.clearShareLink(board.id);
+                renderShare();
+                return;
+            }
+            showErr('pbs-linked-err', res.status === 403
+                ? 'This browser doesn’t hold the key for that link.'
+                : netMsg(res.status));
+        });
+    }
+
+    function open() {
+        renderShare();
     }
 
     function close() { if (root) { root.open = false; } }
@@ -336,8 +559,6 @@
             box.innerHTML = qr.createSvgTag({ cellSize: 4, margin: 4, scalable: true });
             box.hidden = false;
         } catch (e) {
-            // The lib throws plain strings on overflow — the size line has
-            // already told the person this board is link-only.
             box.hidden = true;
             box.innerHTML = '';
         }
@@ -346,9 +567,14 @@
     function copyUrl() {
         var urlEl = document.getElementById('pbs-url');
         var btnEl = document.getElementById('pbs-copy');
+        var card  = document.getElementById('pbs-link');
         function done() {
             btnEl.textContent = 'Copied';
-            setTimeout(function () { btnEl.textContent = 'Copy link'; }, 1400);
+            if (card) { card.classList.add('is-copied'); }
+            setTimeout(function () {
+                btnEl.textContent = 'Copy link';
+                if (card) { card.classList.remove('is-copied'); }
+            }, 1400);
         }
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(urlEl.value).then(done, function () { legacyCopy(urlEl, done); });
@@ -381,6 +607,8 @@
         if (!window.MBPericope || !window.MBPericope.decodeShare) { return fail('This browser could not load the pericope store.'); }
 
         var hash = (location.hash || '').replace(/^#/, '');
+        // short-link r1: vanity URLs carry the blob in config, not the fragment.
+        if (!hash && CFG.blob) { hash = String(CFG.blob); }
         if (!hash) { return fail('This link carries no board data — it may have been cut short when copied.'); }
 
         var dec = window.MBPericope.decodeShare(hash);
@@ -413,13 +641,13 @@
         function finish() { location.replace(doneUrl); }
 
         if (!jobs.length) { return finish(); }
-        say('Rebuilding verse 1 of ' + jobs.length + '\u2026');
+        say('Rebuilding verse 1 of ' + jobs.length + '…');
 
         var at = 0;
         function next() {
             if (at >= jobs.length) { return finish(); }
             var job = jobs[at++];
-            say('Rebuilding verse ' + at + ' of ' + jobs.length + '\u2026');
+            say('Rebuilding verse ' + at + ' of ' + jobs.length + '…');
             fetchCard(job.dc, job.cid).then(next, next);   // a miss never stops the train
         }
 
@@ -495,6 +723,7 @@
     window.MBPericopeShare = { open: open, close: close };
 
     function boot() {
+        try { console.log('[pericope] share r2.1 — short links'); } catch (e) {}
         var importRoot = document.getElementById('pbi-root');
         if (importRoot) { runImport(importRoot); return; }
         if (window.MBPericopeBoard) { init(); }
