@@ -414,14 +414,11 @@
             <p>
                 Whenever people start talking about Bible websites, they inevitably end up at the same question: Where can I type the Bible?
                 <x-brand/> has finally solved this issue with a new robust typing engine built in a revolutionary computer language called JavaScript.
-                This engine is used in two applications: <strong>Vigil</strong> and <strong>Scrimmage</strong>.
+                This engine is used in an application called <strong>Typing Vigil</strong>.
             </p>
             <dl class="apps">
                 <dt><a href="{{ route('typing.vigil.home') }}">Typing Vigil<span class="go">&rarr;</span></a></dt>
                 <dd>Type all 91 books of the Bible, one verse at a time. Progress is tracked on your local device only, without any user accounts or passwords.</dd>
-                <dt><a href="{{ route('typing.scrimmage') }}">Typing Scrimmage<span class="go">&rarr;</span></a></dt>
-                <dd>Every verse in the Bible is a race against the 20 second clock. Type your favorite verse in a friendly Scrim and share it with
-                a friend to etch names on the Scrimboard.</dd>
             </dl>
         </div>
     </section>
