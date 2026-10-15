@@ -8,16 +8,20 @@
    overlays the verse text with the card's actions —
 
      DUPLICATE    MBPericope.duplicateCard — a twin lands to the right.
-     INTERLINEAR  Coverage is PROBED THE MOMENT THE MENU OPENS, through the
-                  board's session token cache (B.fetchInterlinear): the
-                  button starts disabled ("checking…"), then enables, or
-                  settles on "no source text" for a passage outside
-                  TAHOT/TAGNT coverage. Pressing it spawns the child via
-                  MBPericope.addInterlinearCard. A parent that already has
-                  its child shows "added".
+     INTERLINEAR  Rendered ONLY when it can act (r2): coverage is read
+                  synchronously from the board's session token cache
+                  (B.interlinearData — the board warms it on expand), so a
+                  passage outside TAHOT/TAGNT coverage, or a parent whose
+                  child already exists, simply shows no row — no gray
+                  button, no "checking…" flash. The one rare in-flight
+                  case renders without the row and probeCoverage() slots
+                  it in when the fetch lands covered. Pressing it spawns
+                  the child via MBPericope.addInterlinearCard.
      DELETE       mbConfirm, then MBPericope.removeCard. Undoable anyway.
                   (Deleting the PARENT cascades to its child — the store's
                   tether rule.)
+
+   All three rows are TEXT-ONLY (r2) — no icons.
 
    The scissors lives on every expanded card of these two kinds: a VERSE
    card gets all three actions; an interlinear CHILD gets a delete-only
@@ -53,11 +57,6 @@
     function boardEditing() { return !!(window.MBPericopeEdit && window.MBPericopeEdit.active()); }
     function dragging()     { return !!(window.MBPericopeDrag && window.MBPericopeDrag.active()); }
 
-    var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
-    // Two stacked text rows, a smaller one beneath — "the original under the verse".
-    var ICON_INTERLINEAR = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 11h10"/><path d="M4 17h16" stroke-dasharray="2 2.5"/></svg>';
-    var ICON_TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>';
-
     function cardEl(id) { return grid.querySelector('.peri-card[data-id="' + id + '"]'); }
     function findCard(board, id) {
         if (!board) { return null; }
@@ -65,46 +64,52 @@
         return null;
     }
 
-    var DELETE_BTN = '<button type="button" class="pce-btn is-danger" data-act="delete">' + ICON_TRASH +
-                         '<span class="pce-label">Delete</span></button>';
+    // Text-only rows (r2): the icons are gone by design — three words read
+    // faster than three glyphs in a menu this small.
+    var COPY_BTN   = '<button type="button" class="pce-btn" data-act="copy"><span class="pce-label">Duplicate</span></button>';
+    var IL_BTN     = '<button type="button" class="pce-btn" data-act="interlinear"><span class="pce-label">Interlinear</span></button>';
+    var DELETE_BTN = '<button type="button" class="pce-btn is-danger" data-act="delete"><span class="pce-label">Delete</span></button>';
+
+    // Is the Interlinear action offerable RIGHT NOW? Answered synchronously
+    // from the board's session token cache (r2 / #5b):
+    //   'yes'     covered, no child yet          → render the button
+    //   'no'      child exists / uncovered / N/A → render NOTHING. A parent
+    //             with a child needs no row (the child on the board is the
+    //             signal), and an uncovered passage offers no action, so it
+    //             shows no button either — never a disabled gray row.
+    //   'pending' fetch still in flight (rare — the board warms coverage
+    //             on expand) → render nothing; probeCoverage() slots the
+    //             button in if the answer lands "covered" while this menu
+    //             is still open.
+    function ilOffer(board, cardId) {
+        var card = findCard(board, cardId);
+        if (!card || card.type !== 'verse') { return 'no'; }
+        if (window.MBPericope.interlinearChild &&
+            window.MBPericope.interlinearChild(board, cardId)) { return 'no'; }
+        var state = B.interlinearData ? B.interlinearData(card).state : 'none';
+        return state === 'ready' ? 'yes' : (state === 'pending' ? 'pending' : 'no');
+    }
 
     function menuHtml(cardId) {
         var board = B.board(), card = findCard(board, cardId);
         if (card && card.type === 'interlinear') { return DELETE_BTN; }   // a child's one action
-        var child = board && window.MBPericope.interlinearChild
-            ? window.MBPericope.interlinearChild(board, cardId) : null;
-        // Without a child the button opens DISABLED with a data-probe mark:
-        // probeCoverage() settles it right after the menu is in the DOM.
-        var il = child
-            ? '<button type="button" class="pce-btn" data-act="interlinear" disabled aria-disabled="true">' + ICON_INTERLINEAR +
-                  '<span class="pce-label">Interlinear</span><span class="pce-hint">added</span></button>'
-            : '<button type="button" class="pce-btn" data-act="interlinear" data-probe="1" disabled aria-disabled="true">' + ICON_INTERLINEAR +
-                  '<span class="pce-label">Interlinear</span><span class="pce-hint">checking\u2026</span></button>';
-        return '<button type="button" class="pce-btn" data-act="copy">' + ICON_COPY +
-                   '<span class="pce-label">Duplicate</span></button>' +
-               il + DELETE_BTN;
+        return COPY_BTN + (ilOffer(board, cardId) === 'yes' ? IL_BTN : '') + DELETE_BTN;
     }
 
-    // Ask the board's token cache whether the parent's verses have original-
-    // language coverage, and settle the Interlinear button: enabled, or
-    // "no source text". Cached answers resolve on the next microtask, so a
-    // second open of the same card never visibly says "checking".
+    // The in-flight tail of #5b: coverage was still being fetched when the
+    // menu rendered, so it opened without an Interlinear row. Ask again; if
+    // the passage turns out covered while this same menu is still open, the
+    // button slots in above Delete. An uncovered answer changes nothing —
+    // the row simply never appears.
     function probeCoverage(id, menu) {
-        var btn = menu.querySelector('[data-act="interlinear"][data-probe]');
-        if (!btn || !B.fetchInterlinear) { return; }
-        var parent = findCard(B.board(), id);
-        if (!parent) { return; }
+        if (!B.fetchInterlinear) { return; }
+        if (menu.querySelector('[data-act="interlinear"]')) { return; }   // already offered
+        var board = B.board(), parent = findCard(board, id);
+        if (!parent || ilOffer(board, id) !== 'pending') { return; }
         B.fetchInterlinear(parent).then(function (covered) {
-            if (current !== id || !menu.contains(btn)) { return; }   // menu closed / rebuilt meanwhile
-            var hint = btn.querySelector('.pce-hint');
-            btn.removeAttribute('data-probe');
-            if (covered) {
-                btn.disabled = false;
-                btn.removeAttribute('aria-disabled');
-                if (hint) { hint.parentNode.removeChild(hint); }
-            } else if (hint) {
-                hint.textContent = 'no source text';
-            }
+            if (!covered || current !== id) { return; }   // uncovered / menu moved on
+            var del = menu.querySelector('[data-act="delete"]');
+            if (del) { del.insertAdjacentHTML('beforebegin', IL_BTN); }
         });
     }
 
@@ -179,9 +184,10 @@
         reveal(res.card.id);
     }
 
-    // Spawn the child. probeCoverage already warmed the cache when the menu
-    // opened, so the fetch here answers at once; it stays the source of
-    // truth in case the probe was still in flight when the user tapped.
+    // Spawn the child. The button only renders for covered passages, so the
+    // fetch here answers from cache at once; it stays the source of truth
+    // for the one race left (a cache entry that failed to refetch) — an
+    // uncovered answer just drops the button instead of hinting at it.
     function doInterlinear(id, btn) {
         var parent = findCard(B.board(), id);
         if (!parent || !B.fetchInterlinear) { return; }
@@ -190,9 +196,7 @@
         B.fetchInterlinear(parent).then(function (covered) {
             if (current !== id) { return; }        // menu closed / moved on meanwhile
             if (!covered) {
-                var hint = btn.querySelector('.pce-hint');
-                if (!hint) { hint = document.createElement('span'); hint.className = 'pce-hint'; btn.appendChild(hint); }
-                hint.textContent = 'no source text';
+                if (btn.parentNode) { btn.parentNode.removeChild(btn); }
                 return;
             }
             var res = window.MBPericope.addInterlinearCard(B.boardId(), id);

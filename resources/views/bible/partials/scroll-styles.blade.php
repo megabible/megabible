@@ -29,7 +29,7 @@
       --pbf-pad    inner padding of a page, also in cqw
 --}}
     /* Revision tripwire (pairs with console '[pericope] scroll r2'). */
-    #pb-feed { --pbf-rev: 7; }
+    #pb-feed { --pbf-rev: 8; }
 
     /* ---- page shell (scroll r3) ---------------------------------------
        The grid page's chrome, mirrored: back link, the view pill in the
@@ -223,7 +223,9 @@
     }
     .pbf-box.is-16x9 { aspect-ratio: 16 / 9; }
     .pbf-box.is-4x5  { aspect-ratio: 4 / 5; }
-    @media (min-width: 641px) { .pbf-box { border-radius: 6px; } }
+    @media (min-width: 641px) {
+        .pbf-box { border-radius: 6px; }
+    }
 
     /* Backdrop v1: the gradient. --pbf-a is the section colour, --pbf-b a
        seeded second palette colour; both darkened a touch so white type
@@ -312,6 +314,29 @@
     .pbf-syl { opacity: .55; padding: 0 .1em; }
     .pbf-il-gloss { font-family: var(--sans); font-size: 2.9cqw; font-style: italic; opacity: .95; margin-top: .5cqw; direction: ltr; }
 
+    /* WORD-LINKING (#7): hover previews a stack (fine pointers), tap PINS
+       it — pericope-scroll.js toggles .is-pin in capture, so a word tap
+       never reads as the double-tap like; any other tap clears every pin.
+       The states are white scrims because the stacks sit on the coloured
+       backdrop. The padding/negative-margin pair grows the fill without
+       moving the stacks at rest. */
+    .pbf-il-word {
+        border-radius: 1.4cqw;
+        padding: .6cqw .9cqw;
+        margin: -.6cqw -.9cqw;
+        cursor: pointer;
+        transition: background-color .12s ease, box-shadow .12s ease;
+    }
+    @media (hover: hover) and (pointer: fine) {
+        .pbf-il-word:hover { background: rgba(255,255,255,.14); }
+    }
+    .pbf-il-word.is-pin { background: rgba(255,255,255,.26); box-shadow: inset 0 0 0 1px rgba(255,255,255,.4); }
+    /* Terminal's boxes keep the page ink, so the white scrims flip to ink. */
+    :root[data-theme="terminal"] .pbf-il-word.is-pin {
+        background: color-mix(in srgb, var(--ink) 18%, transparent);
+        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 40%, transparent);
+    }
+
     /* Carousel dots + desktop arrows (touch swipes natively). */
     .pbf-dots {
         position: absolute; left: 0; right: 0; bottom: .55rem; z-index: 2;
@@ -350,7 +375,10 @@
     }
     @media (prefers-reduced-motion: reduce) {
         .pbf-pop.is-pop { animation: pbf-pop-still .9s linear both; }
-        @keyframes pbf-pop-still { 0%, 80% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes pbf-pop-still {
+            0%, 80% { opacity: 1; }
+            100% { opacity: 0; }
+        }
     }
 
     /* ---- actions, likes, summary, comments ---------------------------- */
@@ -387,6 +415,11 @@
         margin: 0; font-family: var(--serif); font-weight: 400; font-size: 1.15rem;
         color: var(--ink); letter-spacing: -.01em;
     }
+
+    /* SOURCES (#8): no CSS here — pericope-scroll.js paints .colophon-line
+       divs into the layout's footer-colophon slot (#pb-sources, provided
+       by the scroll shell's footer-colophon section), exactly like
+       the chapter page; the styles are global in app.blade. */
 
     /* ---- the recent rail (scroll r4, desktop only) ---------------------
        The visitor's other boards beside the feed, Instagram's desktop

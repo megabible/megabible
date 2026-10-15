@@ -391,9 +391,16 @@
     .pb-grid {
         --pb-dot-r: 1.7px;
         --pb-dot-a: 0%;
-        --pb-top: 36px;                          /* headroom above row 1 — enough for a
+        --pb-top: 48px;                          /* headroom above row 1 — enough for a
                                                     top-row GROUP's label chip to float
-                                                    ABOVE its box (Phase 5b) */
+                                                    ABOVE its box (Phase 5b). 48, not 36
+                                                    (r23): the grid's overflow-x:auto
+                                                    forces overflow-y to clip too, and a
+                                                    row-1 chip tops out at padT − rowGap/2
+                                                    − 6 − its own ~24px height — at 36
+                                                    that's ≤ 0 and the chip lost its top
+                                                    few px. The dot grid reads this var,
+                                                    so the dots stay aligned for free. */
         padding-top: var(--pb-top);
         background-attachment: local;            /* dots scroll WITH the cells */
         background-image:
@@ -456,6 +463,33 @@
     .pb-editing .peri-card-menu,
     .pb-editing .peri-card-tx,
     .pb-editing .peri-ref { pointer-events: none; }
+
+    /* ORDER BADGES (#6) — worn only in edit mode (pericope-edit.js paints
+       them; a render wipes them with the cards and reapplySelection puts
+       them back). The number is the card's slot in the scroll/presenter
+       reading order (the store's walkBoard); group members sub-number
+       (3.1, 3.2) under their group's slot. A heading's badge is the
+       OUTLINE form of the same chip, so section markers read apart from
+       verse stops at a glance. Notes and interlinear children carry none.
+       pointer-events:none — the badge must never eat a selection tap. */
+    .pbe-order {
+        position: absolute;
+        top: -9px; left: -9px;
+        z-index: 5;
+        min-width: 22px; height: 22px;
+        padding: 0 6px;
+        display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 11px;
+        background: var(--accent); color: var(--bg);
+        font-family: var(--sans); font-size: .68rem; font-weight: 700;
+        letter-spacing: .02em;
+        box-shadow: 0 1px 4px rgba(0,0,0,.18);
+        pointer-events: none;
+    }
+    .pbe-order.is-heading {
+        background: var(--bg); color: var(--accent);
+        box-shadow: inset 0 0 0 2px var(--accent);
+    }
 
     /* GROUPS — pure derivations (revamp): the outline is a traced SVG path
        hugging each group's tight cell union, rebuilt every anchor pass.
@@ -1151,14 +1185,12 @@
         cursor: pointer; text-align: left;
         transition: border-color .12s, background .12s, color .12s;
     }
-    .pce-btn svg { width: 17px; height: 17px; flex: 0 0 auto; display: block; color: var(--muted); }
+    /* Text-only rows (card-edit r2) — the svg and .pce-hint rules are gone
+       with the icons and the disabled "checking…"/"added" states. */
     .pce-btn:hover:not([disabled]) { border-color: var(--accent); color: var(--accent); }
-    .pce-btn:hover:not([disabled]) svg { color: var(--accent); }
     .pce-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
     .pce-btn.is-danger:hover:not([disabled]) { border-color: var(--tl-crimson); color: var(--tl-crimson); }
-    .pce-btn.is-danger:hover:not([disabled]) svg { color: var(--tl-crimson); }
     .pce-btn[disabled] { opacity: .45; cursor: default; }
-    .pce-hint { margin-left: auto; font-size: .7rem; font-weight: 500; color: var(--muted); }
 
     /* INTERLINEAR CHILD CARDS (Phase 3). Trio rows + credit come from
        bible/partials/interlinear-styles (shared with the reader's synthesis
@@ -1324,7 +1356,7 @@
                     {{-- Aa rides in the folder like every other page control. No
                          visibility checkboxes: there are no headings or
                          footnotes to toggle on a board. --}}
-                    @include('bible.partials.text-settings', ['tsChecks' => false])
+                    @include('bible.partials.text-settings', ['tsChecks' => false, 'tsHowTo' => true])
                 </x-head-folder>
             </div>
 
@@ -1380,6 +1412,17 @@
         <p>It may have been deleted, or the link was made in a different browser. Pericopae live only on the device that created them.</p>
         <a href="{{ $hubUrl }}">&larr; Back to your pericopae</a>
     </div>
+@endsection
+
+{{-- Sources (#8), in the SAME footer slot the chapter page uses — below
+     the footer's single divider, above the site info, wearing the global
+     .colophon-line styles. The board's contents live client-side, so the
+     shell ships an empty holder and renderSources() (pericope-board.js)
+     fills it with the chapter colophon's exact line shape on every
+     render: "N verses from <Name> · license · Source: host", plus the
+     interlinear CC BY line when a child card is on the board. --}}
+@section('footer-colophon')
+    <div id="pb-sources"></div>
 @endsection
 
 @section('scripts')

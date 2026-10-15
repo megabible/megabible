@@ -6,6 +6,7 @@ use App\Http\Controllers\PericopeController;
 use App\Http\Controllers\TypingController;
 use App\Http\Controllers\HeadedController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\PericopeShareController;
 use App\Http\Middleware\RememberTranslation;
 use Illuminate\Support\Facades\Route;
@@ -86,7 +87,10 @@ Route::prefix('bible')->name('bible.')
     });
 
 // Terminal theme easter egg
-Route::view('/extras/terminal', 'extras.terminal')->name('terminal.index');
+Route::get('/extras/terminal', [TerminalController::class, 'index'])->name('terminal.index');
+Route::get('/extras/terminal/verse', [TerminalController::class, 'verse'])
+    ->middleware('throttle:30,1')
+    ->name('terminal.verse');
 
 // Acts of the User — the global record: the deeds feed (vigil verses,
 // chapter/book completions, scrimmages) plus export/import/clear-all.
@@ -140,6 +144,12 @@ Route::prefix('extras/pericope')->name('extras.pericope')->group(function () {
     // The share-link landing page (share plan S2). Fragment-borne board data
     // never reaches the server; this just ships the import shell.
     Route::get('/shared', [PericopeController::class, 'shared'])->name('.shared');
+
+    // How to Pericope — the tutorial. A literal reserved slug, so it
+    // MUST register before the parameterised {slug} board route.
+    Route::view('/how-to-pericope', 'extras.pericope.how-to')
+        ->name('.howto');    
+
     // Phase 4:  Route::get('/verses',  [PericopeController::class, 'verses'])->name('.verses');
 
     // Scroll r3: the same board as a read-only FEED on its own page. Two

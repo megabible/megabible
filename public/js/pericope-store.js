@@ -73,7 +73,7 @@
 
     // Slugs that are real routes under /extras/pericope and so can never be
     // assigned to a board (would shadow the hub's own pages).
-    var RESERVED_SLUGS = ['shared', 'verses', 'like', 'likes', 'collected'];   // like/likes/collected: beacon endpoints (scroll r2, pc-collected r1)
+    var RESERVED_SLUGS = ['shared', 'verses', 'like', 'likes', 'collected', 'how-to-pericope'];   // like/likes/collected: beacon endpoints (scroll r2, pc-collected r1)
 
     // Caps. Card caps are your answer to open-question #3 (150 soft / 300
     // hard); tweakable from here. Text caps stop one note from eating storage.

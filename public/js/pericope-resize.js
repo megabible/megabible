@@ -149,6 +149,9 @@
 
         el.classList.add('pb-resizing');
         boardEl.classList.add('pb-resize-active');
+        // The dot grid strengthens for the gesture, exactly as it does for
+        // a drag — same class, same CSS (.pb-placing), same "off" opt-out.
+        grid.classList.add('pb-placing');
 
         document.addEventListener('pointermove', rzMove);
         document.addEventListener('pointerup', rzUp);
@@ -231,6 +234,7 @@
         document.removeEventListener('contextmenu', eatMenu, true);
         rz.el.classList.remove('pb-resizing');
         boardEl.classList.remove('pb-resize-active');
+        grid.classList.remove('pb-placing');
         // The trailing click (pointerup on the button) must NOT collapse the
         // card — entering resize mode consumed this interaction.
         B.swallowNextClick();

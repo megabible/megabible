@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\VerseLike;
 use App\Models\Book;
+use App\Models\Translation;
 use App\Support\BookMetadata;
 use App\Support\Fonts;
 use Illuminate\Contracts\View\View;
@@ -157,6 +158,23 @@ class PericopeController extends Controller
             'likeUrl'          => route('extras.pericope.like'),
             'likeCountsUrl'    => route('extras.pericope.likes'),
             'csrf'             => csrf_token(),
+            // Sources footer (#8): tx slug => {name, license, url}, the
+            // same identity trio the chapter colophon prints, so the
+            // board's footer can credit "N verses from <Name> · license ·
+            // Source: host" from a card's bare tx code. bookMeta's twin.
+            'txMeta'           => Translation::query()
+                ->get(['abbreviation', 'name', 'license', 'source_url'])
+                ->mapWithKeys(fn ($t) => [strtolower($t->abbreviation) => [
+                    'name'    => $t->name,
+                    'license' => $t->license,
+                    'url'     => $t->source_url,
+                ]])->all(),
+            // The interlinear credit strings (config/interlinear.php) as a
+            // static fallback: when a board holds a child card whose tokens
+            // haven't arrived yet (or the fetch failed), the footer still
+            // owes the CC BY line — the session cache's credits take over
+            // once a fetch lands.
+            'ilCredits'        => config('interlinear.sources', []),
         ];
     }
 

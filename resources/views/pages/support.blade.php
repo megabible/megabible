@@ -281,8 +281,8 @@
         <h2 class="section-head">Why word of mouth matters</h2>
         <p>
             <x-brand/> is easy to share and easy to remember. Everyone has a smartphone in their pocket, and <x-brand/> requires
-            no sign ups, no downloads, no passwords, and no user accounts to get started. Just type in <x-brand/> to start reading, studying,
-            and typing the Bible! Tell your church group, tell your youth pastor, tell your YouTuber, tell your Bible scholar!
+            no email sign ups, no downloads, and no special software to run. If you have internet, you have <x-brand/>! Share the word and invite others to join you
+            in reading, studying, and typing the Bible. Tell your church group, tell your youth pastor, tell your YouTuber, tell your Bible scholar!
         </p>
         <div class="cta-row">
             <button class="btn" type="button" id="copy-link">Share this Link</button>

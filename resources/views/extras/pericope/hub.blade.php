@@ -15,6 +15,46 @@
     .peri-hero { margin: 0 0 1.6rem; }
     .peri-hero h1 { font-size: 2.4rem; font-weight: 400; margin: 0 0 .3rem; letter-spacing: -.01em; }
     .peri-hero p  { color: var(--muted); font-family: var(--sans); font-size: .9rem; margin: 0; max-width: 58ch; }
+    .peri-hero p + p { margin-top: .3rem; }
+
+    /* The definition paragraph (hub r2): the dictionary voice. A touch more
+       air above it than between the two short lead lines, the word itself
+       italic, and the Greek set in the serif so περικοπή doesn't render in
+       the UI sans. Line-height loosened a hair for the denser sentence. */
+    .peri-def { margin-top: .7rem !important; line-height: 1.6; }
+    .peri-def em { color: var(--ink); }
+    .peri-def .peri-greek { font-family: var(--serif); color: var(--ink); }
+
+    /* "How to Pericope →" — the acts page's learn-more link, pointed at the
+       tutorial. The arrow nudges right on hover, home-links style. */
+    .peri-learn-row { margin-top: .7rem !important; }
+    .peri-learn { color: var(--accent); font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .peri-learn:hover { text-decoration: underline; }
+    .peri-learn-arrow { display: inline-block; transition: transform .12s; }
+    .peri-learn:hover .peri-learn-arrow { transform: translateX(3px); }
+
+    /* ---- Sort pills (hub r2) -------------------------------------------
+       The acts page's .acts-pill treatment, verbatim: outlined pills, the
+       active one filled with the accent. One row above the tile grid;
+       hidden alongside it while the hub is empty. */
+    .peri-controls {
+        display: flex; flex-wrap: wrap; align-items: center; gap: .4rem;
+        font-family: var(--sans); margin: 0 0 1rem;
+    }
+    .peri-controls[hidden] { display: none; }
+    .peri-sort-label {
+        font-size: .72rem; font-weight: 700; letter-spacing: .06em;
+        text-transform: uppercase; color: var(--muted);
+        margin-right: .2rem;
+    }
+    .peri-pill {
+        font-size: .78rem; font-weight: 600; color: var(--muted);
+        background: none; border: 1px solid var(--rule); border-radius: 999px;
+        padding: .3rem .8rem; cursor: pointer;
+        transition: color .12s, border-color .12s, background .12s;
+    }
+    .peri-pill:hover { color: var(--accent); border-color: var(--accent); }
+    .peri-pill.is-active { color: #fff; background: var(--accent); border-color: var(--accent); }
 
     .peri-grid {
         display: grid;
@@ -117,6 +157,24 @@
         <h1>Pericope</h1>
         <p>Collect and arrange verses on a simple board interface.</p>
         <p>Your pericopae are saved only in this browser.</p>
+        {{-- hub r2: the tutorial, one tap away. --}}
+        <p class="peri-learn-row">
+            <a class="peri-learn" href="{{ route('extras.pericope.howto') }}">
+                How to Pericope <span class="peri-learn-arrow" aria-hidden="true">&rarr;</span>
+            </a>
+        </p>
+    </div>
+
+    {{-- hub r2: sort pills — five ways through the collection. Hidden with
+         the grid while the hub is empty; the script paints the active pill
+         and remembers the choice (mb.pericope.hubSort). --}}
+    <div class="peri-controls" id="peri-controls" hidden>
+        <span class="peri-sort-label">Sort</span>
+        <button type="button" class="peri-pill" data-sort="updated">Recently updated</button>
+        <button type="button" class="peri-pill" data-sort="newest">Newest</button>
+        <button type="button" class="peri-pill" data-sort="oldest">Oldest</button>
+        <button type="button" class="peri-pill" data-sort="largest">Largest</button>
+        <button type="button" class="peri-pill" data-sort="smallest">Smallest</button>
     </div>
 
     {{-- Painted by the script from window.MBPericope. Starts hidden; the
@@ -177,6 +235,33 @@
 
     var SCISSORS = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>';
     var TRASH    = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+
+    /* ---- SORTING (hub r2) ------------------------------------------------
+       Five ways through the collection, all answered by fields the index
+       already carries ({created, updated, cards}) — no board reads, no new
+       storage. Ties on the size sorts break to the most recently updated,
+       so "Largest" never shuffles equal-sized boards at random. The choice
+       persists per browser (mb.pericope.hubSort); an unknown saved value
+       falls back to the default. */
+    var SORT_KEY     = 'mb.pericope.hubSort';
+    var SORT_DEFAULT = 'updated';
+    var SORTS = {
+        updated:  function (a, b) { return (b.updated || 0) - (a.updated || 0); },
+        newest:   function (a, b) { return (b.created || 0) - (a.created || 0); },
+        oldest:   function (a, b) { return (a.created || 0) - (b.created || 0); },
+        largest:  function (a, b) { return ((b.cards || 0) - (a.cards || 0)) || ((b.updated || 0) - (a.updated || 0)); },
+        smallest: function (a, b) { return ((a.cards || 0) - (b.cards || 0)) || ((b.updated || 0) - (a.updated || 0)); }
+    };
+    function loadSort() {
+        try {
+            var v = localStorage.getItem(SORT_KEY);
+            if (v && SORTS[v]) { return v; }
+        } catch (e) {}
+        return SORT_DEFAULT;
+    }
+    function saveSort(v) {
+        try { localStorage.setItem(SORT_KEY, v); } catch (e) {}
+    }
 
     /* ---- MINI-BOARD THUMBNAIL -------------------------------------------
        Geometry comes from MBPericope.footprint() (logical grid cells; groups
@@ -248,7 +333,7 @@
                 }
             }
             return io;
-        }        
+        }
         if (c.type === 'heading') {
             return rect(x, y, w, h, 1.5, 'fill:var(--ink);fill-opacity:.16');
         }
@@ -336,9 +421,10 @@
     // Runs on init() — NOT at parse time: window.MBPericope loads with `defer`,
     // so it exists by DOMContentLoaded but not while this inline script parses.
     function init() {
-        var grid    = document.getElementById('peri-grid');
-        var empty   = document.getElementById('peri-empty');
-        var storage = document.getElementById('peri-storage');
+        var grid     = document.getElementById('peri-grid');
+        var empty    = document.getElementById('peri-empty');
+        var storage  = document.getElementById('peri-storage');
+        var controls = document.getElementById('peri-controls');
         if (!grid || !empty) return;
 
         if (!window.MBPericope) {
@@ -347,16 +433,29 @@
             return;
         }
 
+        var sort = loadSort();   // hub r2: the remembered ordering
+
+        function paintPills() {
+            if (!controls) return;
+            var pills = controls.querySelectorAll('.peri-pill'), i, p;
+            for (i = 0; i < pills.length; i++) {
+                p = pills[i];
+                p.classList.toggle('is-active', p.getAttribute('data-sort') === sort);
+            }
+        }
+
         function render() {
             var boards = window.MBPericope.list() || [];
-            boards.sort(function (a, b) { return (b.updated || 0) - (a.updated || 0); });
+            boards.sort(SORTS[sort] || SORTS[SORT_DEFAULT]);
 
             if (!boards.length) {
                 grid.hidden = true; empty.hidden = false; grid.innerHTML = '';
-                if (storage) storage.hidden = true;
+                if (storage)  storage.hidden  = true;
+                if (controls) controls.hidden = true;
                 return;
             }
             empty.hidden = true; grid.hidden = false;
+            if (controls) { controls.hidden = false; paintPills(); }
             var html = '';
             for (var i = 0; i < boards.length; i++) { html += tileHtml(boards[i]); }
             grid.innerHTML = html;
@@ -365,9 +464,22 @@
                 var used = 0;
                 try { used = window.MBPericope.usage().pericopeBytes; } catch (e) {}
                 storage.textContent = boards.length + (boards.length === 1 ? ' pericope' : ' pericopae') +
-                    ' \u00B7 using ' + fmtBytes(used) + ' in this browser';
+                    ' · using ' + fmtBytes(used) + ' in this browser';
                 storage.hidden = false;
             }
+        }
+
+        // hub r2: a pill tap re-sorts in place and remembers the choice.
+        if (controls) {
+            controls.addEventListener('click', function (e) {
+                var pill = e.target.closest ? e.target.closest('.peri-pill') : null;
+                if (!pill) return;
+                var v = pill.getAttribute('data-sort');
+                if (!v || !SORTS[v] || v === sort) return;
+                sort = v;
+                saveSort(v);
+                render();
+            });
         }
 
         grid.addEventListener('click', function (e) {
@@ -379,8 +491,8 @@
             var name = btn.getAttribute('data-name') || 'this pericope';
 
             var ask = window.mbConfirm
-                ? window.mbConfirm(['Delete \u201c' + name + '\u201d?',
-                                    'This removes the pericope from this browser. It can\u2019t be undone.'],
+                ? window.mbConfirm(['Delete “' + name + '”?',
+                                    'This removes the pericope from this browser. It can’t be undone.'],
                                    { confirmLabel: 'Delete', cancelLabel: 'Keep' })
                 : Promise.resolve(window.confirm('Delete "' + name + '"?'));
 

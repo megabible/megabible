@@ -372,8 +372,15 @@
                 line = '';
                 for (t = 0; t < entry.tokens.length; t++) {
                     val = entry.tokens[t][r] || '\u00B7';      // token columns match row order
+                    // Each token wears a .w chip keyed verse:index (#7) —
+                    // the reader's card-back markup, so hover previews and
+                    // tap-pins link the trio through the SAME data-k across
+                    // all three rows, and interlinear-styles' dormant .w
+                    // rules wake up with no new CSS.
                     line += (t ? ' ' : '') +
-                            (r === 1 && String(val).indexOf('.') !== -1 ? ilTranslit(val) : esc(val));
+                            '<span class="w" data-k="' + v + ':' + t + '">' +
+                            (r === 1 && String(val).indexOf('.') !== -1 ? ilTranslit(val) : esc(val)) +
+                            '</span>';
                 }
                 if (r === 0) { wordCount += entry.tokens.length; }
                 blocks += '<div class="iface-row">' +
@@ -389,22 +396,12 @@
                 ? '<p class="peri-il-msg is-loading">Loading original text\u2026</p>'
                 : '<p class="peri-il-msg">No original-language source for this passage yet.</p>';
         }
-        // Attribution, CC BY (required) — same wording as the reader's backs.
-        var langName = (ilLangs[firstLang] && ilLangs[firstLang].name) || 'Original';
-        var credit = '', s, c;
-        for (i = 0; i < srcList.length; i++) {
-            s = srcList[i]; c = ilCredits[s] || {};
-            if (i) { credit += '  '; }
-            credit += esc(wordCount + ' ' + langName + ' ' + (wordCount === 1 ? 'word' : 'words') +
-                          ' from ' + (c.provider ? c.provider + ' ' : '') + (c.short || s));
-            if (c.license) { credit += ' \u00B7 ' + esc(c.license); }
-            if (c.url) {
-                credit += ' \u00B7 Source: <a href="' + esc(c.url) + '" target="_blank" rel="noopener">' +
-                          esc(ilSourceDomain(c.url)) + '</a>';
-            }
-        }
-        return '<div class="iface peri-il">' + blocks +
-               '<div class="iface-credit">' + credit + '</div></div>';
+        // The CC BY credit no longer renders HERE (#8): one board, one
+        // sources footer — renderSources() carries the same wording at
+        // the bottom of the page, beside the translations' credits. (The
+        // wordCount/srcList bookkeeping above feeds interlinearData's
+        // consumers and costs nothing to keep.)
+        return '<div class="iface peri-il">' + blocks + '</div>';
     }
 
     // Structured view of the session cache for ONE parent card, for
@@ -450,6 +447,11 @@
             return '<article' + iOpen + ' data-id="' + esc(card.id) + '" data-parent="' + esc(card.parent) +
                        '" data-ref="' + esc(pfull) +
                        '" data-cw="' + (card.cw || 1) + '" data-rh="' + (card.rh || 1) +
+                       // A manually-resized child keeps its span through
+                       // reflow, exactly like a verse card (r23 — this
+                       // branch never emitted data-manual, so a resized
+                       // child was re-snapped on the next render).
+                       (isExpanded && card.ew != null && card.eh != null ? '" data-manual="1' : '') +
                        '" style="--bk:var(--tl-' + pc + ');' + placeStyle(card, colMap) + '">' +
                        '<div class="peri-card-top">' +
                            '<span class="peri-grip" aria-hidden="true" title="Drag to move">' + GRIP + '</span>' +
@@ -684,7 +686,16 @@
             // Interlinear children (Phase 3): warm the token cache; the
             // response repaints the placeholders.
             var kids = grid.querySelectorAll('.peri-card.is-interlinear'), ki;
-            for (ki = 0; ki < kids.length; ki++) { hydrateInterlinear(kids[ki]); }            
+            for (ki = 0; ki < kids.length; ki++) { hydrateInterlinear(kids[ki]); }
+            // Card-edit #5b: warm COVERAGE for every expanded verse card too,
+            // so the scissors menu knows synchronously whether to offer its
+            // Interlinear button (no disabled "checking…" flash). Chapter
+            // fetches are cached and collapsed (ilPending), so this is a
+            // handful of requests on first expand and free after.
+            for (ki = 0; ki < board.cards.length; ki++) {
+                var wc = board.cards[ki];
+                if (wc.type === 'verse' && wc.exp === true) { fetchInterlinear(wc); }
+            }
             return board;
         }
 
@@ -719,6 +730,17 @@
             var rowUnit = parseFloat(cs.gridAutoRows) || 36;
             var gutter  = parseFloat(cs.rowGap) || 16;
             var pitch   = rowUnit + gutter;
+            // ZOOM COMPENSATION (r23, the shrinking-cards bug).
+            // getBoundingClientRect() returns SCREEN px — multiplied by the
+            // zoom transform — but pitch above comes from computed style,
+            // which is LAYOUT px. Any reflow while zoomed out (above all the
+            // drag's drop render, which runs BEFORE auto-zoom restores 1)
+            // compared ~60%-sized measurements against full-size rows and
+            // PERSISTED the shrunken spans via setCardSpan — which stuck,
+            // because the store is truth. Divide every rect measurement back
+            // into layout px, exactly as probeCard() already does. (Note
+            // scrollHeight is layout px natively and must NOT be divided.)
+            var z = (zoomLevel > 0) ? zoomLevel : 1;
             var changed = false, i, el, exp, natural, needRh, needCw, curRh, curCw, textEl, versesEl;
             for (i = 0; i < cards.length; i++) {
                 el = cards[i];
@@ -748,17 +770,17 @@
                         // (the verses block lays out at natural height no
                         // matter how its scroll parent is clipped).
                         natural = (el.getBoundingClientRect().height -
-                                   textEl.getBoundingClientRect().height) +
-                                  versesEl.getBoundingClientRect().height;
+                                   textEl.getBoundingClientRect().height +
+                                   versesEl.getBoundingClientRect().height) / z;
                     } else if (textEl) {
                         // Legacy blob (no .peri-verses yet): scrollHeight is
                         // the best available; it self-heals to per-verse on
                         // this very expand, and the next pass re-measures.
                         natural = (el.getBoundingClientRect().height -
-                                   textEl.getBoundingClientRect().height) +
+                                   textEl.getBoundingClientRect().height) / z +
                                   textEl.scrollHeight;
                     } else {
-                        natural = el.getBoundingClientRect().height;
+                        natural = el.getBoundingClientRect().height / z;
                     }
                     // Round to the NEAREST edge — except a SINGLE-verse card,
                     // which CEILs: on a card that small, a scrollbar for half
@@ -774,7 +796,7 @@
                 } else {
                     // Note / heading: natural height, ceil with the exact-fit
                     // tolerance (sub-pixel rounding must not ceil 1.0 to 2).
-                    natural = el.getBoundingClientRect().height;
+                    natural = el.getBoundingClientRect().height / z;
                     needRh = Math.max(1, Math.ceil((natural + gutter) / pitch - 0.02));
                 }
 
@@ -800,6 +822,122 @@
                 t = texts[i];
                 t.classList.toggle('is-overflowing', t.scrollHeight - t.clientHeight > 2);
             }
+        }
+
+        // ---- sources footer (#8) -------------------------------------------
+        // The chapter colophon's job, done client-side: one line per
+        // translation on the board ("N verses from <Name> · license ·
+        // Source: host", identity from CFG.txMeta), plus the interlinear
+        // CC BY credit when a child card exists — that credit used to live
+        // on every child card's body and moved down here (one board, one
+        // place for sources). Word counts and source keys come from the
+        // session token cache; before a fetch lands (or after one fails)
+        // the static config strings (CFG.ilCredits) keep the required
+        // attribution on the page. Re-runs on every render.
+        //
+        // WHERE IT PAINTS (r24): #pb-sources sits in the layout's
+        // footer-colophon slot — the exact place and markup the chapter
+        // page's colophon uses (.colophon-line divs under the footer's one
+        // divider, above the site info; styles are global in app.blade).
+        // No box, no border of its own — the double-divider is gone.
+        var TX_META   = CFG.txMeta || {};      // tx slug -> {name, license, url}
+        var IL_STATIC = CFG.ilCredits || {};   // source key -> {provider, short, license, url}
+        var sourcesEl = document.getElementById('pb-sources');
+
+        function sourceTail(license, url) {
+            var t = '';
+            if (license) { t += ' · ' + esc(license); }
+            if (url) {
+                t += ' · Source: <a href="' + esc(url) + '" target="_blank" rel="noopener">' +
+                     esc(ilSourceDomain(url)) + '</a>';
+            }
+            return t;
+        }
+
+        function renderSources() {
+            if (!sourcesEl) { return; }
+            var board = lastBoard;
+            if (!board || !board.cards.length) { sourcesEl.hidden = true; sourcesEl.innerHTML = ''; return; }
+
+            var html = '', i, c;
+
+            // Translations: verse counts per tx, in order of first appearance.
+            var txCount = {}, txOrder = [], k, n;
+            for (i = 0; i < board.cards.length; i++) {
+                c = board.cards[i];
+                if (c.type !== 'verse') { continue; }
+                k = (c.tx || '').toLowerCase();
+                if (!k) { continue; }
+                n = (c.vv && c.vv.length) ? c.vv.length : (c.v2 - c.v1 + 1);
+                if (txCount[k] == null) { txCount[k] = 0; txOrder.push(k); }
+                txCount[k] += n;
+            }
+            for (i = 0; i < txOrder.length; i++) {
+                k = txOrder[i];
+                var tm = TX_META[k] || {};
+                n = txCount[k];
+                html += '<div class="colophon-line colophon-verse">' +
+                            n + ' ' + (n === 1 ? 'verse' : 'verses') + ' from <strong>' +
+                            esc(tm.name || k.toUpperCase()) + '</strong>' +
+                            sourceTail(tm.license, tm.url) +
+                        '</div>';
+            }
+
+            // Interlinear: aggregate words per source key across every child
+            // card's covered verses, straight from the session cache.
+            var byId = {}, hasChild = false, fetched = false;
+            for (i = 0; i < board.cards.length; i++) { byId[board.cards[i].id] = board.cards[i]; }
+            var srcWords = {}, srcLang = {}, srcOrder = [];
+            for (i = 0; i < board.cards.length; i++) {
+                c = board.cards[i];
+                if (c.type !== 'interlinear') { continue; }
+                hasChild = true;
+                var parent = byId[c.parent];
+                var meta = parent && BOOK_META[parent.osis];
+                if (!parent || !meta || !meta.slug) { continue; }
+                var verses = ilVerses(parent), j, entry;
+                for (j = 0; j < verses.length; j++) {
+                    entry = ilCache[ilVerseKey(meta.slug, parent.ch, verses[j])];
+                    if (entry === undefined) { continue; }
+                    fetched = true;
+                    if (!entry) { continue; }              // fetched, uncovered
+                    if (srcWords[entry.source] == null) {
+                        srcWords[entry.source] = 0;
+                        srcLang[entry.source]  = entry.lang;
+                        srcOrder.push(entry.source);
+                    }
+                    srcWords[entry.source] += entry.tokens.length;
+                }
+            }
+            for (i = 0; i < srcOrder.length; i++) {
+                var s = srcOrder[i];
+                var cred = ilCredits[s] || IL_STATIC[s] || {};
+                var langName = (ilLangs[srcLang[s]] && ilLangs[srcLang[s]].name) || 'original-language';
+                n = srcWords[s];
+                html += '<div class="colophon-line colophon-interlinear">' +
+                            n + ' ' + esc(langName) + ' ' + (n === 1 ? 'word' : 'words') + ' from <strong>' +
+                            esc((cred.provider ? cred.provider + ' ' : '') + (cred.short || s)) + '</strong>' +
+                            sourceTail(cred.license, cred.url) +
+                        '</div>';
+            }
+            // A child exists but nothing has come back yet (first paint, or
+            // the fetch failed): the CC BY line is still owed — a generic
+            // one from the static config until the cache can be specific.
+            if (hasChild && !srcOrder.length && !fetched) {
+                for (k in IL_STATIC) {
+                    if (IL_STATIC.hasOwnProperty(k)) {
+                        var g = IL_STATIC[k];
+                        html += '<div class="colophon-line colophon-interlinear">Original-language text from <strong>' +
+                                    esc((g.provider ? g.provider + ' ' : '') + (g.short || k)) + '</strong>' +
+                                    sourceTail(g.license, g.url) +
+                                '</div>';
+                        break;   // one generic line, not one per config entry
+                    }
+                }
+            }
+
+            sourcesEl.hidden = !html;
+            sourcesEl.innerHTML = html;
         }
 
         // Publish the true visible width (excludes the scrollbar) for the strip's
@@ -871,6 +1009,7 @@
         // Paint, settle spans, publish cell pitch + resting height, then anchor.
         function render() {
             setViewportVar(); paint(); reflow(0); setCellVars(); setRestHeight(); applyAnchor(); updateZoomBox();
+            renderSources();   // #8: the footer tracks every repaint
             // Companions (edit mode's selection classes, Phase 5) re-apply
             // their DOM state after any repaint wiped it.
             try { document.dispatchEvent(new CustomEvent('mb:pericope-rendered')); } catch (_) {}
@@ -965,14 +1104,68 @@
             }
         }
 
+        // ROUND-TRIP SNAPSHOT (r23/r24, the zoom-toggle drift bug). setZoom
+        // keeps the viewport CENTRE fixed in both directions, but zooming
+        // out near the page top clamps the negative page scroll at 0 —
+        // information lost — so the compensating zoom-in landed ~100px down
+        // and forced the sticky header. The fix is bookkeeping, not
+        // geometry: a BUTTON zoom-out snapshots the exact view (panDelta +
+        // page scroll) plus where the zoomed view settled; the next BUTTON
+        // zoom-in restores the snapshot verbatim — but only if the user
+        // hasn't scrolled or panned while zoomed (then the centre-anchored
+        // landing is what they want). The drag's auto-zoom never touches
+        // this.
+        //
+        // r24 fix: the untouched test must run BEFORE setZoom(1). The r23
+        // version compared AFTER, by which time setZoom's own clamped
+        // landing had already moved the page ~100px — so the restore
+        // disqualified itself on exactly the boards that needed it (tall,
+        // multi-row ones; short boards never drift, which is why they
+        // seemed fine).
+        var zoomSnap = null;   // { pan, y, afterPan, afterY } | null
         if (zoomBtn) {
             zoomBtn.addEventListener('click', function () {
                 if (dragging()) { return; }
-                // Two-state toggle, and BOTH directions keep the viewport
-                // centre over the same spot on the board (setZoom's default
-                // anchor), so repeated presses zoom in and out of where the
-                // user is. Going home is the home button's job now.
-                setZoom(zoomLevel === 1 ? ZOOM_OUT : 1);
+                if (zoomLevel === 1) {
+                    // Going out: remember exactly where the user was…
+                    zoomSnap = { pan: panDelta, y: window.pageYOffset || 0 };
+                    setZoom(ZOOM_OUT);
+                    // …and where the zoomed-out view came to rest, so an
+                    // intervening scroll/pan is detectable on the way back.
+                    var s = zoomSnap;
+                    s.afterPan = panDelta;
+                    s.afterY   = window.pageYOffset || 0;
+                    // setZoom's own next-frame correction (scrollbar settle)
+                    // can nudge scrollLeft — and with it panDelta — after
+                    // this handler returns. Re-record the resting point one
+                    // frame after that correction, so a pixel of settling
+                    // never disqualifies the round trip as a "user scroll".
+                    if (window.requestAnimationFrame) {
+                        requestAnimationFrame(function () {
+                            requestAnimationFrame(function () {
+                                if (zoomSnap === s && zoomLevel !== 1) {
+                                    s.afterPan = panDelta;
+                                    s.afterY   = window.pageYOffset || 0;
+                                }
+                            });
+                        });
+                    }
+                } else {
+                    var snap = zoomSnap;
+                    zoomSnap = null;
+                    // Decide BEFORE zooming (see the r24 note above): is the
+                    // view still exactly where the zoom-out left it?
+                    var untouched = snap &&
+                        Math.abs(panDelta - snap.afterPan) <= 2 &&
+                        Math.abs((window.pageYOffset || 0) - snap.afterY) <= 2;
+                    setZoom(1);
+                    if (untouched) {
+                        // A true round trip: put back the exact pre-zoom view.
+                        panDelta = snap.pan;
+                        applyAnchor();
+                        window.scrollTo(window.pageXOffset || 0, snap.y);
+                    }
+                }
                 // iOS keeps a tapped button focused (and :hover-stuck) until
                 // the next touch elsewhere, which left this button painted as
                 // pressed after un-zooming. Hover paint is gated behind
@@ -1634,6 +1827,52 @@
             if (card.getAttribute('aria-expanded') === 'false') { setExpanded(card, true); }
         });
 
+        // ---- interlinear word-linking (#7) ---------------------------------
+        // The reader's card-back grammar, ported to the child cards: hover
+        // previews a word across its trio (original + translit + gloss share
+        // a data-k), tap PINS it (toggle, several at once), a tap elsewhere
+        // in the card's text clears that card's pins. State is DOM classes
+        // only — a render wipes it, same as the reader's backs. Scoped to
+        // the card so two children never cross-light. Inert while zoomed or
+        // editing (the cards are inert there anyway).
+        function ilGroup(cardEl, k) {
+            return cardEl.querySelectorAll('.w[data-k="' + k + '"]');
+        }
+        function ilToggleClass(cardEl, k, cls, on) {
+            var g = ilGroup(cardEl, k), i;
+            for (i = 0; i < g.length; i++) { g[i].classList.toggle(cls, on); }
+        }
+        grid.addEventListener('mouseover', function (e) {
+            if (zoomLevel !== 1 || editingNow()) { return; }
+            var w = closest(e.target, '.peri-il .w');
+            if (!w) { return; }
+            var cardEl = closest(w, '.peri-card');
+            if (cardEl) { ilToggleClass(cardEl, w.getAttribute('data-k'), 'hl', true); }
+        });
+        grid.addEventListener('mouseout', function (e) {
+            var w = closest(e.target, '.peri-il .w');
+            if (!w) { return; }
+            var cardEl = closest(w, '.peri-card');
+            if (cardEl) { ilToggleClass(cardEl, w.getAttribute('data-k'), 'hl', false); }
+        });
+        grid.addEventListener('click', function (e) {
+            if (justDragged || zoomLevel !== 1 || editingNow() || dragging()) { return; }
+            var cardEl = closest(e.target, '.peri-card.is-interlinear');
+            if (!cardEl || cardEl.getAttribute('aria-expanded') !== 'true') { return; }
+            var w = closest(e.target, '.peri-il .w');
+            if (w) {
+                // A word tap is a pin toggle, never anything else's click.
+                e.stopPropagation();
+                ilToggleClass(cardEl, w.getAttribute('data-k'), 'pin',
+                              !w.classList.contains('pin'));
+                return;
+            }
+            if (closest(e.target, '.peri-card-text')) {
+                var pins = cardEl.querySelectorAll('.w.pin'), i;
+                for (i = 0; i < pins.length; i++) { pins[i].classList.remove('pin'); }
+            }
+        });
+
         // ---- keyboard: Enter/Space expands, Escape collapses ---------------
         grid.addEventListener('keydown', function (e) {
             if (zoomLevel !== 1 || editingNow()) { return; }       // inert while zoomed / editing
@@ -1861,9 +2100,17 @@
         applyPrefs();
         setViewportVar();   // publish the full-bleed width before the first paint
         render();           // paints, settles spans, and anchors home under the header
+        // Web fonts land AFTER the first render on a cold cache, and the
+        // fallback font wraps differently — spans measured against it are
+        // wrong by a line here and there. One re-render once the fonts are
+        // in (the scroll page has had this from the start; r23 brings the
+        // board level). Never mid-drag — the drag owns the grid.
+        if (document.fonts && document.fonts.ready && document.fonts.ready.then) {
+            document.fonts.ready.then(function () { if (!dragging()) { render(); } });
+        }
         // Deployment marker: one line so a stale cached script is instantly
         // visible. Bump when the geometry code changes.
-        if (window.console && console.info) { console.info('[pericope] board geometry r22'); }
+        if (window.console && console.info) { console.info('[pericope] board geometry r24'); }
 
         // ---- public surface for the companion scripts ---------------------
         // pericope-drag.js (Phase 3) and pericope-edit.js (Phase 5) attach to

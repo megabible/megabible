@@ -228,6 +228,13 @@
         // propagation above, so they never page.
         el.addEventListener('click', function (e) {
             if (e.target.closest && e.target.closest('.pbp-btn')) { return; }
+            // Interlinear word-linking (#7): a tap on a word stack PINS it
+            // (toggle, several at once) and never pages — the deck's one
+            // in-slide interaction. Pins are DOM-only and die with the
+            // slide's repaint, so paging is the tap-to-clear. Hover preview
+            // is pure CSS (present-styles, fine pointers).
+            var ws = e.target.closest ? e.target.closest('.pbp-il-word') : null;
+            if (ws) { ws.classList.toggle('is-pin'); wake(); return; }
             var x = e.clientX, w = el.clientWidth;
             if (x < w / 3) { go(at - 1); } else { go(at + 1); }
             wake();
@@ -527,7 +534,7 @@
         if (!B) { return; }
         // Deployment tripwire (same convention as the board's geometry rN):
         // if DevTools doesn't print this line, the served file is stale.
-        if (window.console && console.info) { console.info('[pericope] presenter il-panes r3'); }
+        if (window.console && console.info) { console.info('[pericope] presenter il-panes r4'); }
         BOOK_META = (window.MBPericopeBoardConfig && window.MBPericopeBoardConfig.bookMeta) || BOOK_META;
     }
 

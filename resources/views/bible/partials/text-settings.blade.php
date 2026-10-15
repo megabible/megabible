@@ -13,6 +13,7 @@
         ☑ Verse numbers
         ☑ Footnotes
         › Acts of the User          ← link out, hidden via $tsLinks
+        › How To Pericope           ← opt-in via $tsHowTo (pericope grid + scroll only)
 
     All *visual state* (pressed, grayed-out, icons, Terminal variants) is pure
     CSS keyed off the data-* attributes the head script keeps on <html> — the
@@ -169,6 +170,18 @@
                 </svg>
                 Acts of the User
             </a>
+            {{-- Pericope-only (grid + scroll pass tsHowTo): the tutorial.
+                 Off everywhere else, so the reader panels stay unchanged. --}}
+            @if ($tsHowTo ?? false)
+            <a class="ts-link" href="{{ route('extras.pericope.howto') }}"
+               title="How to use the Pericope system">
+                <svg class="ts-link-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6"></polyline>
+                </svg>
+                How To Pericope
+            </a>
+            @endif
         </div>
         @endif
 

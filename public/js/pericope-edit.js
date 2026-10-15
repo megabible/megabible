@@ -104,12 +104,14 @@
         buildFab();
         fab.classList.add('is-visible');
         updateFab();
+        orderBadges();
     }
 
     function exit() {
         if (!editing) { return; }
         editing = false;
         clearSelection();
+        removeBadges();
         boardEl.classList.remove('is-editing');
         grid.classList.remove('pb-editing');
         if (editBtn) { editBtn.classList.remove('is-active'); editBtn.setAttribute('aria-pressed', 'false'); }
@@ -160,6 +162,57 @@
         }
         if (!selIds().length) { selMode = null; }
         updateFab();
+        orderBadges();   // the render that wiped the selection wiped these too
+    }
+
+    // ---- order badges (#6) -----------------------------------------------
+    // While editing, every card that will appear in the scroll / presenter
+    // shows WHERE: the store's walkBoard — the same walk both views read —
+    // is the single source of order, so the badges can never disagree with
+    // what presenting actually does. Numbering:
+    //   verse entry      → n
+    //   group            → one slot n; members sub-number n.1, n.2 … in
+    //                      walk order (a single-member group is just n)
+    //   heading          → takes its slot's n, styled distinctly (outline)
+    //   note             → no badge (walkBoard leaves notes out of the deck)
+    //   interlinear kid  → no badge (it presents WITH its parent, not as
+    //                      its own stop)
+    function removeBadges() {
+        var list = grid.querySelectorAll('.pbe-order'), i;
+        for (i = list.length - 1; i >= 0; i--) { list[i].parentNode.removeChild(list[i]); }
+    }
+
+    function orderBadges() {
+        removeBadges();
+        if (!editing || !window.MBPericope.walkBoard) { return; }
+        var board = B.board();
+        if (!board) { return; }
+        function badge(cardId, text, cls) {
+            var el = grid.querySelector('.peri-card[data-id="' + cardId + '"]');
+            if (!el) { return; }
+            var b = document.createElement('span');
+            b.className = 'pbe-order' + (cls ? ' ' + cls : '');
+            b.textContent = text;
+            b.setAttribute('aria-hidden', 'true');
+            el.appendChild(b);
+        }
+        var entries = window.MBPericope.walkBoard(board), n = 0, i, j, e;
+        for (i = 0; i < entries.length; i++) {
+            e = entries[i];
+            n++;
+            if (e.kind === 'heading') {
+                badge(e.id, String(n), 'is-heading');
+            } else if (e.kind === 'verse') {
+                badge(e.parts[0].card.id, String(n));
+            } else if (e.kind === 'group') {
+                if (e.parts.length === 1) { badge(e.parts[0].card.id, String(n)); }
+                else {
+                    for (j = 0; j < e.parts.length; j++) {
+                        badge(e.parts[j].card.id, n + '.' + (j + 1));
+                    }
+                }
+            }
+        }
     }
 
     // Tap a group chip: all members in -> all out; otherwise select all.

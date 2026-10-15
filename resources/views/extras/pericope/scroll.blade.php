@@ -60,7 +60,7 @@
                         </summary>
                         <div class="pbs-panel" role="group" aria-label="Share this pericope"></div>
                     </details>
-                    @include('bible.partials.text-settings', ['tsChecks' => false])
+                    @include('bible.partials.text-settings', ['tsChecks' => false, 'tsHowTo' => true])
                 </x-head-folder>
             </div>
 
@@ -118,7 +118,9 @@
         <a href="{{ $hubUrl }}">&larr; Back to your pericopae</a>
     </div>
 @endsection
-
+@section('footer-colophon')
+    <div id="pb-sources"></div>
+@endsection
 @section('scripts')
 {{-- One config object, one plain variable (never a comma-bearing
      expression, which the compiler would split and silently truncate).

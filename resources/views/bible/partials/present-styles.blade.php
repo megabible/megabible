@@ -300,7 +300,7 @@
        │ Column split desktop: --pbp-il-split (pane share of the row width).  │
        │ Gap between word stacks: --pbp-il-gap.                               │
        └──────────────────────────────────────────────────────────────────────┘ */
-    .pbp-slide { --pbp-il-rev: 2;   /* tripwire: check on .pbp-slide in DevTools computed styles */
+    .pbp-slide { --pbp-il-rev: 3;   /* tripwire: check on .pbp-slide in DevTools computed styles */
                  --pbp-il-orig: 1.30; --pbp-il-translit: 1.00; --pbp-il-gloss: .92;
                  --pbp-il-split: 42%; --pbp-il-gap: clamp(.7rem, 1.6vw, 1.5rem); }
 
@@ -326,6 +326,23 @@
     .pbp-il-word { display: flex; flex-direction: column; align-items: center; text-align: center;
                    /* a hair of separation so adjacent stacks don't merge */
                    padding-bottom: .1em; }
+
+    /* WORD-LINKING (#7): hover previews a stack (fine pointers), tap PINS
+       it — pericope-present.js toggles .is-pin and a pinned word never
+       pages the deck. Pins are DOM-only and die with the slide's repaint,
+       so paging doubles as the clear. The fill is the look's own line
+       tone with the accent as the pinned ring, so both looks read it. */
+    .pbp-il-word {
+        border-radius: .35em;
+        padding: .12em .2em .18em;
+        margin: -.12em -.2em -.08em;
+        cursor: pointer;
+        transition: background-color .12s ease, box-shadow .12s ease;
+    }
+    @media (hover: hover) {
+        .pbp-il-word:hover { background: var(--pp-line); }
+    }
+    .pbp-il-word.is-pin { background: var(--pp-line); box-shadow: inset 0 0 0 2px var(--pp-accent); }
 
     .pbp-il-original {
         font-family: var(--pp-font, var(--serif));

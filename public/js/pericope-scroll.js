@@ -163,6 +163,10 @@
     // Interlinear token cache, keyed by card id (scroll r6):
     //   { state: 'pending'|'ready'|'none'|'error', verses: [{n, rtl, tokens}] }
     var ilCache = {};
+    // Interlinear credit strings for the sources footer (#8): the endpoint's
+    // own credits map once any fetch lands, over the static config fallback
+    // shipped in CFG.ilCredits — so the CC BY line can always render.
+    var ilCreditsMap = {};   // source key -> {provider, short, license, url}
     // Server like counts, keyed by like key. Filled by fetchCounts() after
     // each build; moved optimistically by setLiked() between fetches.
     var counts = {};
@@ -444,7 +448,10 @@
         return (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
     }
     function refitAll() {
-        if (mode !== 'scroll' || !feedEl) { return; }
+        /* scroll r10: this file IS the scroll page's script — the old bare
+           `mode` guard referenced a variable no page defines, so every
+           fonts.ready/resize refit threw ReferenceError. */
+        if (!feedEl) { return; }
         var boxes = feedEl.querySelectorAll('.pbf-box:not([data-lazy])'), i;
         for (i = 0; i < boxes.length; i++) { fit(boxes[i]); }
     }
@@ -720,6 +727,7 @@
 
         observe();
         fetchCounts();
+        renderSources();   // #8: the footer rides at the bottom of the feed
         // No act is logged here: viewing a scroll modifies nothing, and the
         // Acts feed only records deeds. (Legacy pericope.scroll events still
         // in mbActs.v1 are dropped at read time by the feed.)
@@ -749,9 +757,10 @@
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
                 if (!data || !data.verses) { ilCache[card.id] = { state: 'error' }; ilPaintAll(card.id); return; }
-                var langs = data.langs || {}, verses = [], n, key, meta;
+                var langs = data.langs || {}, creds = data.credits || {}, verses = [], n, key, meta, ck;
+                for (ck in creds) { if (creds.hasOwnProperty(ck)) { ilCreditsMap[ck] = creds[ck]; } }
                 for (n in data.verses) {
-                    if (!data.verses.hasOwnProperty(n)) { continue; }
+                    if (!data.verses.hasOwnProperty(n) || !data.verses[n]) { continue; }
                     key  = data.verses[n].lang;
                     meta = langs[key] || {};
                     verses.push({
@@ -759,6 +768,7 @@
                         rtl:     !!meta.rtl,
                         langKey: key,
                         langMeta: meta,
+                        source:  data.verses[n].source || null,   // feeds the sources footer (#8)
                         tokens:  data.verses[n].tokens || []
                     });
                 }
@@ -826,6 +836,114 @@
             if (head) { var nm = ilLangName(v); head.textContent = nm ? 'Original ' + nm : 'Original text'; }
             pane.innerHTML = ilVerseHtml(v);
         }
+        renderSources();   // word counts / source keys just changed (#8)
+    }
+
+    /* ---- sources footer (#8) ----------------------------------------------
+       The chapter colophon's job for the feed: one line per translation on
+       the board ("N verses from <Name> · license · Source: host", identity
+       from CFG.txMeta — the controller ships it beside bookMeta), plus the
+       interlinear CC BY credit when a child card exists. Interlinear word
+       counts come from this page's token cache as fetches land (trio pages
+       fetch lazily, so the line sharpens as you scroll); before any fetch,
+       a generic line from the static config keeps the attribution owed.
+       WHERE IT PAINTS (r2): #pb-sources, the layout's footer-colophon
+       slot — the same place and .colophon-line markup the chapter page's
+       colophon uses, under the footer's one divider (no box or border of
+       its own). The scroll shell provides the holder in its
+       @section('footer-colophon'). Rebuilt by build() and by every
+       ilPaintAll(). */
+    function sourceTail(license, url) {
+        var t = '', host;
+        if (license) { t += ' · ' + esc(license); }
+        if (url) {
+            try { host = new URL(url).hostname.replace(/^www\./, ''); } catch (_) { host = url; }
+            t += ' · Source: <a href="' + esc(url) + '" target="_blank" rel="noopener">' + esc(host) + '</a>';
+        }
+        return t;
+    }
+
+    var warnedNoSourcesSlot = false;
+    function renderSources() {
+        if (!board) { return; }
+        var box = document.getElementById('pb-sources');
+        if (!box) {
+            if (!warnedNoSourcesSlot && window.console && console.warn) {
+                warnedNoSourcesSlot = true;
+                console.warn("[pericope] scroll: #pb-sources missing - add @section('footer-colophon') with <div id=\"pb-sources\"></div> to the scroll shell.");
+            }
+            return;
+        }
+        var txMeta = CFG.txMeta || {}, ilStatic = CFG.ilCredits || {};
+        var html = '', i, c, k, n;
+
+        // Translations: verse counts per tx, in order of first appearance.
+        var txCount = {}, txOrder = [];
+        for (i = 0; i < board.cards.length; i++) {
+            c = board.cards[i];
+            if (c.type !== 'verse') { continue; }
+            k = (c.tx || '').toLowerCase();
+            if (!k) { continue; }
+            n = (c.vv && c.vv.length) ? c.vv.length : (c.v2 - c.v1 + 1);
+            if (txCount[k] == null) { txCount[k] = 0; txOrder.push(k); }
+            txCount[k] += n;
+        }
+        for (i = 0; i < txOrder.length; i++) {
+            k = txOrder[i];
+            var tm = txMeta[k] || {};
+            n = txCount[k];
+            html += '<div class="colophon-line colophon-verse">' +
+                        n + ' ' + (n === 1 ? 'verse' : 'verses') + ' from <strong>' +
+                        esc(tm.name || k.toUpperCase()) + '</strong>' +
+                        sourceTail(tm.license, tm.url) +
+                    '</div>';
+        }
+
+        // Interlinear: words per source key across every cached trio.
+        var hasChild = false, fetched = false, srcWords = {}, srcLang = {}, srcOrder = [];
+        for (i = 0; i < board.cards.length; i++) {
+            c = board.cards[i];
+            if (c.type !== 'interlinear') { continue; }
+            hasChild = true;
+            // The token cache is keyed by the il-flagged PARENT card's id
+            // (ilFetch runs per flagged card, not per child).
+            var entry = ilCache[c.parent];
+            if (!entry || entry.state === 'pending') { continue; }
+            fetched = true;
+            if (entry.state !== 'ready') { continue; }
+            for (var j = 0; j < entry.verses.length; j++) {
+                var v = entry.verses[j], s = v.source || v.langKey || '?';
+                if (srcWords[s] == null) { srcWords[s] = 0; srcLang[s] = v; srcOrder.push(s); }
+                srcWords[s] += v.tokens.length;
+            }
+        }
+        for (i = 0; i < srcOrder.length; i++) {
+            var sk = srcOrder[i];
+            var cred = ilCreditsMap[sk] || ilStatic[sk] || {};
+            var lname = ilLangName(srcLang[sk]) || 'original-language';
+            n = srcWords[sk];
+            html += '<div class="colophon-line colophon-interlinear">' +
+                        n + ' ' + esc(lname) + ' ' + (n === 1 ? 'word' : 'words') + ' from <strong>' +
+                        esc((cred.provider ? cred.provider + ' ' : '') + (cred.short || sk)) + '</strong>' +
+                        sourceTail(cred.license, cred.url) +
+                    '</div>';
+        }
+        if (hasChild && !srcOrder.length) {
+            // Trio pages exist but no tokens have landed yet (lazy fetch) —
+            // one generic line from the static config until they do.
+            for (k in ilStatic) {
+                if (ilStatic.hasOwnProperty(k)) {
+                    var g = ilStatic[k];
+                    html += '<div class="colophon-line colophon-interlinear">Original-language text from <strong>' +
+                                esc((g.provider ? g.provider + ' ' : '') + (g.short || k)) + '</strong>' +
+                                sourceTail(g.license, g.url) +
+                            '</div>';
+                    break;
+                }
+            }
+        }
+
+        box.innerHTML = html;   // empty html clears the slot cleanly
     }
 
     /* ---- the share panel + scroll settings (scroll r9) -------------------
@@ -1311,6 +1429,22 @@
         buildRail();
 
         feedEl.addEventListener('click', onFeedClick);
+        // Interlinear word-linking (#7), CAPTURE so it wins before
+        // onFeedClick: a tap on a trio stack toggles its pin and goes no
+        // further — two quick taps on words must never read as the
+        // double-tap like, and the tap never reaches the box at all. Any
+        // other tap clears every pin (the synthesis back's tap-to-clear).
+        // Hover preview is pure CSS (scroll-styles, fine pointers only).
+        feedEl.addEventListener('click', function (e) {
+            var w = (e.target && e.target.closest) ? e.target.closest('.pbf-il-word') : null;
+            if (w) {
+                e.stopPropagation();
+                w.classList.toggle('is-pin');
+                return;
+            }
+            var pins = feedEl.querySelectorAll('.pbf-il-word.is-pin'), i;
+            for (i = 0; i < pins.length; i++) { pins[i].classList.remove('is-pin'); }
+        }, true);
         window.addEventListener('resize', onResize);
         if (document.fonts && document.fonts.ready) { document.fonts.ready.then(refitAll, function () {}); }
 
