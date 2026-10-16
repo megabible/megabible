@@ -298,6 +298,38 @@
         .container{max-width:820px;margin:0 auto;padding:.7rem 1.5rem 6rem;}
 
         /* =========================================================
+           SPLIT TITLE (hero-split r1)
+           ---------------------------------------------------------
+           The informational pages' hero h1: a muted serif lead-in
+           beside/above a Bigshot statement. Both spans are INLINE,
+           so they share one line when they fit — baseline-aligned
+           for free — and wrap small-over-big when they don't.
+           Add .st-stack on the h1 to force the two-line form at
+           every width (the homepage does: its big line is too long
+           to ever share a line, so the wrap point shouldn't dither
+           with the window). Everything stays inside one h1, so the
+           full phrase remains the heading for search and screen
+           readers. Used on index / about / support; any future
+           page can opt in with the same markup.
+           SIZE KNOBS: the two font sizes here and their mobile
+           steps in the media block below. */
+        .split-title{margin:0 0 .8rem;font-weight:400;letter-spacing:-.01em;}
+        .split-title .st-small{
+            display:block;
+            font-family:var(--serif);color:var(--ink);
+            font-size:1.35rem;line-height:1.35;
+        }
+        .split-title .st-big{
+            font-family:var(--book-font);color:var(--ink);
+            font-size:3.2rem;line-height:1.08;letter-spacing:.01em;
+        }
+        .split-title.st-stack .st-small{display:block;margin-right:0;}
+        @media (max-width:560px){
+            .split-title .st-small{font-size:1.15rem;}
+            .split-title .st-big{font-size:2rem;}
+        }
+
+        /* =========================================================
            CROSS-PAGE TRANSITIONS (vt r1)
            ---------------------------------------------------------
            Opts every same-origin navigation into a cross-document

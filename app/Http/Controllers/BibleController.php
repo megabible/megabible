@@ -708,6 +708,26 @@ class BibleController extends Controller
             ->get()
             ->keyBy('id');
 
+        // wright-default r1: per-book default overrides (config canon
+        // 'book_default_translations', slug => edition slug). An override
+        // wins — even over the reader's remembered translation — but only
+        // when that edition actually has the book's verses, so a config
+        // typo degrades to the normal rule, never a 404. (Move this check
+        // below the $primary one in the loop if you'd rather the reader's
+        // own edition keep winning.) The Five Psalms of David point at
+        // Wright: the only edition carrying all five supernumerary psalms.
+        $overrides  = config('canon.book_default_translations', []);
+        $overrideTx = [];   // book_id => Translation
+        if (! empty($overrides)) {
+            $slugToId = Book::whereIn('slug', array_keys($overrides))->pluck('id', 'slug');
+            $byAbbr   = $translations->keyBy(fn ($t) => strtolower($t->abbreviation));
+            foreach ($overrides as $slug => $txSlug) {
+                if (isset($slugToId[$slug]) && isset($byAbbr[$txSlug])) {
+                    $overrideTx[$slugToId[$slug]] = $byAbbr[$txSlug];
+                }
+            }
+        }
+
         // Every (book, translation) pair that actually has verses.
         $availableByBook = DB::table('verses')
             ->select('book_id', 'translation_id')
@@ -716,17 +736,22 @@ class BibleController extends Controller
             ->groupBy('book_id');
 
         // For every book that exists in *some* translation:
-        //   1. the reader's current translation, if it has the book, else
-        //   2. the highest-priority translation that does.
+        //   1. the book's configured override, if that edition has it, else
+        //   2. the reader's current translation, if it has the book, else
+        //   3. the highest-priority translation that does.
         // Books absent from this map (no verses anywhere yet) are the
         // caller's "soon" case.
         $linkTranslation = [];   // book_id => translation URL slug
         foreach ($availableByBook as $bookId => $rows) {
             $ids = $rows->pluck('translation_id')->all();
 
-            $chosen = in_array($primary->id, $ids, true)
-                ? $primary
-                : $translations->first(fn ($t) => in_array($t->id, $ids, true));
+            $want = $overrideTx[$bookId] ?? null;
+
+            $chosen = ($want && in_array($want->id, $ids, true))
+                ? $want
+                : (in_array($primary->id, $ids, true)
+                    ? $primary
+                    : $translations->first(fn ($t) => in_array($t->id, $ids, true)));
 
             if ($chosen) {
                 $linkTranslation[$bookId] = strtolower($chosen->abbreviation);
@@ -1296,6 +1321,13 @@ class BibleController extends Controller
             ->orderBy('sort_order')
             ->get();
 
+        // wright-default r1: per-book default overrides, same rule as
+        // resolveLinkTranslations() — the override edition wins when it
+        // actually has the book's verses. Bars carry their slug, so the
+        // lookup needs no extra query here.
+        $overrides = config('canon.book_default_translations', []);
+        $byAbbr    = $fallbackOrder->keyBy(fn ($t) => strtolower($t->abbreviation));
+
         // ONE grouped query answers "which translations contain each plotted
         // book?" — it rides the unique (translation, book, chapter, verse)
         // index, so it never touches verse rows themselves.
@@ -1316,9 +1348,13 @@ class BibleController extends Controller
 
             $ids = $rows->pluck('translation_id')->all();
 
-            $chosen = in_array($translation->id, $ids, true)
-                ? $translation
-                : $fallbackOrder->first(fn ($t) => in_array($t->id, $ids, true));
+            $want = $byAbbr->get($overrides[$bar['slug']] ?? '');
+
+            $chosen = ($want && in_array($want->id, $ids, true))
+                ? $want
+                : (in_array($translation->id, $ids, true)
+                    ? $translation
+                    : $fallbackOrder->first(fn ($t) => in_array($t->id, $ids, true)));
 
             if ($chosen) {
                 $bar['url'] = route('bible.book', [

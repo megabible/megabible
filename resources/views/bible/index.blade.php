@@ -9,8 +9,9 @@
 @section('styles')
 <style>
     /* ---- HERO ------------------------------------------------------- */
+    /* hero-split r1: the h1 is now the layout's .split-title (see
+       app.blade) — the old .home-title rule retired with it. */
     .home-hero{margin:.4rem 0 2.6rem;}
-    .home-title{font-size:2.4rem;font-weight:400;line-height:1.15;letter-spacing:-.01em;margin:0 0 .7rem;}
     .home-lead{font-size:1.15rem;line-height:1.6;margin:0;}
     .home-lead a{color:var(--accent);text-decoration:none;}
     .home-lead a:hover{text-decoration:underline;}
@@ -268,7 +269,6 @@
     .has-short .bk-short{display:inline;}
 
     @media (max-width:560px){
-        .home-title{font-size:1.9rem;}
         .book-grid{grid-template-columns:repeat(auto-fill,minmax(135px,1fr));}
         .top-list{grid-template-columns:repeat(auto-fit,minmax(125px,1fr));}
     }
@@ -300,7 +300,10 @@
 
     {{-- ============ HERO ============ --}}
     <section class="home-hero">
-        <h1 class="home-title">Read and study the 91 books of the Bible</h1>
+        {{-- hero-split r1: the split title — muted serif lead-in over the
+             Bigshot statement. st-stack keeps it two lines at EVERY width
+             (the big line is too long to ever share one). --}}
+        <h1 class="split-title st-stack"><span class="st-small">Read and Study the</span><span class="st-big">91 Books of the Bible</span></h1>
         {{-- hp-links r1: Genesis and the Shepherd of Hermas render in the
              book font and link to their hubs. The raw echoes are safe: the
              hrefs pass through e(), and everything else is literal text
@@ -327,6 +330,14 @@
                     </a>
                 </li>
             @endforeach
+            {{-- hero-split r1: the Why 91 Books page, between the testament
+                 anchors and the About link. --}}
+            <li>
+                <a href="{{ route('extras.why91') }}">
+                    <span class="hl-arrow" aria-hidden="true">&rarr;</span>
+                    <span class="hl-text">Why 91 books?</span>
+                </a>
+            </li>
             <li>
                 <a href="{{ route('about') }}">
                     <span class="hl-arrow" aria-hidden="true">&rarr;</span>

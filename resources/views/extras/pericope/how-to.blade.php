@@ -356,7 +356,7 @@
         </figure>
         <p>
             Below the Presentation button is the link share. <strong>Create short link</strong> mints a memorable
-            address like <strong>megabible.net/SweetHoneyedEmber</strong> which will rebuild a snapshot of your board for
+            address like <strong>megabible.net/EnduringBountifulRam</strong> which will rebuild a snapshot of your board for
             anyone who opens it. Continue editing the board after sharind and the panel offers the
             <strong>Update link</strong> option to update the live link with your new snapshot. <strong>Delete link</strong> retires the address.
             Your board itself never leaves your browser! Links that you create only carry the snapshot you choose to share.

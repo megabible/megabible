@@ -8,6 +8,7 @@ use App\Http\Controllers\HeadedController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\TerminalController;
 use App\Http\Controllers\PericopeShareController;
+use App\Http\Controllers\WhyBooksController;
 use App\Http\Middleware\RememberTranslation;
 use Illuminate\Support\Facades\Route;
 
@@ -261,6 +262,9 @@ Route::prefix('extras/vigil')->name('typing.')->group(function () {
         ->where('chapter', '[0-9]+')
         ->name('vigil');
 });
+
+Route::get('/extras/why-91-books', [WhyBooksController::class, 'index'])
+    ->name('extras.why91');
 
 // Bible-Typing endpoints — challenge engine, vigil pages, score submission.
 // (The old /extras/bible-typing landing page is retired; the prefix stays

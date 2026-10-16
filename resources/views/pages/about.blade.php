@@ -33,9 +33,29 @@
     .eyebrow{font-family:var(--sans);font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 .6rem;}
 
     /* Hero block */
+    /* hero-split r1: the h1 is now the layout's .split-title (see
+       app.blade) — the old .page-title rule retired with it. */
     .page-hero{margin:.5rem 0 2rem;}
-    .page-title{font-size:2.6rem;font-weight:400;line-height:1.1;letter-spacing:-.01em;margin:0 0 .8rem;}
     .lead{font-size:1.22rem;line-height:1.6;margin:0 0 1rem;}
+
+    /* hero-split r1: the Why 91 Books arrow link — the homepage's
+       .home-links treatment, single row, between the ethos paragraphs.
+       The anchor is inline-flex so the arrow is a flex item and its
+       nudge transform is honoured (a transform on a plain inline span
+       is silently ignored). */
+    .why91-link a{
+        display:inline-flex;align-items:baseline;gap:.55rem;
+        font-family:var(--sans);font-size:1.05rem;font-weight:600;
+        color:var(--accent);text-decoration:none;
+    }
+    .why91-link .hl-arrow{transition:transform .16s ease;}
+    .why91-link a:hover .hl-arrow,
+    .why91-link a:focus-visible .hl-arrow{transform:translateX(5px);}
+    .why91-link a:hover .hl-text,
+    .why91-link a:focus-visible .hl-text{text-decoration:underline;}
+    @media (prefers-reduced-motion:reduce){
+        .why91-link .hl-arrow{transition:none;}
+    }
 
     /* ---- Hero image ------------------------------------------------
        Framed screenshot; the anchor around it opens the full-res
@@ -193,7 +213,6 @@
         .rail{grid-template-columns:1fr;gap:.7rem;}
     }
     @media (max-width:560px){
-        .page-title{font-size:2.1rem;}
         .lead{font-size:1.12rem;}
         .section-head{font-size:1.3rem;}
         .hero-shot img{aspect-ratio:16/10;}
@@ -234,7 +253,10 @@
 
     {{-- ============ HERO ============ --}}
     <section class="page-hero">
-        <h1 class="page-title">The #1 Bible Site in the World</h1>
+        {{-- hero-split r1: the split title. No st-stack here — the two
+             halves share one line wherever they fit (desktop) and wrap
+             small-over-big on narrow screens on their own. --}}
+        <h1 class="split-title"><span class="st-small">The #1 Bible Site in</span> <span class="st-big">The World</span></h1>
         <p class="lead">
             <x-brand/> is a free, ad-free place to read, study, and type all <strong>91</strong> Hebrew and Christian books of the Bible.
         </p>
@@ -308,7 +330,15 @@
             Aramaic, or Greek, with an easy to read transliteration to get to know the original languages better. Extended Apocryphal works are hosted
             with the same level of detail, including cross-references to the main canonical body.
         </p>
-        <p>  
+        {{-- hero-split r1: the Why 91 Books page — where the canon's
+             numbers come from, told on a scrolling timeline. --}}
+        <p class="why91-link">
+            <a href="{{ route('extras.why91') }}">
+                <span class="hl-arrow" aria-hidden="true">&rarr;</span>
+                <span class="hl-text">Why 91 books?</span>
+            </a>
+        </p>
+        <p>
             The 91 books are divided further into the following subgroups:
         </p>
         @foreach ($canonGroups as $group)

@@ -173,7 +173,7 @@
         <h3 class="subsection-head">Pericope share links</h3>
         <p>
             Pericope study boards live entirely in your own browser while you build,
-            arrange, and read them. Creating a short link (an address like <strong>megabible.net/SweetHoneyedEmber</strong>)
+            arrange, and read them. Creating a short link (an address like <strong>megabible.net/EnduringBountifulRam</strong>)
             is the one deliberate exception: for that link to work for someone else,
             we have to keep a copy of the board on our server. Here is exactly what
             that involves:

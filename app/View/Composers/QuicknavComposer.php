@@ -69,6 +69,14 @@ class QuicknavComposer
         $pref    = strtolower(request()->cookie('reader_translation', 'kjv'));
         $primary = Translation::findBySlug($pref) ?? Translation::findBySlug('kjv');
 
+        // wright-default r1: per-book default overrides (config canon
+        // 'book_default_translations', slug => edition slug) — the same
+        // rule as BibleController::resolveLinkTranslations(), so a quicknav
+        // click and a homepage click always land in the same edition. The
+        // override wins only when its edition actually has the book.
+        $overrides = config('canon.book_default_translations', []);
+        $byAbbr    = $translations->keyBy(fn ($t) => strtolower($t->abbreviation));
+
         $colors   = config('canon.section_colors', []);
         $sections = config('canon.sections', []);
 
@@ -106,12 +114,17 @@ class QuicknavComposer
                     // name only if one is ever missing.
                     $label = $book->short_name ?: $book->name;
 
-                    // Where should a click land? Reader's current translation if
-                    // it has the book; else the highest-priority one that does.
+                    // Where should a click land? The book's configured override
+                    // if that edition has it; else the reader's current
+                    // translation if it has the book; else the highest-priority
+                    // one that does.
                     $ids    = array_keys($avail[$book->id] ?? []);
-                    $chosen = ($primary && in_array($primary->id, $ids, true))
-                        ? $primary
-                        : $translations->first(fn ($t) => in_array($t->id, $ids, true));
+                    $want   = $byAbbr->get($overrides[$slug] ?? '');
+                    $chosen = ($want && in_array($want->id, $ids, true))
+                        ? $want
+                        : (($primary && in_array($primary->id, $ids, true))
+                            ? $primary
+                            : $translations->first(fn ($t) => in_array($t->id, $ids, true)));
 
                     if ($chosen) {
                         $bookList[] = [

@@ -170,7 +170,14 @@ return [
         'pastoral_epistles' => 'plum',
         'catholic_epistles' => 'plum',
         'st_apocrypha'    	=> 'indigo',
-    ],    
+    ],
+
+    // Per-book default edition overrides: when a link or landing must pick
+    // an edition for this book, this wins (provided that edition actually
+    // has the book's verses); the normal fallback order applies otherwise.
+    'book_default_translations' => [
+        'five-psalms-of-david' => 'wright',
+    ],
 
     /*
     |--------------------------------------------------------------------------

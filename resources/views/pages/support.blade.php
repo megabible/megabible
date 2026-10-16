@@ -29,8 +29,9 @@
     /* ---- shared with the About page ---- */
     .eyebrow{font-family:var(--sans);font-size:.8rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 .6rem;}
 
+    /* hero-split r1: the h1 is now the layout's .split-title (see
+       app.blade) — the old .page-title rule retired with it. */
     .page-hero{margin:.5rem 0 2rem;}
-    .page-title{font-size:2.6rem;font-weight:400;line-height:1.1;letter-spacing:-.01em;margin:0 0 .8rem;}
     .lead{font-size:1.22rem;line-height:1.6;margin:0 0 1rem;}
 
     /* Hero screenshot + lightbox — identical pattern to About. */
@@ -238,7 +239,6 @@
     .give-note{font-family:var(--sans);font-size:.85rem;color:var(--muted);margin:.5rem 0 0;}
 
     @media (max-width:560px){
-        .page-title{font-size:2.1rem;}
         .lead{font-size:1.12rem;}
         .section-head{font-size:1.3rem;}
         .hero-shot img{aspect-ratio:16/10;}
@@ -251,7 +251,10 @@
 
     {{-- ============ HERO ============ --}}
     <section class="page-hero">
-        <h1 class="page-title">Support Free Bible Software</h1>
+        {{-- hero-split r1: the split title. No st-stack — "Support Free
+             Bible Software" shares one line on desktop and wraps
+             small-over-big on narrow screens on its own. --}}
+        <h1 class="split-title"><span class="st-small">Support Open Source</span> <span class="st-big">Free Bible Software</span></h1>
         <p class="lead">
             Everything provided on <x-brand/> is free and ad-free, forever.
             The best way to support the website is by telling someone about it! Share a link to a verse
