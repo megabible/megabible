@@ -945,9 +945,6 @@
             </div>
 
             <nav class="footer-social" aria-label="MEGABIBLE.net social links">
-                <a href="https://discord.gg/PnpbA8vSQm" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on Discord" title="Discord">
-                    <span class="soc-ico soc-discord" aria-hidden="true"></span>
-                </a>
                 <a href="https://github.com/megabible/megabible" target="_blank" rel="noopener" aria-label="MEGABIBLE.net on Github" title="Github">
                     <span class="soc-ico soc-github" aria-hidden="true"></span>
                 </a>

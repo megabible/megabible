@@ -11,7 +11,6 @@
 ## Tech stack
 - Laravel 13
 - MySQL 8
-- Blade
 - vanilla JS
 
 ## License
